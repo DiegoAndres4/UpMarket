@@ -1,0 +1,75 @@
+### Variables. Los tokens los emite AuthCore con POST /api/auth/login (ajusta la ruta a la de su AuthCore).
+### Péguelos aquí, NO los suba al repositorio.
+@host = http://localhost:8084
+@tokenAdmin = PEGA_AQUI_EL_TOKEN_DE_UN_ADMINISTRADOR_ROL_ADMIN
+@tokenVendedor = PEGA_AQUI_EL_TOKEN_DEL_VENDEDOR_ROL_USER
+@tokenComprador = PEGA_AQUI_EL_TOKEN_DE_OTRO_ESTUDIANTE_ROL_USER
+
+### HU-9: categorías con cuántas publicaciones disponibles tiene cada una
+GET {{host}}/api/categorias
+Authorization: Bearer {{tokenComprador}}
+
+### HU-9: el ADMIN crea una categoría (repetida, sin importar tildes ni mayúsculas, da 409)
+POST {{host}}/api/categorias
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "nombre": "Deportes" }
+
+### HU-8: publicar un artículo. El vendedor sale del token. "estado" es NUEVO o USADO. Fotos: JPG/PNG de hasta 5 MB (máx. 5)
+POST {{host}}/api/publicaciones
+Authorization: Bearer {{tokenVendedor}}
+Content-Type: application/json
+
+{
+  "titulo": "Calculadora científica",
+  "descripcion": "Casio fx-991, casi nueva",
+  "precio": "50000",
+  "estado": "usado",
+  "categoria": "tecnologia",
+  "fotos": [ { "url": "https://archivos.example/calculadora.jpg", "tipo": "image/jpeg", "tamanoBytes": 200000 } ],
+  "whatsapp": "3001234567",
+  "correo": "vendedor@correo.com"
+}
+
+### HU-8: faltan datos -> 400 con TODOS los campos que faltan
+POST {{host}}/api/publicaciones
+Authorization: Bearer {{tokenVendedor}}
+Content-Type: application/json
+
+{ "whatsapp": "3001234567" }
+
+### HU-10: buscar por palabra clave (sin importar tildes ni mayúsculas) y filtros combinados
+GET {{host}}/api/publicaciones?texto=calculadora&categoria=Tecnología&precioMin=10000&precioMax=100000&estado=USADO
+Authorization: Bearer {{tokenComprador}}
+
+### HU-10: sin filtros, todas las disponibles, la más reciente primero
+GET {{host}}/api/publicaciones
+Authorization: Bearer {{tokenComprador}}
+
+### HU-11: detalle (no incluye el contacto)
+GET {{host}}/api/publicaciones/1
+Authorization: Bearer {{tokenComprador}}
+
+### HU-11: «Contactar al vendedor» (409 si ya fue vendida)
+GET {{host}}/api/publicaciones/1/contacto
+Authorization: Bearer {{tokenComprador}}
+
+### HU-12: mis publicaciones (vendidas incluidas)
+GET {{host}}/api/publicaciones/mias
+Authorization: Bearer {{tokenVendedor}}
+
+### HU-12: editar (solo el autor; 403 para cualquier otra persona, ADMIN incluido; 409 si ya está vendida)
+PUT {{host}}/api/publicaciones/1
+Authorization: Bearer {{tokenVendedor}}
+Content-Type: application/json
+
+{ "titulo": "Calculadora científica Casio", "descripcion": "Con funda y manual", "precio": "45000", "estado": "USADO", "categoria": "Tecnología" }
+
+### HU-12: marcar como vendido (sale de las búsquedas)
+POST {{host}}/api/publicaciones/1/sold
+Authorization: Bearer {{tokenVendedor}}
+
+### HU-12: eliminar (definitivo; 204)
+DELETE {{host}}/api/publicaciones/1
+Authorization: Bearer {{tokenVendedor}}
