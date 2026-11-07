@@ -1,6 +1,8 @@
 package com.upmarket.catalogo.infrastructure.adapters.in.rest;
 
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -13,6 +15,12 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,6 +30,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
@@ -89,7 +98,9 @@ class UpmarketRestTest {
         mvc.perform(con(post("/api/categorias"), estudiante("maria"), "{\"nombre\":\"" + nombre + "\"}")).andExpect(status().isForbidden());
         mvc.perform(con(post("/api/categorias"), admin(), "{\"nombre\":\"" + nombre + "\"}")).andExpect(status().isCreated())
                 .andExpect(jsonPath("$.nombre").value(nombre));
-        mvc.perform(con(post("/api/categorias"), admin(), "{\"nombre\":\"" + nombre.toUpperCase() + "\"}")).andExpect(status().isConflict());
+        mvc.perform(con(post("/api/categorias"), admin(), "{\"nombre\":\"" + nombre.toUpperCase() + "\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value("La categoría '" + nombre.toUpperCase() + "' ya existe"));
         mvc.perform(con(post("/api/categorias"), admin(), "{}")).andExpect(status().isBadRequest());
         mvc.perform(con(get("/otra/cosa"), admin(), null)).andExpect(status().isForbidden());
     }
@@ -181,5 +192,72 @@ class UpmarketRestTest {
                 .andExpect(jsonPath("$", hasSize(2)))
                 .andExpect(jsonPath("$[*].vendedor", everyItem(is(persona))))
                 .andExpect(jsonPath("$[*].estadoPublicacion", hasItems("VENDIDA", "DISPONIBLE")));
+    }
+
+    @Test
+    @DisplayName("Concurrencia en categorías: dos administradores crean la misma categoría a la vez; solo una se crea (201) y la otra recibe 409")
+    void concurrenciaCategorias() throws Exception {
+        String nombre = unico("Electrónica");
+        String cuerpoJson = "{\"nombre\":\"" + nombre + "\"}";
+        CountDownLatch listos = new CountDownLatch(2);
+        CountDownLatch largada = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+
+        try {
+            Callable<MvcResult> tarea = () -> {
+                listos.countDown();
+                largada.await(5, TimeUnit.SECONDS);
+                return mvc.perform(con(post("/api/categorias"), admin(), cuerpoJson)).andReturn();
+            };
+
+            Future<MvcResult> f1 = pool.submit(tarea);
+            Future<MvcResult> f2 = pool.submit(tarea);
+            listos.await(5, TimeUnit.SECONDS);
+            largada.countDown();
+
+            MvcResult r1 = f1.get(10, TimeUnit.SECONDS);
+            MvcResult r2 = f2.get(10, TimeUnit.SECONDS);
+
+            List<Integer> codigos = List.of(r1.getResponse().getStatus(), r2.getResponse().getStatus()).stream()
+                    .sorted().toList();
+            assertEquals(List.of(201, 409), codigos);
+
+            MvcResult conflicto = r1.getResponse().getStatus() == 409 ? r1 : r2;
+            String respuesta409 = conflicto.getResponse().getContentAsString();
+            assertEquals("La categoría '" + nombre + "' ya existe", JsonPath.read(respuesta409, "$.mensaje"));
+            assertFalse(respuesta409.toLowerCase().contains("duplicate key"));
+            assertFalse(respuesta409.toLowerCase().contains("uk_categoria_nombre"));
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("Concurrencia en publicaciones: dos solicitudes simultáneas marcando como vendida la misma publicación; una da 200 y la otra 409")
+    void concurrenciaPublicaciones() throws Exception {
+        long id = publicar("maria", unico("Monitor "), "450000", "Tecnología");
+        CountDownLatch listos = new CountDownLatch(2);
+        CountDownLatch largada = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+
+        try {
+            Callable<Integer> tarea = () -> {
+                listos.countDown();
+                largada.await(5, TimeUnit.SECONDS);
+                return mvc.perform(con(post("/api/publicaciones/" + id + "/sold"), estudiante("maria"), null))
+                        .andReturn().getResponse().getStatus();
+            };
+
+            Future<Integer> f1 = pool.submit(tarea);
+            Future<Integer> f2 = pool.submit(tarea);
+            listos.await(5, TimeUnit.SECONDS);
+            largada.countDown();
+
+            List<Integer> codigos = List.of(f1.get(10, TimeUnit.SECONDS), f2.get(10, TimeUnit.SECONDS)).stream()
+                    .sorted().toList();
+            assertEquals(List.of(200, 409), codigos);
+        } finally {
+            pool.shutdownNow();
+        }
     }
 }

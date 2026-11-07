@@ -29,7 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (encabezado != null && encabezado.startsWith(PREFIJO)) {
             validador.validar(encabezado.substring(PREFIJO.length()).trim()).ifPresent(usuario -> {
                 var autoridades = usuario.roles().stream()
-                        .map(rol -> new SimpleGrantedAuthority("ROLE_" + rol))
+                        .map(rol -> new SimpleGrantedAuthority(rol.startsWith("ROLE_") ? rol : "ROLE_" + rol))
                         .toList();
                 SecurityContextHolder.getContext()
                         .setAuthentication(new UsernamePasswordAuthenticationToken(usuario, null, autoridades));
