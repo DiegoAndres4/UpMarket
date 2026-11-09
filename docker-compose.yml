@@ -1,0 +1,65 @@
+# UPMarket completo: web (nginx + frontend) -> authcore + domain -> MySQL.
+# Uso:  ./deploy/generar-env.sh  &&  docker compose up -d --build
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?falta DB_ROOT_PASSWORD en .env}
+      MYSQL_USER: upmarket
+      MYSQL_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./deploy/mysql-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  # AuthCore se construye desde su propio repositorio, SIN modificarlo.
+  # Si lo tienes clonado al lado, pon en .env: AUTHCORE_CONTEXT=../auth-core-upmarket
+  authcore:
+    build:
+      context: ${AUTHCORE_CONTEXT:-https://github.com/DiegoAndres4/auth-core-upmarket.git#main}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/authcoredb?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: upmarket
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
+      JAVA_TOOL_OPTIONS: -Xmx300m
+
+  domain:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:mysql://db:3306/upmarket?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      DB_USER: upmarket
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET_BASE64: ${JWT_SECRET_BASE64:?falta JWT_SECRET_BASE64 en .env}
+      FOTOS_DIR: /data/fotos
+      JAVA_TOOL_OPTIONS: -Xmx300m
+    volumes:
+      - fotos-data:/data/fotos
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - authcore
+      - domain
+    ports:
+      - "80:80"
+
+volumes:
+  mysql-data:
+  fotos-data:

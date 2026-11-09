@@ -8,6 +8,10 @@ spring:
     url: jdbc:h2:mem:upmarket;MODE=MySQL;DB_CLOSE_DELAY=-1
     username: sa
     password: ""
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
   jpa:
     open-in-view: false          # los adaptadores abren su propia transacción; nada de lazy loading en la capa REST
     hibernate:
@@ -21,3 +25,11 @@ seguridad:
 
 negocio:
   zona-horaria: America/Bogota
+
+fotos:
+  # Dónde se guardan las imágenes subidas. En Docker/AWS: volumen montado en /data/fotos (FOTOS_DIR).
+  directorio: ${FOTOS_DIR:./fotos}
+
+cors:
+  # Solo para desarrollo con el frontend en otro puerto (ej. http://localhost:5500). Vacío = sin CORS.
+  origenes: ${CORS_ORIGENES:}
