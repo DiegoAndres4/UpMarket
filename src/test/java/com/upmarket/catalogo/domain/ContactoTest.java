@@ -32,4 +32,11 @@ class ContactoTest {
     void soloCorreo() {
         assertEquals(null, new Contacto(null, "ana@correo.com").whatsapp());
     }
+
+    @Test
+    @DisplayName("Un contacto ya guardado con una regla anterior se puede reconstruir sin error")
+    void rehidrataDatosAntiguos() {
+        var viejo = Contacto.rehidratar("123456789", null);
+        assertEquals("123456789", viejo.whatsapp());
+    }
 }

@@ -103,6 +103,6 @@ public class PublicacionJpaEntity {
     public Publicacion aDominio() {
         List<Foto> listaFotos = fotos.stream().map(FotoEmbeddable::aDominio).toList();
         return Publicacion.reconstruir(id, titulo, descripcion, precio, estadoArticulo, categoria, listaFotos,
-                new Contacto(whatsapp, correo), vendedor, publicadaEn, estado, vendidaEn);
+                Contacto.rehidratar(whatsapp, correo), vendedor, publicadaEn, estado, vendidaEn);
     }
 }
