@@ -36,16 +36,22 @@ const fecha = (iso) => new Date(iso).toLocaleDateString('es-CO', { day: 'numeric
 
 /* Validaciones (el servidor vuelve a validar todo; esto solo da el aviso antes). */
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-const MSG_CEL = 'Ingresa un celular colombiano completo: 10 dígitos que empiecen por 3 (ej. 300 123 4567)';
+const MSG_CEL = 'Escribe los 10 dígitos de tu celular; debe empezar por 3 (ej. 300 123 4567)';
 const limpiarTel = (t) => (t || '').replace(/[\s-]/g, '');
-const esCelularCO = (t) => /^(\+?57)?3\d{9}$/.test(limpiarTel(t));
+/* El +57 va fijo en pantalla: la persona escribe solo sus 10 dígitos (si pega +57…, se lo quitamos). */
+const soloDigitos = (t) => { let d = String(t || '').replace(/\D/g, ''); if (d.length > 10 && d.startsWith('57')) d = d.slice(2); return d.slice(0, 10); };
+const esCelularCO = (t) => /^3\d{9}$/.test(soloDigitos(t));
+const formatoCel = (t) => { const d = soloDigitos(t); return [d.slice(0, 3), d.slice(3, 6), d.slice(6)].filter(Boolean).join(' '); };
+const telParaApi = (t) => { const d = soloDigitos(t); return d ? '+57' + d : null; };
+function campoCelular(id, inicial) {
+  const input = h('input', { id, type: 'tel', inputmode: 'numeric', autocomplete: 'tel-national', placeholder: '300 123 4567' });
+  input.value = formatoCel(inicial);
+  input.addEventListener('input', () => { input.value = formatoCel(input.value); });
+  return { input, caja: h('div', { class: 'tel' }, h('span', { class: 'prefijo', 'aria-hidden': 'true' }, '+57'), input) };
+}
 const esCorreo = (c) => c.length <= 120 && EMAIL_RE.test(c);
 const nombreCorto = (usuario) => String(usuario || '').split('@')[0];
-function enlaceWhatsApp(t) {
-  let d = limpiarTel(t).replace(/^\+/, '');
-  if (!d.startsWith('57')) d = '57' + d;
-  return 'https://wa.me/' + d;
-}
+function enlaceWhatsApp(t) { return 'https://wa.me/57' + soloDigitos(t); }
 function avatar(url, nombre, clase) {
   const inicial = (String(nombre || '?').trim()[0] || '?').toUpperCase();
   return url ? h('img', { class: 'avatar ' + (clase || ''), src: API + url, alt: '' })
@@ -111,7 +117,7 @@ function pintarNav() {
   if (!s) { nav.replaceChildren(enlace('#/login', 'Ingresar'), enlace('#/registro', 'Crear cuenta')); return; }
   const nombre = perfilActual ? perfilActual.nombre : nombreCorto(s.usuario);
   nav.replaceChildren(...[
-    enlace('#/', 'Catálogo'), enlace('#/publicar', 'Publicar', 'cta'), enlace('#/mias', 'Mis publicaciones'),
+    enlace('#/', 'Catálogo'), enlace('#/publicar', 'Publicar'), enlace('#/mias', 'Mis publicaciones'),
     s.esAdmin ? enlace('#/categorias', 'Categorías') : null,
     h('a', { href: '#/perfil', class: ruta === '#/perfil' ? 'activo' : '' },
       avatar(perfilActual && perfilActual.fotoUrl, nombre, ''), 'Mi perfil'),
@@ -179,7 +185,7 @@ function vistaRegistro() {
   const error = h('p', { class: 'error', hidden: true });
   const nombre = h('input', { id: 'nombre', required: true, minlength: 2, maxlength: 60, autocomplete: 'name' });
   const correo = h('input', { id: 'correo', type: 'email', required: true, autocomplete: 'email', maxlength: 120, placeholder: 'tucorreo@ejemplo.com' });
-  const tel = h('input', { id: 'tel', type: 'tel', inputmode: 'tel', autocomplete: 'tel', maxlength: 20, placeholder: '300 123 4567' });
+  const telC = campoCelular('tel', ''); const tel = telC.input;
   const [lblClave, clave] = campoClave('clave', 'Contraseña', '(mínimo 6 caracteres)');
   const [lblClave2, clave2] = campoClave('clave2', 'Repite la contraseña');
   const boton = h('button', { class: 'btn', type: 'submit' }, 'Crear cuenta');
@@ -188,7 +194,7 @@ function vistaRegistro() {
     const c = correo.value.trim().toLowerCase();
     const problema = nombre.value.trim().length < 2 ? 'Escribe tu nombre'
       : !esCorreo(c) ? 'Escribe un correo válido'
-      : tel.value.trim() && !esCelularCO(tel.value) ? MSG_CEL
+      : soloDigitos(tel.value) && !esCelularCO(tel.value) ? MSG_CEL
       : clave.value.length < 6 ? 'La contraseña debe tener al menos 6 caracteres'
       : clave.value !== clave2.value ? 'Las contraseñas no coinciden' : null;
     if (problema) { error.textContent = problema; error.hidden = false; return; }
@@ -196,7 +202,7 @@ function vistaRegistro() {
     try {
       await api('POST', '/api/auth/register', { username: c, password: clave.value });
       await iniciarSesion(c, clave.value);
-      try { perfilActual = await api('PUT', '/api/perfil', { nombre: nombre.value.trim(), telefono: tel.value.trim() || null, fotoUrl: null }); pintarNav(); }
+      try { perfilActual = await api('PUT', '/api/perfil', { nombre: nombre.value.trim(), telefono: telParaApi(tel.value), fotoUrl: null }); pintarNav(); }
       catch (e) { aviso('Cuenta creada, pero no se guardó el perfil: ' + e.message, true); }
       aviso('Cuenta creada. ¡Bienvenido!');
     } catch (e) { error.textContent = e.message; error.hidden = false; }
@@ -205,7 +211,7 @@ function vistaRegistro() {
     h('h1', {}, 'Crear cuenta'),
     h('label', { for: 'nombre' }, 'Nombre'), nombre,
     h('label', { for: 'correo' }, 'Correo ', h('small', {}, '(será tu usuario; mejor el institucional)')), correo,
-    h('label', { for: 'tel' }, 'Celular ', h('small', {}, '(opcional, Colombia)')), tel,
+    h('label', { for: 'tel' }, 'Celular ', h('small', {}, '(opcional)')), telC.caja,
     lblClave, clave, lblClave2, clave2,
     error, h('div', { class: 'acciones' }, boton),
     h('p', { class: 'meta' }, '¿Ya tienes cuenta? ', h('a', { href: '#/login' }, 'Ingresa'))));
@@ -225,8 +231,10 @@ function tarjeta(p) {
         p.estadoPublicacion === 'VENDIDA' ? h('span', { class: 'etiqueta vendida' }, 'Vendido') : null),
       h('span', { class: 'meta' }, p.categoria + ' · ' + nombreCorto(p.vendedor))));
 }
+/* Sin filtros: todo lo disponible, ordenado por secciones (categorías). Con filtros: lista plana con «Mostrar más». */
 async function vistaCatalogo() {
   const cats = await api('GET', '/api/categorias');
+  const POR_SECCION = 8, POR_PAGINA = 24;
   const campo = (id, etiqueta, el) => h('div', {}, h('label', { for: id }, etiqueta), el);
   const q = h('input', { id: 'q', type: 'search', placeholder: 'Calculadora, libro de cálculo…', maxlength: 100 });
   const cat = h('select', { id: 'cat' }, h('option', { value: '' }, 'Todas'),
@@ -235,8 +243,34 @@ async function vistaCatalogo() {
   const max = h('input', { id: 'max', type: 'number', inputmode: 'decimal', min: 0, step: 'any', placeholder: 'Sin tope' });
   const est = h('select', { id: 'est' }, h('option', { value: '' }, 'Cualquiera'),
     h('option', { value: 'NUEVO' }, 'Nuevo'), h('option', { value: 'USADO' }, 'Usado'));
-  const resultados = h('div', { class: 'rejilla' });
+  const resultados = h('div');
   const info = h('p', { class: 'sub' });
+  const limpiar = h('button', { class: 'btn sec', type: 'button', hidden: true, onclick: () => {
+    q.value = ''; cat.value = ''; min.value = ''; max.value = ''; est.value = ''; buscar();
+  } }, 'Quitar filtros');
+
+  function pintarPlano(lista) {
+    let limite = POR_PAGINA;
+    const rejilla = h('div', { class: 'rejilla' });
+    const mas = h('button', { class: 'btn sec', type: 'button' }, 'Mostrar más');
+    const dibujar = () => { rejilla.replaceChildren(...lista.slice(0, limite).map(tarjeta)); mas.hidden = limite >= lista.length; };
+    mas.addEventListener('click', () => { limite += POR_PAGINA; dibujar(); });
+    dibujar();
+    resultados.replaceChildren(rejilla, h('div', { class: 'acciones', style: 'justify-content:center' }, mas));
+  }
+  function pintarSecciones(lista) {
+    const porCat = new Map();
+    for (const p of lista) { if (!porCat.has(p.categoria)) porCat.set(p.categoria, []); porCat.get(p.categoria).push(p); }
+    const orden = cats.map((c) => c.nombre).filter((n) => porCat.has(n));
+    for (const n of porCat.keys()) if (!orden.includes(n)) orden.push(n);
+    resultados.replaceChildren(...orden.map((n) => {
+      const items = porCat.get(n);
+      return h('section', { class: 'seccion' },
+        h('div', { class: 'seccion-cab' }, h('h2', {}, n, h('span', { class: 'meta' }, ' · ' + items.length)),
+          items.length > POR_SECCION ? h('button', { class: 'btn sec', type: 'button', onclick: () => { cat.value = n; buscar(); } }, 'Ver todos (' + items.length + ')') : null),
+        h('div', { class: 'rejilla' }, items.slice(0, POR_SECCION).map(tarjeta)));
+    }));
+  }
 
   async function buscar() {
     const ps = new URLSearchParams();
@@ -245,11 +279,17 @@ async function vistaCatalogo() {
     if (min.value) ps.set('precioMin', min.value);
     if (max.value) ps.set('precioMax', max.value);
     if (est.value) ps.set('estado', est.value);
+    const hayFiltros = ps.toString() !== '';
+    limpiar.hidden = !hayFiltros;
     try {
-      const lista = await api('GET', '/api/publicaciones' + (ps.toString() ? '?' + ps : ''));
-      info.textContent = lista.length === 1 ? '1 publicación' : lista.length + ' publicaciones';
-      resultados.replaceChildren(...(lista.length ? lista.map(tarjeta)
-        : [h('div', { class: 'vacio', style: 'grid-column:1/-1' }, 'No encontramos publicaciones con esos filtros.')]));
+      const lista = await api('GET', '/api/publicaciones' + (hayFiltros ? '?' + ps : ''));
+      info.textContent = hayFiltros
+        ? (lista.length === 1 ? '1 resultado' : lista.length + ' resultados')
+        : (lista.length === 1 ? '1 publicación disponible' : lista.length + ' publicaciones disponibles');
+      if (!lista.length) {
+        resultados.replaceChildren(h('div', { class: 'vacio panel' }, hayFiltros ? 'No encontramos publicaciones con esos filtros.' : 'Todavía no hay publicaciones. ¡Sé el primero en publicar!'));
+      } else if (hayFiltros) pintarPlano(lista);
+      else pintarSecciones(lista);
     } catch (e) { aviso(e.message, true); }
   }
   const filtros = h('form', { class: 'tarjeta filtros', onsubmit: (ev) => { ev.preventDefault(); buscar(); } },
@@ -258,7 +298,7 @@ async function vistaCatalogo() {
     campo('est', 'Estado', est),
     h('button', { class: 'btn', type: 'submit' }, 'Buscar'));
   montar(h('h1', {}, 'Catálogo'), h('p', { class: 'sub' }, 'Lo que tus compañeros están vendiendo, ordenado y en un solo lugar.'),
-    filtros, info, resultados);
+    filtros, h('div', { class: 'acciones', style: 'margin:0 0 8px' }, limpiar), info, resultados);
   buscar();
 }
 
@@ -278,7 +318,7 @@ async function vistaDetalle(id) {
     try {
       const c = await api('GET', `/api/publicaciones/${id}/contacto`);
       zonaContacto.replaceChildren(h('div', { class: 'contacto' }, h('strong', {}, 'Contacta a ' + vend.nombre),
-        c.whatsapp ? h('p', {}, 'Celular / WhatsApp: ', h('a', { href: enlaceWhatsApp(c.whatsapp), target: '_blank', rel: 'noopener' }, c.whatsapp)) : null,
+        c.whatsapp ? h('p', {}, 'Celular / WhatsApp: ', h('a', { href: enlaceWhatsApp(c.whatsapp), target: '_blank', rel: 'noopener' }, '+57 ' + formatoCel(c.whatsapp))) : null,
         c.correo ? h('p', {}, 'Correo: ', h('a', { href: 'mailto:' + c.correo }, c.correo)) : null));
       btnContacto.hidden = true;
     } catch (e) { aviso(e.message, true); }
@@ -337,11 +377,13 @@ async function vistaFormulario(id) {
   } });
 
   /* Medios de contacto: el vendedor elige teléfono, correo o ambos. */
-  const tel = h('input', { id: 'ws', type: 'tel', inputmode: 'tel', maxlength: 20, placeholder: '300 123 4567', value: (perfilActual && perfilActual.telefono) || '' });
-  const mail = h('input', { id: 'mail', type: 'email', maxlength: 120, placeholder: 'tucorreo@ejemplo.com', value: sesion.usuario.includes('@') ? sesion.usuario : '' });
+  const telC = campoCelular('ws', perfilActual && perfilActual.telefono); const tel = telC.input;
+  const correoFijo = sesion.usuario.includes('@');   // quien ingresó con un correo publica siempre con ese correo
+  const mail = h('input', { id: 'mail', type: 'email', maxlength: 120, placeholder: 'tucorreo@ejemplo.com', value: correoFijo ? sesion.usuario : '', readonly: correoFijo, 'aria-readonly': correoFijo ? 'true' : null });
   const usarTel = h('input', { id: 'usarTel', type: 'checkbox', checked: !!(perfilActual && perfilActual.telefono) });
   const usarMail = h('input', { id: 'usarMail', type: 'checkbox', checked: true });
-  const cajaTel = h('div', { class: 'campo' }, tel), cajaMail = h('div', { class: 'campo' }, mail);
+  const cajaTel = h('div', { class: 'campo' }, telC.caja),
+    cajaMail = h('div', { class: 'campo' }, mail, correoFijo ? h('p', { class: 'ayuda' }, 'Es el correo con el que ingresaste; no se puede cambiar.') : null);
   const opTel = h('div', { class: 'opcion' }, usarTel, h('div', { style: 'flex:1' }, h('label', { for: 'usarTel' }, 'Celular / WhatsApp'), cajaTel));
   const opMail = h('div', { class: 'opcion' }, usarMail, h('div', { style: 'flex:1' }, h('label', { for: 'usarMail' }, 'Correo'), cajaMail));
   function refrescarContacto() {
@@ -369,7 +411,7 @@ async function vistaFormulario(id) {
       if (actual) { await api('PUT', '/api/publicaciones/' + id, base); aviso('Cambios guardados'); location.hash = '#/p/' + id; }
       else {
         const nueva = await api('POST', '/api/publicaciones', { ...base, fotos,
-          whatsapp: usarTel.checked ? limpiarTel(tel.value) : null, correo: usarMail.checked ? mail.value.trim() : null });
+          whatsapp: usarTel.checked ? telParaApi(tel.value) : null, correo: usarMail.checked ? mail.value.trim() : null });
         aviso('¡Publicación creada!'); location.hash = '#/p/' + nueva.id;
       }
     } catch (e) { mostrar(e.message); }
@@ -406,7 +448,7 @@ async function vistaPerfil() {
   perfilActual = p;
   let fotoUrl = p.fotoUrl;
   const nombre = h('input', { id: 'pn', required: true, minlength: 2, maxlength: 60, value: p.nombre });
-  const tel = h('input', { id: 'pt', type: 'tel', inputmode: 'tel', maxlength: 20, placeholder: '300 123 4567', value: p.telefono || '' });
+  const telC = campoCelular('pt', p.telefono); const tel = telC.input;
   const error = h('p', { class: 'error', hidden: true });
   const foto = h('div');
   const pintarFoto = () => foto.replaceChildren(avatar(fotoUrl, nombre.value || p.nombre, 'grande'));
@@ -435,10 +477,10 @@ async function vistaPerfil() {
     h('form', { class: 'panel', style: 'max-width:640px', novalidate: true, onsubmit: async (ev) => {
       ev.preventDefault(); error.hidden = true;
       if (nombre.value.trim().length < 2) { error.textContent = 'Escribe tu nombre'; error.hidden = false; return; }
-      if (tel.value.trim() && !esCelularCO(tel.value)) { error.textContent = MSG_CEL; error.hidden = false; return; }
+      if (soloDigitos(tel.value) && !esCelularCO(tel.value)) { error.textContent = MSG_CEL; error.hidden = false; return; }
       guardar.disabled = true;
       try {
-        perfilActual = await api('PUT', '/api/perfil', { nombre: nombre.value.trim(), telefono: tel.value.trim() || null, fotoUrl });
+        perfilActual = await api('PUT', '/api/perfil', { nombre: nombre.value.trim(), telefono: telParaApi(tel.value), fotoUrl });
         fotoUrl = perfilActual.fotoUrl; pintarNav(); aviso('Perfil actualizado');
       } catch (e) { error.textContent = e.message; error.hidden = false; }
       finally { guardar.disabled = false; }
@@ -450,7 +492,7 @@ async function vistaPerfil() {
       h('label', { for: 'pn' }, 'Nombre'), nombre,
       h('label', { for: 'pc' }, 'Correo ', h('small', {}, '(es tu usuario y no se puede cambiar)')),
       h('input', { id: 'pc', value: s.usuario, disabled: true }),
-      h('label', { for: 'pt' }, 'Celular ', h('small', {}, '(opcional, Colombia; solo lo ven quienes pidan tu contacto si lo eliges al publicar)')), tel,
+      h('label', { for: 'pt' }, 'Celular ', h('small', {}, '(opcional; solo lo ven quienes pidan tu contacto si lo eliges al publicar)')), telC.caja,
       error, h('div', { class: 'acciones' }, guardar)),
     h('div', { class: 'panel', style: 'max-width:640px;margin-top:16px' },
       h('h2', { style: 'margin-top:0' }, 'Sesión y contraseña'),

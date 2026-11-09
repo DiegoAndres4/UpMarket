@@ -23,9 +23,13 @@ public class PublicacionController {
     public ResponseEntity<PublicacionResponse> publicar(@RequestBody PublicacionRequest r) {
         List<FotoComando> fotos = r.fotos() == null ? null
                 : r.fotos().stream().map(f -> new FotoComando(f.url(), f.tipo(), f.tamanoBytes())).toList();
-        var p = publicaciones.publicar(ActorActual.obtener(),
+        var actor = ActorActual.obtener();
+        // Si la cuenta se registró con un correo, ese correo es el único de contacto posible: no se puede cambiar.
+        boolean pideCorreo = r.correo() != null && !r.correo().isBlank();
+        String correo = pideCorreo && actor.username().contains("@") ? actor.username() : r.correo();
+        var p = publicaciones.publicar(actor,
                 new PublicarCommand(r.titulo(), r.descripcion(), r.precio(), r.estado(), r.categoria(), fotos,
-                        r.whatsapp(), r.correo()));
+                        r.whatsapp(), correo));
         return ResponseEntity.created(URI.create("/api/publicaciones/" + p.getId())).body(PublicacionResponse.de(p));
     }
 

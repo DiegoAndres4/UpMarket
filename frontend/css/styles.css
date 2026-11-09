@@ -63,7 +63,16 @@ input:focus,select:focus,textarea:focus,button:focus-visible,a:focus-visible{out
 .error{color:var(--rojo-osc);font-size:.92rem;margin:10px 0 0;font-weight:600}
 .zona-peligro{margin-top:24px;border-color:var(--rojo)}
 
+/* Celular con +57 fijo */
+.tel{display:flex;align-items:stretch}
+.tel .prefijo{display:flex;align-items:center;padding:0 12px;background:var(--amarillo-cl);border:1px solid #cdc4c4;border-right:0;border-radius:8px 0 0 8px;font-weight:700;color:var(--tinta)}
+.tel input{border-radius:0 8px 8px 0}
+input[readonly]{background:#f3efee;color:var(--gris)}
+
 /* Catálogo */
+.seccion{margin-bottom:28px}
+.seccion-cab{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:8px 0 10px}
+.seccion-cab h2{margin:0;border-left:5px solid var(--amarillo);padding-left:10px}
 .filtros{display:grid;gap:10px;grid-template-columns:2fr 1.3fr 1fr 1fr 1fr auto;align-items:end;margin-bottom:20px;padding:14px}
 .filtros label{margin-top:0}
 .rejilla{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
