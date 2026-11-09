@@ -1,4 +1,21 @@
-# Domain Service — UPMarket (Proyecto Integrador, Universidad de Pamplona)
+# UPMarket — Proyecto Integrador (Universidad de Pamplona)
+
+Mercado web para estudiantes. Este repositorio contiene **todo lo necesario para desplegarlo**:
+
+| Carpeta / archivo | Qué es |
+|---|---|
+| `src/`, `pom.xml` | Servicio de dominio (publicaciones, categorías, fotos), hexagonal, Spring Boot |
+| `frontend/` | Aplicación web (HTML/CSS/JS sin compilación) + `nginx.conf` que une todo bajo un solo origen |
+| `docker-compose.yml`, `Dockerfile` | Levanta web + AuthCore + dominio + MySQL con un comando |
+| `deploy/` | Generador de secretos y script SQL de las bases |
+| `DEPLOY_AWS.md` | Guía paso a paso para subirlo a AWS (EC2) |
+
+AuthCore (autenticación) vive en su propio repositorio y **no se modifica**: el compose lo construye desde allí.
+**Para desplegar, vaya directo a [`DEPLOY_AWS.md`](DEPLOY_AWS.md).** Lo que sigue describe el servicio de dominio.
+
+---
+
+# Domain Service — UPMarket
 
 Servicio de dominio que se apoya en **AuthCore** (JWT HS384) para autenticar. Gestiona el **mercado de artículos entre estudiantes**:
 publicar un artículo con fotos, categorías, búsqueda con filtros, ver el detalle y contactar al vendedor, y administrar las propias publicaciones.
@@ -12,6 +29,8 @@ Paquete base: `com.upmarket.catalogo` · Java 17 · Spring Boot 3.5.6 · Maven �
 
 | Parte | Estado |
 |---|---|
+| Frontend | Probado de punta a punta en navegador (Playwright) contra un servidor simulado: registro, publicar con foto, detalle, contacto, vender, buscar |
+| Subida de fotos (`/api/fotos`), CORS opcional, perfil prod | Añadidos en el cierre del proyecto; **sin compilar** en el entorno de generación (sin acceso a Maven): `mvn verify` es el primer paso |
 | Dominio + aplicación | Compilado y probado: **44 pruebas puras** pasan |
 | Infraestructura (Spring, JPA, REST, seguridad) | Escrita y revisada, **sin ejecutar** (sin acceso a Maven en el entorno de generación) |
 | Pruebas Spring (contrato JPA, unicidad de categoría, REST de punta a punta, arquitectura, JWT) | Escritas, **sin ejecutar**: son la primera tarea del grupo con `mvn verify` |
@@ -47,6 +66,8 @@ mvn verify                  # pruebas
 mvn spring-boot:run         # REST en http://localhost:8084 (H2 en memoria)
 ```
 
+Frontend en local sin Docker: sirva `frontend/` con cualquier servidor estático y arranque el servicio con `CORS_ORIGENES=http://localhost:5500`; en `frontend/js/app.js` cambie `API` a las URLs de los servicios (AuthCore está en otro puerto y no tiene CORS, por eso el despliegue usa nginx como puerta única).
+
 Producción: perfil `prod` con `DB_URL`, `DB_USER`, `DB_PASSWORD` como variables de entorno.
 Pruebas manuales: `requests.http` (los tokens los emite AuthCore; no los guarde en el repositorio).
 Al arrancar se crean las categorías iniciales que falten (Tecnología, Libros, Útiles académicos, Alimentos, Servicios, Otros).
@@ -65,13 +86,15 @@ Al arrancar se crean las categorías iniciales que falten (Tecnología, Libros, 
 | `PUT /api/publicaciones/{id}` | solo el autor | 200 · 400 · 403 · 404 · 409 (vendida) |
 | `POST /api/publicaciones/{id}/sold` | solo el autor | 200 · 403 · 404 · 409 (ya vendida) |
 | `DELETE /api/publicaciones/{id}` | solo el autor | 204 · 403 · 404 |
+| `POST /api/fotos` (multipart, campo `archivo`) | autenticado | 201 con `{url,tipo,tamanoBytes}` · 400 (no es JPG/PNG por contenido, o pesa más de 5 MB) |
+| `GET /api/fotos/{nombre}` | público (la etiqueta `img` no envía token) | 200 · 404 |
 
 ## Reglas de negocio clave
 
 - Roles: **USER = estudiante**, **ADMIN = administrador**. Solo el ADMIN crea categorías. Editar, vender y eliminar son **solo del autor**: ni el ADMIN puede (no hay moderación en este alcance).
 - El vendedor sale del token, nunca del cuerpo. La publicación nace `DISPONIBLE`; al venderla pasa a `VENDIDA` (ya no se edita ni se contacta).
 - Precio: número mayor que cero, hasta 999 999 999.99, dos decimales; llega como texto y lo valida el dominio. Título 3–100 y descripción 5–2000 caracteres.
-- Fotos: hasta 5 por publicación, JPG o PNG, máximo 5 MB. **El servicio guarda la dirección y los datos de la foto, no los bytes**: el almacenamiento de archivos queda como ejercicio.
+- Fotos: hasta 5 por publicación, JPG o PNG, máximo 5 MB. El archivo se sube primero a `POST /api/fotos` (se valida por su **contenido**, no por el nombre ni el `Content-Type`) y la `url` que devuelve se envía en `fotos` al publicar. Se guardan en disco (`FOTOS_DIR`; en Docker, el volumen `fotos-data`). Con más usuarios convendría pasarlas a S3 detrás de un puerto de salida.
 - Contacto: WhatsApp y/o correo (al menos uno). El detalle **no** lo incluye; se pide aparte y solo mientras la publicación está disponible.
 - Categoría: se identifica por su nombre sin tildes ni mayúsculas («libros» = «Libros»); la base tiene una restricción única como última defensa.
 - Búsqueda: palabra clave sin importar tildes ni mayúsculas, en título y descripción; categoría, rango de precio (inclusivo) y estado (NUEVO/USADO) combinables. Los comodines `%` y `_` se tratan como texto.
@@ -83,7 +106,7 @@ Al arrancar se crean las categorías iniciales que falten (Tecnología, Libros, 
 
 1. Ejecutar `mvn verify` y corregir lo que aparezca en las pruebas Spring.
 2. Adjuntar la evidencia de `UpmarketRestTest`.
-3. Ejercicios: puerto de almacenamiento de fotos con un adaptador real; moderación por el ADMIN; paginación de la búsqueda; perfil público del vendedor.
+3. Ejercicios: fotos en S3; moderación por el ADMIN; paginación de la búsqueda; perfil público del vendedor.
 4. Confirmar con el profesor las decisiones del Excel (contacto guardado en la publicación, ADMIN sin moderación, borrado definitivo).
 
 Los datos de contacto son datos personales: mantenga su acceso restringido a usuarios autenticados.

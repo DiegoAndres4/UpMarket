@@ -1,6 +1,12 @@
 package com.upmarket.catalogo.infrastructure.security;
 
 import java.time.Clock;
+import java.util.Arrays;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,6 +39,9 @@ public class SecurityConfig {
                 // Crear categorías: solo ADMIN. Es una primera barrera en la URL; el dominio (PoliticaAcceso)
                 // vuelve a verificar el rol, así que un cambio de rutas no deja un hueco.
                 .requestMatchers(HttpMethod.POST, "/api/categorias").hasRole("ADMIN")
+                // Fotos: ver es público (la etiqueta img no envía token); subir exige estar autenticado.
+                .requestMatchers(HttpMethod.GET, "/api/fotos/*").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/fotos").authenticated()
                 // El resto lo usa cualquier usuario autenticado; quién puede editar, vender o borrar lo decide el dominio.
                 .requestMatchers("/api/categorias/**", "/api/publicaciones/**").authenticated()
                 // Lo demás se niega por defecto.
@@ -42,6 +51,20 @@ public class SecurityConfig {
                 .accessDeniedHandler((req, res, ex) -> escribir(res, 403, "No tiene permiso para esta operación")))
             .addFilterBefore(new JwtAuthenticationFilter(validador), UsernamePasswordAuthenticationFilter.class);
         return http.build();
+    }
+
+    /** CORS solo si se configuran orígenes (CORS_ORIGENES). Con el nginx del despliegue todo es del mismo origen y no hace falta. */
+    @Bean
+    CorsConfigurationSource corsConfigurationSource(@Value("${cors.origenes:}") String origenes) {
+        CorsConfiguration c = new CorsConfiguration();
+        if (!origenes.isBlank()) {
+            c.setAllowedOrigins(Arrays.stream(origenes.split(",")).map(String::trim).filter(o -> !o.isEmpty()).toList());
+            c.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+            c.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        }
+        UrlBasedCorsConfigurationSource fuente = new UrlBasedCorsConfigurationSource();
+        fuente.registerCorsConfiguration("/api/**", c);
+        return fuente;
     }
 
     private static void escribir(jakarta.servlet.http.HttpServletResponse res, int estado, String mensaje)

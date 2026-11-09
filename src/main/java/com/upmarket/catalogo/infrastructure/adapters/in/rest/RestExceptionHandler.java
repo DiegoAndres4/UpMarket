@@ -53,6 +53,12 @@ public class RestExceptionHandler {
         return responder(HttpStatus.CONFLICT, "Otra operación modificó los mismos datos al mismo tiempo; intente de nuevo");
     }
 
+    @ExceptionHandler({org.springframework.web.multipart.MaxUploadSizeExceededException.class,
+            org.springframework.web.multipart.support.MissingServletRequestPartException.class})
+    ResponseEntity<ErrorResponse> fotoInvalida(Exception e) {
+        return responder(HttpStatus.BAD_REQUEST, "Foto no permitida: solo JPG o PNG, de máximo 5 MB");
+    }
+
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,
             MissingServletRequestParameterException.class})
     ResponseEntity<ErrorResponse> peticionMalFormada(Exception e) {
