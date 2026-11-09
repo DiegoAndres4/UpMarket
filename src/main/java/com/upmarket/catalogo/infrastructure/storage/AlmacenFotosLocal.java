@@ -1,6 +1,6 @@
 package com.upmarket.catalogo.infrastructure.storage;
 
-import com.upmarket.catalogo.domain.exception.NoEncontradoException;
+import com.upmarket.catalogo.domain.exception.FotoNoEncontradaException;
 import com.upmarket.catalogo.domain.exception.ValorInvalidoException;
 import com.upmarket.catalogo.domain.model.Foto;
 import java.io.IOException;
@@ -64,11 +64,11 @@ public class AlmacenFotosLocal {
 
     public Resource leer(String nombre) {
         if (nombre == null || !NOMBRE_VALIDO.matcher(nombre).matches()) {
-            throw new NoEncontradoException("Foto no encontrada");
+            throw new FotoNoEncontradaException();
         }
         Path archivo = directorio.resolve(nombre).normalize();
         if (!archivo.startsWith(directorio) || !Files.isRegularFile(archivo)) {
-            throw new NoEncontradoException("Foto no encontrada");
+            throw new FotoNoEncontradaException();
         }
         return new FileSystemResource(archivo);
     }
