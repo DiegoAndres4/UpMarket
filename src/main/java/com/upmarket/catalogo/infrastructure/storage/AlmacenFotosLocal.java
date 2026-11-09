@@ -73,6 +73,18 @@ public class AlmacenFotosLocal {
         return new FileSystemResource(archivo);
     }
 
+    /** Borra un archivo propio (nombre validado: no se puede salir del directorio). Si no existe, no hace nada. */
+    public void borrar(String nombre) {
+        if (nombre == null || !NOMBRE_VALIDO.matcher(nombre).matches()) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(directorio.resolve(nombre).normalize());
+        } catch (IOException e) {
+            // un archivo que no se pudo borrar no debe impedir eliminar la cuenta o cambiar la foto
+        }
+    }
+
     public static String tipoDe(String nombre) {
         return nombre.endsWith(".png") ? "image/png" : "image/jpeg";
     }

@@ -34,8 +34,8 @@ docker compose ps                             # los 4 deben estar "running"
 - Abra `http://<IP>` en el navegador: debe verse la pantalla de ingreso.
 
 ## 4. Primer uso
-1. **Crear cuenta** y entrar; publique algo de prueba con foto.
-2. Cuenta administradora: AuthCore crea sola el usuario `admin` (contraseña inicial **`admin123`**, está en su código). Con ella se entra y aparece la pestaña **Categorías**.
+1. **Crear cuenta** (con correo, nombre y contraseña; el celular es opcional) y entrar; publique algo de prueba con foto.
+2. Cuenta administradora: AuthCore crea sola el usuario `admin` (contraseña inicial **`admin123`**, está en su código). Con ella se entra (en el campo de correo se escribe `admin`) y aparece la pestaña **Categorías**.
 
 > ⚠️ **Riesgo conocido:** `admin123` es público (está en el repositorio de AuthCore) y AuthCore no ofrece cambiarla.
 > Antes de abrir el sitio a más gente hay que corregirlo **en AuthCore** (leer la contraseña de una variable de entorno), que es del docente/grupo de autenticación y por eso aquí no se tocó.

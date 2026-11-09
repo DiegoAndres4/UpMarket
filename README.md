@@ -87,6 +87,9 @@ Al arrancar se crean las categorías iniciales que falten (Tecnología, Libros, 
 | `POST /api/publicaciones/{id}/sold` | solo el autor | 200 · 403 · 404 · 409 (ya vendida) |
 | `DELETE /api/publicaciones/{id}` | solo el autor | 204 · 403 · 404 |
 | `POST /api/fotos` (multipart, campo `archivo`) | autenticado | 201 con `{url,tipo,tamanoBytes}` · 400 (no es JPG/PNG por contenido, o pesa más de 5 MB) |
+| `GET /api/perfil` · `PUT /api/perfil` | autenticado | Perfil propio (nombre, celular colombiano, foto). 400 si el nombre o el celular no son válidos |
+| `GET /api/perfil/publico?usuario=` | autenticado | Nombre y foto de otra persona, nunca el celular |
+| `DELETE /api/perfil` | autenticado | 204: borra publicaciones, fotos y datos; el token deja de servir (401 «cuenta eliminada») |
 | `GET /api/fotos/{nombre}` | público (la etiqueta `img` no envía token) | 200 · 404 |
 
 ## Reglas de negocio clave
@@ -95,7 +98,8 @@ Al arrancar se crean las categorías iniciales que falten (Tecnología, Libros, 
 - El vendedor sale del token, nunca del cuerpo. La publicación nace `DISPONIBLE`; al venderla pasa a `VENDIDA` (ya no se edita ni se contacta).
 - Precio: número mayor que cero, hasta 999 999 999.99, dos decimales; llega como texto y lo valida el dominio. Título 3–100 y descripción 5–2000 caracteres.
 - Fotos: hasta 5 por publicación, JPG o PNG, máximo 5 MB. El archivo se sube primero a `POST /api/fotos` (se valida por su **contenido**, no por el nombre ni el `Content-Type`) y la `url` que devuelve se envía en `fotos` al publicar. Se guardan en disco (`FOTOS_DIR`; en Docker, el volumen `fotos-data`). Con más usuarios convendría pasarlas a S3 detrás de un puerto de salida.
-- Contacto: WhatsApp y/o correo (al menos uno). El detalle **no** lo incluye; se pide aparte y solo mientras la publicación está disponible.
+- Contacto: celular colombiano y/o correo (al menos uno). Celular válido = 10 dígitos que empiezan por 3, con 57 o +57 opcional; el vendedor elige qué medios publica.
+- Cuenta: el **correo es el nombre de usuario en AuthCore** (AuthCore no cambió). La contraseña y el borrado de credenciales son de AuthCore, que no los ofrece: eliminar la cuenta en UPMarket borra sus datos y la inhabilita aquí, pero ese correo no puede volver a registrarse. El detalle **no** lo incluye; se pide aparte y solo mientras la publicación está disponible.
 - Categoría: se identifica por su nombre sin tildes ni mayúsculas («libros» = «Libros»); la base tiene una restricción única como última defensa.
 - Búsqueda: palabra clave sin importar tildes ni mayúsculas, en título y descripción; categoría, rango de precio (inclusivo) y estado (NUEVO/USADO) combinables. Los comodines `%` y `_` se tratan como texto.
 - Orden de validación: 400 → 404 → 403 → 409.

@@ -1,5 +1,6 @@
 package com.upmarket.catalogo.infrastructure.security;
 
+import com.upmarket.catalogo.infrastructure.perfil.PerfilRepository;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.List;
@@ -30,7 +31,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain filtros(HttpSecurity http, JwtTokenValidator validador) throws Exception {
+    SecurityFilterChain filtros(HttpSecurity http, JwtTokenValidator validador, PerfilRepository perfiles)
+            throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)                       // API sin sesión ni cookies
             .cors(Customizer.withDefaults())
@@ -43,13 +45,14 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/fotos/*").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/fotos").authenticated()
                 // El resto lo usa cualquier usuario autenticado; quién puede editar, vender o borrar lo decide el dominio.
-                .requestMatchers("/api/categorias/**", "/api/publicaciones/**").authenticated()
+                .requestMatchers("/api/categorias/**", "/api/publicaciones/**", "/api/perfil", "/api/perfil/**").authenticated()
                 // Lo demás se niega por defecto.
                 .anyRequest().denyAll())
             .exceptionHandling(e -> e
                 .authenticationEntryPoint((req, res, ex) -> escribir(res, 401, "No autenticado: falta un token válido"))
                 .accessDeniedHandler((req, res, ex) -> escribir(res, 403, "No tiene permiso para esta operación")))
-            .addFilterBefore(new JwtAuthenticationFilter(validador), UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(new JwtAuthenticationFilter(validador), UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(new CuentaActivaFilter(perfiles), JwtAuthenticationFilter.class);
         return http.build();
     }
 
