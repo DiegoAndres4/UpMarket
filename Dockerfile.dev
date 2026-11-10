@@ -1,0 +1,8 @@
+# Solo desarrollo: compila al arrancar y deja abierto el depurador en el puerto 5005.
+# Si la compilación falla, el contenedor sigue vivo para que `--watch` reciba la corrección.
+FROM maven:3.9-eclipse-temurin-17
+WORKDIR /app
+COPY pom.xml ./
+COPY src ./src
+EXPOSE 8084 5005
+CMD ["sh", "-c", "mvn -B -q -DskipTests package && exec java '-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005' -jar target/domain-service-upmarket-*.jar; echo 'La compilacion fallo: corrige el codigo y guarda.'; exec sleep infinity"]

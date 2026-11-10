@@ -72,6 +72,23 @@ Producción: perfil `prod` con `DB_URL`, `DB_USER`, `DB_PASSWORD` como variables
 Pruebas manuales: `requests.http` (los tokens los emite AuthCore; no los guarde en el repositorio).
 Al arrancar se crean las categorías iniciales que falten (Tecnología, Libros, Útiles académicos, Alimentos, Servicios, Otros).
 
+### Desarrollo con Docker
+
+```bash
+docker compose -f docker-compose.dev.yml up --build --watch
+```
+
+Levanta web, AuthCore, dominio y MySQL sin necesitar `.env`. AuthCore se toma de `../../Authcore_Up_Market/Auth-Core-UpMarket`; si está en otra ruta, defina `AUTHCORE_DEV_PATH`. Al guardar en `src/main` de cualquiera de los dos servicios, ese servicio se recompila y reinicia solo. Los cambios del frontend se ven al recargar el navegador (Ctrl+F5).
+
+| Servicio | Dirección |
+|---|---|
+| Web | `http://localhost:8080` (502 hasta que terminen de compilar los servicios) |
+| AuthCore | `http://localhost:8081`, depurador en `5005`. Usuario inicial: `admin` / `admin-dev-123` |
+| Dominio | `http://localhost:8084`, depurador en `5006` |
+| MySQL | `localhost:3307`, bases `upmarket` y `authcoredb`, usuario `upmarket` / `upmarket-dev` |
+
+Borrar los datos y empezar de cero: `docker compose -f docker-compose.dev.yml down -v`. Este entorno usa volúmenes propios y no afecta al despliegue.
+
 ## Endpoints
 
 | Método y ruta | Quién | Respuestas |

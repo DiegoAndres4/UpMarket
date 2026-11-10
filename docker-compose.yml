@@ -58,6 +58,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
       # AuthCore trae show-sql activado en su application.yml y no tiene perfil prod: se apaga desde aquí.
       SPRING_JPA_SHOW_SQL: "false"
+      # Con el AuthCore actualizado: si ADMIN_PASSWORD está vacío se genera una clave aleatoria y se muestra una vez en `docker compose logs authcore`.
+      AUTHCORE_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       # update crea/ajusta tablas solo. Tras el primer despliegue conviene DDL_AUTO=validate en .env (ver DEPLOY_AWS.md).
       SPRING_JPA_HIBERNATE_DDL_AUTO: ${DDL_AUTO:-update}
       # Duración del token. AuthCore no tiene refresh ni revocación: menos tiempo = menos exposición, más reingresos.
