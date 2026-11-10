@@ -13,7 +13,7 @@ import javax.crypto.SecretKey;
 
 /**
  * Valida LOCALMENTE los tokens de AuthCore con la clave compartida (no llama a AuthCore en cada petición).
- * Acepta HS256/HS384/HS512: el token del grupo viene firmado con HS384, y exige que la clave tenga la longitud
+ * Acepta HS256/HS384/HS512: el token de AuthCore del grupo se firma con HS512 (clave de 64 bytes), y exige que la clave tenga la longitud
  * mínima del algoritmo. Un token sin firma ("alg":"none") o con otra clave se rechaza.
  * Responsabilidad única: validar y extraer datos. No toca Spring Security (eso es del filtro).
  */

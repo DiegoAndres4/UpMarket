@@ -1,7 +1,7 @@
 # Despliegue de UPMarket en AWS (EC2 + Docker Compose)
 
 Es la ruta más simple y barata: **una sola máquina** que corre cuatro contenedores
-(`web` nginx+frontend, `authcore`, `domain`, `db` MySQL). Solo el puerto 80 queda abierto al público.
+(`web` nginx+frontend, `authcore`, `domain`, `db` MySQL). Solo el puerto 80 (y el 443 si activa HTTPS) queda abierto al público.
 
 ```
 Internet ─▶ :80 nginx ─┬─ /api/auth/login, /register ─▶ authcore:8081 ─┐
@@ -12,7 +12,7 @@ Internet ─▶ :80 nginx ─┬─ /api/auth/login, /register ─▶ authcore:8
 ## 1. Crear la instancia
 1. EC2 → *Launch instance* → **Ubuntu 24.04**, tipo **t3.medium** (4 GB; con 2 GB las tres JVM + MySQL quedan justas), disco **20 GB gp3**.
 2. Par de llaves: cree o elija una y guarde el `.pem`.
-3. *Security group*: **22** (SSH) solo desde *Mi IP*; **80** desde cualquier lugar. No abra 3306, 8081 ni 8084.
+3. *Security group*: **22** (SSH) solo desde *Mi IP*; **80** (y **443** si usa HTTPS) desde cualquier lugar. No abra 3306, 8081 ni 8084.
 4. (Recomendado) *Elastic IP* asociada, para que la dirección no cambie al reiniciar.
 
 ## 2. Instalar Docker
@@ -52,7 +52,9 @@ docker compose ps                             # los 4 deben estar "running"
 | Ver logs | `docker compose logs -f domain` (o `authcore`, `web`, `db`) |
 | Actualizar tras un `git pull` | `docker compose up -d --build` |
 | Reiniciar todo | `docker compose restart` |
-| Copia de seguridad de la base | `docker compose exec db sh -c 'mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" --databases authcoredb upmarket' > respaldo.sql` |
+| Respaldo (bases + fotos) | `./deploy/respaldo.sh` (guarda en `respaldos/`, conserva 14 días) |
+| Dar rol ADMIN a un usuario | `./deploy/dar-admin.sh correo@dominio` |
+| Crear bases en un volumen ya existente | `./deploy/crear-bases.sh` |
 | Copia de las fotos | `docker run --rm -v upmarket_fotos-data:/d -v $PWD:/b alpine tar czf /b/fotos.tgz -C /d .` |
 
 Los datos viven en los volúmenes `mysql-data` y `fotos-data`: sobreviven a reinicios y reconstrucciones; **no** a `docker compose down -v`.
@@ -91,3 +93,13 @@ Verificación: `docker compose -f docker-compose.yml -f docker-compose.https.yml
 | Sin memoria (OOM) | Use t3.medium o mayor. Cada servicio tiene `mem_limit` y heap de 300 MB; el tope total es ~2.3 GB. |
 | Login devuelve **429** | Limitador de nginx: 10 intentos/min por IP (3 registros/min). Es intencional; espere un minuto. |
 | Las fotos dan 404 | El volumen `fotos-data` solo se llena con subidas de esa instalación; una base nueva no trae fotos. |
+
+
+## 8. Endurecimiento y límites conocidos
+
+- **Respaldos automáticos:** `crontab -e` → `15 3 * * * cd ~/UpMarket && ./deploy/respaldo.sh >> respaldos.log 2>&1`. Copie `respaldos/` fuera del servidor (S3) y/o active snapshots diarios del volumen EBS. **Nunca** use `docker compose down -v` en producción: borra la base y las fotos.
+- **Esquema de BD:** ambos servicios usan `ddl-auto=update` (AuthCore lo trae así y no se modifica). Después del primer arranque exitoso puede poner `DDL_AUTO=validate` en `.env` y reiniciar. No hay Flyway: los cambios de esquema futuros requieren migración manual.
+- **Sesiones:** AuthCore no tiene refresh ni revocación; el token dura 1 h (`JWT_EXPIRATION_MS` en `.env`). Una cuenta eliminada se bloquea en el servicio de dominio.
+- **Healthchecks:** `web` solo arranca cuando `authcore` y `domain` aceptan conexiones. AuthCore corre sin root y sin SQL en logs.
+- **Contraseña admin:** ejecute `./deploy/cambiar-admin.sh` tras el primer arranque (admin/admin123 es público en el repo de AuthCore).
+- **Algoritmo JWT:** el token es HS512; la clave del dominio es `JWT_SECRET_BASE64` (Base64 de los mismos bytes de `JWT_SECRET`). Si cambia una, regenere la otra con `generar-env.sh`.

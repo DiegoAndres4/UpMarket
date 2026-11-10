@@ -1,15 +1,19 @@
 # UPMarket completo: web (nginx + frontend) -> authcore + domain -> MySQL.
 # Uso:  ./deploy/generar-env.sh  &&  docker compose up -d --build
+# Con HTTPS: docker compose -f docker-compose.yml -f docker-compose.https.yml up -d --build  (ver DEPLOY_AWS.md)
 services:
   db:
     image: mysql:8.4
     restart: unless-stopped
+    # Menos memoria: buffer de InnoDB de 256 MB y sin performance_schema (ahorra ~300 MB).
+    command: ["--innodb-buffer-pool-size=256M", "--performance-schema=OFF"]
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?falta DB_ROOT_PASSWORD en .env}
       MYSQL_USER: upmarket
       MYSQL_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}
     volumes:
       - mysql-data:/var/lib/mysql
+      # Solo se ejecuta al crear el volumen por primera vez. En una base ya creada: ./deploy/crear-bases.sh
       - ./deploy/mysql-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
@@ -17,8 +21,7 @@ services:
       timeout: 5s
       retries: 20
       start_period: 30s
-    # Tope de memoria del contenedor: MySQL es el que más RAM consume.
-    # El total (1200+512+512+128 = 2.3 GB) deja margen en un t3.medium de 4 GB.
+    # Tope de memoria por contenedor. Total: 1200 + 640 + 640 + 128 (+64 de Caddy) ≈ 2.7 GB en un t3.medium de 4 GB.
     mem_limit: 1200m
 
   # AuthCore se construye desde su propio repositorio, SIN modificarlo.
@@ -29,7 +32,8 @@ services:
       # Ojo: el repositorio de AuthCore solo publica la rama "master" (no "main").
       # Si se apunta a #main el checkout del contexto Git falla y el build se detiene.
       # El Dockerfile de AuthCore usa Gradle 8.10, pero su plugin Spring Boot 4.1.1 exige Gradle 8.14+.
-      # Para no modificar AuthCore, aquí se define el build con una imagen de Gradle compatible.
+      # Para no modificar AuthCore, aquí se define el build con una imagen de Gradle compatible
+      # y, de paso, se ejecuta como usuario sin privilegios (el original corre como root).
       dockerfile_inline: |
         FROM gradle:8.14-jdk21 AS build
         WORKDIR /app
@@ -38,7 +42,9 @@ services:
         RUN gradle clean bootJar -x test --no-daemon
         FROM eclipse-temurin:21-jre
         WORKDIR /app
+        RUN useradd --system --no-create-home app
         COPY --from=build /app/build/libs/*.jar app.jar
+        USER app
         EXPOSE 8081
         ENTRYPOINT ["java", "-jar", "app.jar"]
     restart: unless-stopped
@@ -50,8 +56,21 @@ services:
       SPRING_DATASOURCE_USERNAME: upmarket
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
-      JAVA_TOOL_OPTIONS: -Xmx300m
-    mem_limit: 512m
+      # AuthCore trae show-sql activado en su application.yml y no tiene perfil prod: se apaga desde aquí.
+      SPRING_JPA_SHOW_SQL: "false"
+      # update crea/ajusta tablas solo. Tras el primer despliegue conviene DDL_AUTO=validate en .env (ver DEPLOY_AWS.md).
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${DDL_AUTO:-update}
+      # Duración del token. AuthCore no tiene refresh ni revocación: menos tiempo = menos exposición, más reingresos.
+      AUTHCORE_JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
+      JAVA_TOOL_OPTIONS: -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC
+    healthcheck:
+      # Sano = Tomcat ya acepta conexiones en 8081.
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8081'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    mem_limit: 640m
 
   domain:
     build: .
@@ -66,17 +85,27 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET_BASE64: ${JWT_SECRET_BASE64:?falta JWT_SECRET_BASE64 en .env}
       FOTOS_DIR: /data/fotos
-      JAVA_TOOL_OPTIONS: -Xmx300m
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${DDL_AUTO:-update}
+      JAVA_TOOL_OPTIONS: -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8084'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
     volumes:
       - fotos-data:/data/fotos
-    mem_limit: 512m
+    mem_limit: 640m
 
   web:
     build: ./frontend
     restart: unless-stopped
+    # La web solo arranca cuando los dos servicios ya responden.
     depends_on:
-      - authcore
-      - domain
+      authcore:
+        condition: service_healthy
+      domain:
+        condition: service_healthy
     ports:
       - "80:80"
     mem_limit: 128m

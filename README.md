@@ -17,7 +17,7 @@ AuthCore (autenticación) vive en su propio repositorio y **no se modifica**: el
 
 # Domain Service — UPMarket
 
-Servicio de dominio que se apoya en **AuthCore** (JWT HS384) para autenticar. Gestiona el **mercado de artículos entre estudiantes**:
+Servicio de dominio que se apoya en **AuthCore** (JWT HS512) para autenticar. Gestiona el **mercado de artículos entre estudiantes**:
 publicar un artículo con fotos, categorías, búsqueda con filtros, ver el detalle y contactar al vendedor, y administrar las propias publicaciones.
 
 Paquete base: `com.upmarket.catalogo` · Java 17 · Spring Boot 3.5.6 · Maven · H2 (dev) / MySQL (prod) · JUnit 5.
