@@ -59,14 +59,16 @@ public class SecurityConfig {
     /** CORS solo si se configuran orígenes (CORS_ORIGENES). Con el nginx del despliegue todo es del mismo origen y no hace falta. */
     @Bean
     CorsConfigurationSource corsConfigurationSource(@Value("${cors.origenes:}") String origenes) {
-        CorsConfiguration c = new CorsConfiguration();
+        UrlBasedCorsConfigurationSource fuente = new UrlBasedCorsConfigurationSource();
+        // Sin orígenes no se registra ninguna regla: una regla vacía rechazaría con 403 las peticiones del propio
+        // frontend cuando nginx cambia el Host o el esquema (por ejemplo, el puerto 8080 de desarrollo o HTTPS).
         if (!origenes.isBlank()) {
+            CorsConfiguration c = new CorsConfiguration();
             c.setAllowedOrigins(Arrays.stream(origenes.split(",")).map(String::trim).filter(o -> !o.isEmpty()).toList());
             c.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
             c.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+            fuente.registerCorsConfiguration("/api/**", c);
         }
-        UrlBasedCorsConfigurationSource fuente = new UrlBasedCorsConfigurationSource();
-        fuente.registerCorsConfiguration("/api/**", c);
         return fuente;
     }
 
