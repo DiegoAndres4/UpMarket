@@ -1,0 +1,36 @@
+# Capa HTTPS opcional: Caddy termina TLS y reenvía a nginx (que deja de publicar el puerto 80).
+#
+# Uso:
+#   docker compose -f docker-compose.yml -f docker-compose.https.yml up -d --build
+#
+# Requiere en .env:
+#   DOMAIN=upmarket.midominio.com     (el DNS A debe apuntar a la IP elástica ANTES de arrancar)
+#   ACME_EMAIL=tu-correo@dominio.com
+#
+# Requiere Docker Compose >= 2.24 (usa la etiqueta "!reset" para quitar el puerto 80 de "web").
+# Si tu versión es anterior: borra "ports: - \"80:80\"" de docker-compose.yml y usa este archivo igual.
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?falta DOMAIN en .env}
+      ACME_EMAIL: ${ACME_EMAIL:?falta ACME_EMAIL en .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - web
+    mem_limit: 64m
+
+  web:
+    # nginx deja de estar expuesto: solo Caddy habla con internet.
+    ports: !reset []
+
+volumes:
+  caddy-data:
+  caddy-config:

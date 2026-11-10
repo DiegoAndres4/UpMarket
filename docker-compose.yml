@@ -17,12 +17,17 @@ services:
       timeout: 5s
       retries: 20
       start_period: 30s
+    # Tope de memoria del contenedor: MySQL es el que más RAM consume.
+    # El total (1200+512+512+128 = 2.3 GB) deja margen en un t3.medium de 4 GB.
+    mem_limit: 1200m
 
   # AuthCore se construye desde su propio repositorio, SIN modificarlo.
   # Si lo tienes clonado al lado, pon en .env: AUTHCORE_CONTEXT=../auth-core-upmarket
   authcore:
     build:
-      context: ${AUTHCORE_CONTEXT:-https://github.com/DiegoAndres4/auth-core-upmarket.git#main}
+      context: ${AUTHCORE_CONTEXT:-https://github.com/DiegoAndres4/auth-core-upmarket.git#master}
+      # Ojo: el repositorio de AuthCore solo publica la rama "master" (no "main").
+      # Si se apunta a #main el checkout del contexto Git falla y el build se detiene.
       # El Dockerfile de AuthCore usa Gradle 8.10, pero su plugin Spring Boot 4.1.1 exige Gradle 8.14+.
       # Para no modificar AuthCore, aquí se define el build con una imagen de Gradle compatible.
       dockerfile_inline: |
@@ -46,6 +51,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
       JAVA_TOOL_OPTIONS: -Xmx300m
+    mem_limit: 512m
 
   domain:
     build: .
@@ -63,6 +69,7 @@ services:
       JAVA_TOOL_OPTIONS: -Xmx300m
     volumes:
       - fotos-data:/data/fotos
+    mem_limit: 512m
 
   web:
     build: ./frontend
@@ -72,6 +79,7 @@ services:
       - domain
     ports:
       - "80:80"
+    mem_limit: 128m
 
 volumes:
   mysql-data:

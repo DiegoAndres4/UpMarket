@@ -29,17 +29,22 @@ git clone https://github.com/DiegoAndres4/upmarket.git && cd upmarket
 docker compose up -d --build                  # primera vez: 5–10 min (compila los dos servicios)
 docker compose ps                             # los 4 deben estar "running"
 ```
-- AuthCore se construye desde `github.com/DiegoAndres4/auth-core-upmarket`. Si ese repositorio es **privado** o prefiere la copia local:
+- AuthCore se construye desde `github.com/DiegoAndres4/auth-core-upmarket`, rama **`master`** (ese repositorio no publica `main`; apuntar a `#main` hace fallar el checkout del contexto Git). Si prefiere la copia local:
   `git clone <url-authcore> ../auth-core-upmarket` y añada `AUTHCORE_CONTEXT=../auth-core-upmarket` al `.env`.
 - Abra `http://<IP>` en el navegador: debe verse la pantalla de ingreso.
 
 ## 4. Primer uso
 1. **Crear cuenta** (con correo, nombre y contraseña; el celular es opcional) y entrar; publique algo de prueba con foto.
-2. Cuenta administradora: AuthCore crea sola el usuario `admin` (contraseña inicial **`admin123`**, está en su código). Con ella se entra (en el campo de correo se escribe `admin`) y aparece la pestaña **Categorías**.
+2. Cuenta administradora: AuthCore crea sola el usuario `admin`. Con ella se entra (en el campo de correo se escribe `admin`) y aparece la pestaña **Categorías**.
+3. **Cambiar la contraseña de `admin` de inmediato** (la inicial es pública):
+   ```bash
+   ./deploy/cambiar-admin.sh
+   ```
+   Genera un hash BCrypt y lo escribe en la base de datos de AuthCore. No modifica ese repositorio y es permanente: el bootstrap solo crea el usuario si no existe.
 
-> ⚠️ **Riesgo conocido:** `admin123` es público (está en el repositorio de AuthCore) y AuthCore no ofrece cambiarla.
-> Antes de abrir el sitio a más gente hay que corregirlo **en AuthCore** (leer la contraseña de una variable de entorno), que es del docente/grupo de autenticación y por eso aquí no se tocó.
-> Mientras tanto, cualquiera que conozca la dirección podría entrar como administrador y crear categorías.
+> ⚠️ **Limitación heredada de AuthCore:** no existe endpoint para cambiar contraseñas ni para asignar roles,
+> y nginx no publica `/api/auth/users`, así que **el único ADMIN posible es `admin`**. El script anterior
+> es la forma soportada de asegurarlo sin tocar el repositorio del otro grupo.
 
 ## 5. Operación
 | Tarea | Comando |
@@ -53,8 +58,28 @@ docker compose ps                             # los 4 deben estar "running"
 Los datos viven en los volúmenes `mysql-data` y `fotos-data`: sobreviven a reinicios y reconstrucciones; **no** a `docker compose down -v`.
 Guarde una copia del `.env`: si se pierde `JWT_SECRET`, todas las sesiones se invalidan (los usuarios solo vuelven a ingresar).
 
-## 6. HTTPS y dominio (cuando lo necesiten)
-El sitio sale en HTTP. Para HTTPS: Route 53 (o su proveedor) apuntando al Elastic IP, y delante un *Application Load Balancer* con certificado de ACM, o Caddy/nginx con Let's Encrypt. Es obligatorio antes de poner contraseñas reales: ahora viajan sin cifrar.
+## 6. HTTPS (obligatorio antes de usar contraseñas reales)
+El sitio sale en HTTP plano por defecto: las contraseñas y los tokens viajan sin cifrar.
+Para activar TLS con Let's Encrypt usando Caddy (sin costo adicional):
+
+1. Apunte un registro DNS **A** de su dominio a la IP elástica y espere a que propague.
+2. Añada al `.env` del servidor:
+   ```
+   DOMAIN=upmarket.midominio.com
+   ACME_EMAIL=su-correo@dominio.com
+   ```
+   El correo es solo para avisos de vencimiento del certificado.
+3. Levante con la capa HTTPS:
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.https.yml up -d --build
+   ```
+   Caddy escucha en 80/443, emite el certificado y renueva solo. nginx deja de estar expuesto.
+
+> Requiere Docker Compose **≥ 2.24** (se usa la etiqueta `!reset` para quitarle el puerto 80 a `web`).
+> Si su versión es anterior: borre `ports: - "80:80"` de `docker-compose.yml` y use el mismo comando.
+
+Verificación: `docker compose -f docker-compose.yml -f docker-compose.https.yml ps` debe mostrar
+`caddy` en estado `running` y `curl -I https://su-dominio` debe devolver `HTTP/2 200`.
 
 ## 7. Si algo falla
 | Síntoma | Causa probable |
@@ -63,4 +88,6 @@ El sitio sale en HTTP. Para HTTPS: Route 53 (o su proveedor) apuntando al Elasti
 | `domain` se reinicia | `docker compose logs domain`: falta una variable o MySQL aún no estaba lista. |
 | No sube fotos | Debe ser JPG/PNG de ≤ 5 MB; el contenido se verifica, no solo la extensión. |
 | `authcore` no compila | El contexto de GitHub no es accesible: use `AUTHCORE_CONTEXT` con la copia local. |
-| Sin memoria (OOM) | Use t3.medium o mayor; cada servicio ya limita su heap a 300 MB. |
+| Sin memoria (OOM) | Use t3.medium o mayor. Cada servicio tiene `mem_limit` y heap de 300 MB; el tope total es ~2.3 GB. |
+| Login devuelve **429** | Limitador de nginx: 10 intentos/min por IP (3 registros/min). Es intencional; espere un minuto. |
+| Las fotos dan 404 | El volumen `fotos-data` solo se llena con subidas de esa instalación; una base nueva no trae fotos. |

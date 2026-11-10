@@ -1,0 +1,19 @@
+# HTTPS automático (Let's Encrypt) delante de nginx.
+# Se usa junto con docker-compose.https.yml. Las variables DOMAIN y ACME_EMAIL
+# llegan por entorno desde el .env; Caddy emite y renueva el certificado solo.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	# Todo el tráfico entra por aquí; nginx sigue siendo el único que habla con los servicios.
+	# Caddy añade X-Forwarded-For, y nginx lo usa (real_ip) para limitar por IP real del cliente.
+	reverse_proxy web:80
+}
