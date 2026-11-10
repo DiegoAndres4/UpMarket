@@ -78,7 +78,7 @@ Al arrancar se crean las categorías iniciales que falten (Tecnología, Libros, 
 docker compose -f docker-compose.dev.yml up --build --watch
 ```
 
-Levanta web, AuthCore, dominio y MySQL sin necesitar `.env`. AuthCore se toma de `../../Authcore_Up_Market/Auth-Core-UpMarket`; si está en otra ruta, defina `AUTHCORE_DEV_PATH`. Al guardar en `src/main` de cualquiera de los dos servicios, ese servicio se recompila y reinicia solo. Los cambios del frontend se ven al recargar el navegador (Ctrl+F5).
+Levanta web, AuthCore, dominio y MySQL sin necesitar `.env`. AuthCore se toma de `../Auth-Core-UpMarket`; si está en otra ruta, defina `AUTHCORE_DEV_PATH`. Al guardar en `src/main` de cualquiera de los dos servicios, ese servicio se recompila y reinicia solo. Los cambios del frontend se ven al recargar el navegador (Ctrl+F5).
 
 | Servicio | Dirección |
 |---|---|

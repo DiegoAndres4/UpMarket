@@ -24,29 +24,12 @@ services:
     # Tope de memoria por contenedor. Total: 1200 + 640 + 640 + 128 (+64 de Caddy) ≈ 2.7 GB en un t3.medium de 4 GB.
     mem_limit: 1200m
 
-  # AuthCore se construye desde su propio repositorio, SIN modificarlo.
-  # Si lo tienes clonado al lado, pon en .env: AUTHCORE_CONTEXT=../auth-core-upmarket
+  # AuthCore se construye desde su propio repositorio. Su Dockerfile (rama main)
+  # ya usa Gradle 8.14 y corre como usuario sin privilegios.
+  # Si lo tienes clonado al lado, pon en .env: AUTHCORE_CONTEXT=../Auth-Core-UpMarket
   authcore:
     build:
-      context: ${AUTHCORE_CONTEXT:-https://github.com/DiegoAndres4/auth-core-upmarket.git#master}
-      # Ojo: el repositorio de AuthCore solo publica la rama "master" (no "main").
-      # Si se apunta a #main el checkout del contexto Git falla y el build se detiene.
-      # El Dockerfile de AuthCore usa Gradle 8.10, pero su plugin Spring Boot 4.1.1 exige Gradle 8.14+.
-      # Para no modificar AuthCore, aquí se define el build con una imagen de Gradle compatible
-      # y, de paso, se ejecuta como usuario sin privilegios (el original corre como root).
-      dockerfile_inline: |
-        FROM gradle:8.14-jdk21 AS build
-        WORKDIR /app
-        COPY build.gradle settings.gradle ./
-        COPY src ./src
-        RUN gradle clean bootJar -x test --no-daemon
-        FROM eclipse-temurin:21-jre
-        WORKDIR /app
-        RUN useradd --system --no-create-home app
-        COPY --from=build /app/build/libs/*.jar app.jar
-        USER app
-        EXPOSE 8081
-        ENTRYPOINT ["java", "-jar", "app.jar"]
+      context: ${AUTHCORE_CONTEXT:-https://github.com/DiegoAndres4/auth-core-upmarket.git#main}
     restart: unless-stopped
     depends_on:
       db:

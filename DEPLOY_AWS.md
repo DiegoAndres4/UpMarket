@@ -29,20 +29,20 @@ git clone https://github.com/DiegoAndres4/upmarket.git && cd upmarket
 docker compose up -d --build                  # primera vez: 5–10 min (compila los dos servicios)
 docker compose ps                             # los 4 deben estar "running"
 ```
-- AuthCore se construye desde `github.com/DiegoAndres4/auth-core-upmarket`, rama **`master`** (ese repositorio no publica `main`; apuntar a `#main` hace fallar el checkout del contexto Git). Si prefiere la copia local:
-  `git clone <url-authcore> ../auth-core-upmarket` y añada `AUTHCORE_CONTEXT=../auth-core-upmarket` al `.env`.
+- AuthCore se construye desde `github.com/DiegoAndres4/auth-core-upmarket`, rama **`main`** (su `master` quedó desactualizada). Si prefiere la copia local:
+  `git clone <url-authcore> ../Auth-Core-UpMarket` y añada `AUTHCORE_CONTEXT=../Auth-Core-UpMarket` al `.env`.
 - Abra `http://<IP>` en el navegador: debe verse la pantalla de ingreso.
 
 ## 4. Primer uso
 1. **Crear cuenta** (con correo, nombre y contraseña; el celular es opcional) y entrar; publique algo de prueba con foto.
-2. Cuenta administradora: AuthCore crea sola el usuario `admin`. Con ella se entra (en el campo de correo se escribe `admin`) y aparece la pestaña **Categorías**.
-3. **Cambiar la contraseña de `admin` de inmediato** (la inicial es pública):
+2. Cuenta administradora: AuthCore crea sola el usuario `admin` al primer arranque. La contraseña inicial es la de `ADMIN_PASSWORD` en `.env`; si se deja vacía, AuthCore genera una aleatoria y la muestra una sola vez en `docker compose logs authcore`. Con ella se entra (en el campo de correo se escribe `admin`) y aparece la pestaña **Categorías**.
+3. **Cambiar la contraseña de `admin` de inmediato**:
    ```bash
    ./deploy/cambiar-admin.sh
    ```
    Genera un hash BCrypt y lo escribe en la base de datos de AuthCore. No modifica ese repositorio y es permanente: el bootstrap solo crea el usuario si no existe.
 
-> ⚠️ **Limitación heredada de AuthCore:** no existe endpoint para cambiar contraseñas ni para asignar roles,
+> ⚠️ **Limitación heredada de AuthCore:** no existe endpoint para cambiar contraseñas,
 > y nginx no publica `/api/auth/users`, así que **el único ADMIN posible es `admin`**. El script anterior
 > es la forma soportada de asegurarlo sin tocar el repositorio del otro grupo.
 
@@ -98,8 +98,8 @@ Verificación: `docker compose -f docker-compose.yml -f docker-compose.https.yml
 ## 8. Endurecimiento y límites conocidos
 
 - **Respaldos automáticos:** `crontab -e` → `15 3 * * * cd ~/UpMarket && ./deploy/respaldo.sh >> respaldos.log 2>&1`. Copie `respaldos/` fuera del servidor (S3) y/o active snapshots diarios del volumen EBS. **Nunca** use `docker compose down -v` en producción: borra la base y las fotos.
-- **Esquema de BD:** ambos servicios usan `ddl-auto=update` (AuthCore lo trae así y no se modifica). Después del primer arranque exitoso puede poner `DDL_AUTO=validate` en `.env` y reiniciar. No hay Flyway: los cambios de esquema futuros requieren migración manual.
+- **Esquema de BD:** ambos servicios usan `ddl-auto=update` por defecto (configurable con `DDL_AUTO`). Después del primer arranque exitoso puede poner `DDL_AUTO=validate` en `.env` y reiniciar. No hay Flyway: los cambios de esquema futuros requieren migración manual.
 - **Sesiones:** AuthCore no tiene refresh ni revocación; el token dura 1 h (`JWT_EXPIRATION_MS` en `.env`). Una cuenta eliminada se bloquea en el servicio de dominio.
 - **Healthchecks:** `web` solo arranca cuando `authcore` y `domain` aceptan conexiones. AuthCore corre sin root y sin SQL en logs.
-- **Contraseña admin:** ejecute `./deploy/cambiar-admin.sh` tras el primer arranque (admin/admin123 es público en el repo de AuthCore).
+- **Contraseña admin:** defina `ADMIN_PASSWORD` en `.env` o ejecute `./deploy/cambiar-admin.sh` tras el primer arranque.
 - **Algoritmo JWT:** el token es HS512; la clave del dominio es `JWT_SECRET_BASE64` (Base64 de los mismos bytes de `JWT_SECRET`). Si cambia una, regenere la otra con `generar-env.sh`.

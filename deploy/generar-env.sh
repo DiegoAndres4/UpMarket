@@ -11,7 +11,7 @@ DB_PASSWORD=$(openssl rand -hex 16)
 JWT_SECRET=${JWT_SECRET}
 JWT_SECRET_BASE64=$(printf '%s' "${JWT_SECRET}" | base64 -w0)
 # Opcional: ruta local de AuthCore si no se quiere construir desde GitHub
-# AUTHCORE_CONTEXT=../auth-core-upmarket
+# AUTHCORE_CONTEXT=../Auth-Core-UpMarket
 ENV
 chmod 600 .env
 echo ".env creado. Guárdalo en un lugar seguro: NO se sube a Git."

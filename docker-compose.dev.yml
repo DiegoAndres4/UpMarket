@@ -25,7 +25,7 @@ services:
 
   authcore:
     build:
-      context: ${AUTHCORE_DEV_PATH:-../../Authcore_Up_Market/Auth-Core-UpMarket}
+      context: ${AUTHCORE_DEV_PATH:-../Auth-Core-UpMarket}
       dockerfile: Dockerfile.dev
     init: true
     depends_on:
@@ -45,10 +45,10 @@ services:
     develop:
       watch:
         - action: sync+restart
-          path: ${AUTHCORE_DEV_PATH:-../../Authcore_Up_Market/Auth-Core-UpMarket}/src/main
+          path: ${AUTHCORE_DEV_PATH:-../Auth-Core-UpMarket}/src/main
           target: /app/src/main
         - action: rebuild
-          path: ${AUTHCORE_DEV_PATH:-../../Authcore_Up_Market/Auth-Core-UpMarket}/build.gradle
+          path: ${AUTHCORE_DEV_PATH:-../Auth-Core-UpMarket}/build.gradle
 
   domain:
     build:

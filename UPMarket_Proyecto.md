@@ -227,7 +227,7 @@ flowchart LR
 
 ## 7. Repositorio 1: Auth-Core-UpMarket
 
-**URL:** https://github.com/DiegoAndres4/Auth-Core-UpMarket · **Rama:** `master` · **Paquete base:** `com.pamplona.authcore`
+**URL:** https://github.com/DiegoAndres4/Auth-Core-UpMarket · **Rama:** `main` · **Paquete base:** `com.pamplona.authcore`
 
 Servicio de autenticación y autorización. Es el servicio base del curso, compartido entre grupos: registra usuarios, inicia sesión y emite un JWT con el nombre de usuario, su id y sus roles.
 
