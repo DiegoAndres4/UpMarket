@@ -59,13 +59,15 @@ services:
       db:
         condition: service_healthy
     environment:
-      SPRING_PROFILES_ACTIVE: prod   # "prod" es el perfil que usa MySQL
+      SPRING_PROFILES_ACTIVE: prod,demo   # "prod" usa MySQL; "demo" habilita el seed
       DB_URL: jdbc:mysql://db:3306/upmarket?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
       DB_USER: upmarket
       DB_PASSWORD: upmarket-dev
       # Los mismos bytes que JWT_SECRET, en Base64. Si no coinciden, el dominio rechaza todos los tokens.
       JWT_SECRET_BASE64: ZGV2LXNvbG8tbG9jYWwtbm8tdXNhci1lbi1wcm9kdWNjaW9uLXVwbWFya2V0LWNsYXZlLWp3dC0yMDI2MTEwOQ==
       FOTOS_DIR: /data/fotos
+      UPMARKET_SEED_ENABLED: "true"
+      AUTHCORE_URL: http://authcore:8081
     ports:
       - "127.0.0.1:8084:8084"
       - "127.0.0.1:5006:5005"   # depurador remoto del dominio
@@ -91,6 +93,7 @@ services:
       - ./frontend/index.html:/usr/share/nginx/html/index.html:ro
       - ./frontend/css:/usr/share/nginx/html/css:ro
       - ./frontend/js:/usr/share/nginx/html/js:ro
+      - ./frontend/public:/usr/share/nginx/html/public:ro
 
 volumes:
   db-data:
