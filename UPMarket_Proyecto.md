@@ -537,7 +537,7 @@ Todas las rutas requieren `Authorization: Bearer <token de AuthCore>`.
 | `GET /api/publicaciones/{id}/contacto` | HU-11 | Autenticado | 200 `{ whatsapp, correo }` · 404 · 409 (vendida) |
 | `PUT /api/publicaciones/{id}` | HU-12 | Solo el autor | 200 · 400 · 403 · 404 · 409 (vendida) |
 | `POST /api/publicaciones/{id}/sold` | HU-12 | Solo el autor | 200 · 403 · 404 · 409 (ya vendida) |
-| `DELETE /api/publicaciones/{id}` | HU-12 | Solo el autor | 204 · 403 · 404 |
+| `DELETE /api/publicaciones/{id}` | HU-12 | Autor o `ADMIN` (moderación) | 204 · 403 · 404 |
 
 **Ejemplo de publicación (`POST /api/publicaciones`):**
 
@@ -573,7 +573,7 @@ Ver la tabla de la [sección 7](#endpoints).
 ## 12. Reglas de negocio
 
 - **Roles:** `USER` es cualquier estudiante y `ADMIN` administra las categorías. Solo el ADMIN crea categorías.
-- **Autoría:** editar, vender y eliminar son solo del autor; ni el ADMIN puede (no hay moderación).
+- **Autoría:** editar y vender son solo del autor. **Eliminar** lo permite el autor o un `ADMIN`, que modera el catálogo: puede borrar publicaciones ajenas indebidas, pero no editarlas ni marcarlas como vendidas.
 - **Vendedor:** sale del token, nunca del cuerpo de la petición.
 - **Ciclo de vida:** la publicación nace `DISPONIBLE` y pasa a `VENDIDA` una sola vez. Vendida ya no se edita ni se contacta y sale de las búsquedas, pero sigue en "mis publicaciones".
 - **Eliminar:** borrado físico y definitivo.

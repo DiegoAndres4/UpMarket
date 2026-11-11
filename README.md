@@ -113,7 +113,7 @@ El entorno de desarrollo siembra datos de demostración al arrancar el dominio: 
 | `GET /api/publicaciones/{id}/contacto` | autenticado | 200 · 404 · 409 (ya vendida) |
 | `PUT /api/publicaciones/{id}` | solo el autor | 200 · 400 · 403 · 404 · 409 (vendida) |
 | `POST /api/publicaciones/{id}/sold` | solo el autor | 200 · 403 · 404 · 409 (ya vendida) |
-| `DELETE /api/publicaciones/{id}` | solo el autor | 204 · 403 · 404 |
+| `DELETE /api/publicaciones/{id}` | autor o ADMIN (moderación) | 204 · 403 · 404 |
 | `POST /api/fotos` (multipart, campo `archivo`) | autenticado | 201 con `{url,tipo,tamanoBytes}` · 400 (no es JPG/PNG por contenido, o pesa más de 5 MB) |
 | `GET /api/perfil` · `PUT /api/perfil` | autenticado | Perfil propio (nombre, celular colombiano, foto). 400 si el nombre o el celular no son válidos |
 | `GET /api/perfil/publico?usuario=` | autenticado | Nombre y foto de otra persona, nunca el celular |
@@ -122,7 +122,7 @@ El entorno de desarrollo siembra datos de demostración al arrancar el dominio: 
 
 ## Reglas de negocio clave
 
-- Roles: **USER = estudiante**, **ADMIN = administrador**. Solo el ADMIN crea categorías. Editar, vender y eliminar son **solo del autor**: ni el ADMIN puede (no hay moderación en este alcance).
+- Roles: **USER = estudiante**, **ADMIN = administrador**. Solo el ADMIN crea categorías. Editar y vender son **solo del autor**; **eliminar** lo permite el autor o un **ADMIN**, que modera el catálogo (puede borrar publicaciones ajenas, pero no editarlas ni marcarlas como vendidas).
 - El vendedor sale del token, nunca del cuerpo. La publicación nace `DISPONIBLE`; al venderla pasa a `VENDIDA` (ya no se edita ni se contacta).
 - Precio: número mayor que cero, hasta 999 999 999.99, dos decimales; llega como texto y lo valida el dominio. Título 3–100 y descripción 5–2000 caracteres.
 - Fotos: hasta 5 por publicación, JPG o PNG, máximo 5 MB. El archivo se sube primero a `POST /api/fotos` (se valida por su **contenido**, no por el nombre ni el `Content-Type`) y la `url` que devuelve se envía en `fotos` al publicar. Se guardan en disco (`FOTOS_DIR`; en Docker, el volumen `fotos-data`). Con más usuarios convendría pasarlas a S3 detrás de un puerto de salida.
