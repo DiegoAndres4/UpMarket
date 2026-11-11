@@ -136,7 +136,7 @@ function pintarNav() {
   const enlace = (href, texto, clase) => h('a', { href, class: (ruta === href ? 'activo ' : '') + (clase || '') }, texto);
   const nombre = perfilActual ? perfilActual.nombre : nombreCorto(s.usuario);
   nav.replaceChildren(...[
-    enlace('#/', 'Catálogo'), enlace('#/publicar', 'Publicar', ruta === '#/categorias' ? '' : 'cta'), enlace('#/mias', 'Mis publicaciones'),
+    enlace('#/', 'Catálogo'), enlace('#/publicar', 'Publicar', 'cta'), enlace('#/mias', 'Mis publicaciones'),
     s.esAdmin ? enlace('#/categorias', 'Categorías') : null,
     h('a', { href: '#/perfil', class: ruta === '#/perfil' ? 'activo' : '' },
       avatar(perfilActual && perfilActual.fotoUrl, nombre, ''), 'Mi perfil'),
