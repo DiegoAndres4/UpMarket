@@ -16,6 +16,18 @@ spring:
     open-in-view: false          # los adaptadores abren su propia transacción; nada de lazy loading en la capa REST
     hibernate:
       ddl-auto: update
+  flyway:
+    # Solo en producción (application-prod.yml): en dev/H2 el esquema lo crea Hibernate.
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
 
 seguridad:
   jwt:
@@ -26,6 +38,10 @@ seguridad:
 negocio:
   zona-horaria: America/Bogota
 
+authcore:
+  # Base de AuthCore para borrar credenciales cuando el usuario elimina su cuenta.
+  url: ${AUTHCORE_URL:http://localhost:8081}
+
 fotos:
   # Dónde se guardan las imágenes subidas. En Docker/AWS: volumen montado en /data/fotos (FOTOS_DIR).
   directorio: ${FOTOS_DIR:./fotos}
@@ -33,3 +49,7 @@ fotos:
 cors:
   # Solo para desarrollo con el frontend en otro puerto (ej. http://localhost:5500). Vacío = sin CORS.
   origenes: ${CORS_ORIGENES:}
+
+upmarket:
+  seed:
+    enabled: ${UPMARKET_SEED_ENABLED:false}

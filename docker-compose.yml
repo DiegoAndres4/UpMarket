@@ -39,18 +39,19 @@ services:
       SPRING_DATASOURCE_USERNAME: upmarket
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
-      # AuthCore trae show-sql activado en su application.yml y no tiene perfil prod: se apaga desde aquí.
+      # Se fija aquí para que el comportamiento no dependa del application.yml de AuthCore.
       SPRING_JPA_SHOW_SQL: "false"
-      # Con el AuthCore actualizado: si ADMIN_PASSWORD está vacío se genera una clave aleatoria y se muestra una vez en `docker compose logs authcore`.
-      AUTHCORE_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
-      # update crea/ajusta tablas solo. Tras el primer despliegue conviene DDL_AUTO=validate en .env (ver DEPLOY_AWS.md).
-      SPRING_JPA_HIBERNATE_DDL_AUTO: ${DDL_AUTO:-update}
+      # Obligatoria: AuthCore ya no genera claves aleatorias.
+      AUTHCORE_ADMIN_PASSWORD: ${ADMIN_PASSWORD:?falta ADMIN_PASSWORD en .env}
+      # Flyway aplica db/migration y Hibernate solo valida el esquema.
+      FLYWAY_ENABLED: "true"
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${DDL_AUTO:-validate}
       # Duración del token. AuthCore no tiene refresh ni revocación: menos tiempo = menos exposición, más reingresos.
       AUTHCORE_JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
       JAVA_TOOL_OPTIONS: -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC
     healthcheck:
-      # Sano = Tomcat ya acepta conexiones en 8081.
-      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8081'"]
+      # Sano = /actuator/health responde 200 (incluye la comprobación de la base).
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8081/actuator/health >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -70,10 +71,11 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET_BASE64: ${JWT_SECRET_BASE64:?falta JWT_SECRET_BASE64 en .env}
       FOTOS_DIR: /data/fotos
-      SPRING_JPA_HIBERNATE_DDL_AUTO: ${DDL_AUTO:-update}
+      # Para borrar las credenciales en AuthCore cuando un usuario elimina su cuenta.
+      AUTHCORE_URL: http://authcore:8081
       JAVA_TOOL_OPTIONS: -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC
     healthcheck:
-      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8084'"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8084/actuator/health >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 12

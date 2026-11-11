@@ -8,7 +8,11 @@ RUN mvn -B -q -DskipTests package
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app
-RUN useradd --system --create-home upmarket && mkdir -p /data/fotos && chown -R upmarket /data
+# curl lo usa el healthcheck de Docker contra /actuator/health.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --create-home upmarket && mkdir -p /data/fotos && chown -R upmarket /data
 COPY --from=build /app/target/domain-service-upmarket-*.jar app.jar
 USER upmarket
 ENV FOTOS_DIR=/data/fotos SPRING_PROFILES_ACTIVE=prod

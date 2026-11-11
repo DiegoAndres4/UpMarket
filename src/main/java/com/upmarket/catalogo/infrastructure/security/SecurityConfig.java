@@ -38,6 +38,8 @@ public class SecurityConfig {
             .cors(Customizer.withDefaults())
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(a -> a
+                // Salud del servicio: la usan Docker y el balanceador, sin token.
+                .requestMatchers("/actuator/health").permitAll()
                 // Crear categorías: solo ADMIN. Es una primera barrera en la URL; el dominio (PoliticaAcceso)
                 // vuelve a verificar el rol, así que un cambio de rutas no deja un hueco.
                 .requestMatchers(HttpMethod.POST, "/api/categorias").hasRole("ADMIN")

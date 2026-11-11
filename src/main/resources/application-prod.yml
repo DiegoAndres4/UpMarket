@@ -4,6 +4,12 @@ spring:
     url: ${DB_URL:jdbc:mysql://localhost:3306/upmarket}
     username: ${DB_USER}
     password: ${DB_PASSWORD}
+  flyway:
+    # Migraciones versionadas en db/migration. En una base que ya existe sin
+    # historial de Flyway, baseline-on-migrate la marca como V1 y no la toca.
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
   jpa:
     hibernate:
-      ddl-auto: update   # mejora pendiente: reemplazar por migraciones Flyway
+      ddl-auto: validate   # el esquema lo manda Flyway; Hibernate solo comprueba

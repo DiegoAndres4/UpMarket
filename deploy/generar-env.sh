@@ -10,6 +10,7 @@ DB_ROOT_PASSWORD=$(openssl rand -hex 16)
 DB_PASSWORD=$(openssl rand -hex 16)
 JWT_SECRET=${JWT_SECRET}
 JWT_SECRET_BASE64=$(printf '%s' "${JWT_SECRET}" | base64 -w0)
+ADMIN_PASSWORD=$(openssl rand -hex 12)
 # Opcional: ruta local de AuthCore si no se quiere construir desde GitHub
 # AUTHCORE_CONTEXT=../Auth-Core-UpMarket
 ENV
