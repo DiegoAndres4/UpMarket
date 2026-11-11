@@ -107,7 +107,7 @@ public class PublicacionService implements PublicacionUseCase {
     public void eliminar(Actor actor, long id) {
         transaccion.ejecutar(() -> {
             Publicacion p = cargar(id);
-            acceso.asegurarEsAutor(p, actor);
+            acceso.asegurarPuedeEliminar(p, actor);
             publicaciones.eliminar(id);
             return null;
         });

@@ -516,6 +516,7 @@ async function vistaDetalle(id) {
   document.title = p.titulo + ' · UPMarket';
   const s = leerSesion();
   const esMia = s && s.usuario === p.vendedor;
+  const esAdmin = Boolean(s && s.esAdmin);
   const disponible = p.estadoPublicacion === 'DISPONIBLE';
   const total = p.fotos.length;
 
@@ -591,10 +592,15 @@ async function vistaDetalle(id) {
     h('strong', {}, 'Esta publicación ya se vendió'),
     h('p', {}, 'El vendedor ya no recibe consultas por este artículo.'));
 
-  const acciones = esMia ? h('div', { class: 'acciones' },
-    disponible ? h('a', { class: 'btn', href: '#/editar/' + id }, 'Editar') : null,
-    disponible ? h('button', { class: 'btn sec', onclick: () => accion(() => api('POST', `/api/publicaciones/${id}/sold`), 'Marcada como vendida', () => vistaDetalle(id)) }, 'Marcar como vendido') : null,
-    h('button', { class: 'btn peligro', onclick: () => { if (confirm('¿Eliminar esta publicación? No se puede deshacer.')) accion(() => api('DELETE', '/api/publicaciones/' + id), 'Publicación eliminada', () => { location.hash = '#/mias'; }); } }, 'Eliminar')) : null;
+  /* El autor gestiona (editar, vender, borrar); el ADMIN solo modera: puede borrar lo ajeno. */
+  const acciones = (esMia || esAdmin) ? h('div', { class: 'acciones' },
+    esMia && disponible ? h('a', { class: 'btn', href: '#/editar/' + id }, 'Editar') : null,
+    esMia && disponible ? h('button', { class: 'btn sec', onclick: () => accion(() => api('POST', `/api/publicaciones/${id}/sold`), 'Marcada como vendida', () => vistaDetalle(id)) }, 'Marcar como vendido') : null,
+    (esMia || esAdmin) ? h('button', { class: 'btn peligro', onclick: () => {
+      const pregunta = esMia ? '¿Eliminar esta publicación?' : '¿Eliminar «' + p.titulo + '» como moderador?';
+      if (confirm(pregunta + ' No se puede deshacer.'))
+        accion(() => api('DELETE', '/api/publicaciones/' + id), 'Publicación eliminada', () => { location.hash = esMia ? '#/mias' : '#/'; });
+    } }, 'Eliminar') : null) : null;
 
   montar(
     h('a', { class: 'volver', href: '#/' }, '← Volver al catálogo'),

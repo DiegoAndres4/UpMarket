@@ -161,7 +161,7 @@ class UpmarketRestTest {
     }
 
     @Test
-    @DisplayName("Editar, vender y eliminar: solo el autor (403 también al ADMIN); 404 antes que 403; vendida no se edita (409)")
+    @DisplayName("Editar y vender: solo el autor (403 al ADMIN); eliminar: el autor o el ADMIN; 404 antes que 403; vendida no se edita (409)")
     void gestionDelAutor() throws Exception {
         long id = publicar("maria", unico("Mesa "), "120000", "Otros");
         String nuevo = "{\"titulo\":\"Mesa de estudio\",\"descripcion\":\"Con cajón\",\"precio\":\"100000\",\"estado\":\"USADO\",\"categoria\":\"Otros\"}";
@@ -171,10 +171,14 @@ class UpmarketRestTest {
         mvc.perform(con(put("/api/publicaciones/" + id), estudiante("maria"), nuevo)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.titulo").value("Mesa de estudio")).andExpect(jsonPath("$.precio").value(100000.0));
         mvc.perform(con(post("/api/publicaciones/" + id + "/sold"), estudiante("jose"), null)).andExpect(status().isForbidden());
+        mvc.perform(con(post("/api/publicaciones/" + id + "/sold"), admin(), null)).andExpect(status().isForbidden());
         mvc.perform(con(post("/api/publicaciones/" + id + "/sold"), estudiante("maria"), null)).andExpect(status().isOk());
         mvc.perform(con(post("/api/publicaciones/" + id + "/sold"), estudiante("maria"), null)).andExpect(status().isConflict());
         mvc.perform(con(put("/api/publicaciones/" + id), estudiante("maria"), nuevo)).andExpect(status().isConflict());
         mvc.perform(con(delete("/api/publicaciones/" + id), estudiante("jose"), null)).andExpect(status().isForbidden());
+        long moderada = publicar("maria", unico("Publicación indebida "), "1000", "Otros");
+        mvc.perform(con(delete("/api/publicaciones/" + moderada), admin(), null)).andExpect(status().isNoContent());
+        mvc.perform(con(get("/api/publicaciones/" + moderada), estudiante("maria"), null)).andExpect(status().isNotFound());
         mvc.perform(con(delete("/api/publicaciones/" + id), estudiante("maria"), null)).andExpect(status().isNoContent());
         mvc.perform(con(get("/api/publicaciones/" + id), estudiante("maria"), null)).andExpect(status().isNotFound());
         mvc.perform(con(delete("/api/publicaciones/" + id), estudiante("maria"), null)).andExpect(status().isNotFound());

@@ -35,6 +35,15 @@ class PoliticaAccesoTest {
     }
 
     @Test
+    @DisplayName("Eliminar: el autor o el ADMIN; a un tercero se le deniega")
+    void eliminar() {
+        Publicacion p = Datos.publicacion();
+        acceso.asegurarPuedeEliminar(p, Datos.estudiante("maria"));
+        acceso.asegurarPuedeEliminar(p, Datos.admin());
+        assertThrows(AccesoDenegadoException.class, () -> acceso.asegurarPuedeEliminar(p, Datos.estudiante("jose")));
+    }
+
+    @Test
     @DisplayName("Actor: acepta ROLE_ADMIN, ignora roles desconocidos y exige usuario")
     void actor() {
         Actor a = Actor.de(" ana ", List.of("ROLE_ADMIN", "ROLE_OTRO"));

@@ -202,16 +202,17 @@ class PublicacionServiceTest {
     }
 
     @Test
-    @DisplayName("Eliminar: solo el autor; después ya no existe")
+    @DisplayName("Eliminar: el autor o el ADMIN; un tercero no; después ya no existe")
     void eliminar() {
         Publicacion p = e.publicar("maria", "Calculadora", "Casio fx-991 casi nueva", "50000", "Tecnología");
         assertThrows(AccesoDenegadoException.class, () -> e.publicacionService.eliminar(Datos.estudiante("jose"), p.getId()));
-        assertThrows(AccesoDenegadoException.class, () -> e.publicacionService.eliminar(e.admin(), p.getId()));
-        assertEquals(1, e.publicacionService.buscar(BuscarQuery.sinFiltros()).size());
-        e.publicacionService.eliminar(Datos.estudiante("maria"), p.getId());
+        e.publicacionService.eliminar(e.admin(), p.getId());
         assertThrows(PublicacionNoEncontradaException.class, () -> e.publicacionService.detalle(p.getId()));
+
+        Publicacion propia = e.publicar("maria", "Cálculo", "Séptima edición", "80000", "Libros");
+        e.publicacionService.eliminar(Datos.estudiante("maria"), propia.getId());
         assertEquals(0, e.publicacionService.buscar(BuscarQuery.sinFiltros()).size());
-        assertThrows(PublicacionNoEncontradaException.class, () -> e.publicacionService.eliminar(Datos.estudiante("maria"), p.getId()));
+        assertThrows(PublicacionNoEncontradaException.class, () -> e.publicacionService.eliminar(Datos.estudiante("maria"), propia.getId()));
     }
 
     @Test

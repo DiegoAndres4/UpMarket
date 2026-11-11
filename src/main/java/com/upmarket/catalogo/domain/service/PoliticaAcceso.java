@@ -17,10 +17,17 @@ public class PoliticaAcceso {
         return actor.username().equals(publicacion.getVendedor());
     }
 
-    /** Editar, vender y eliminar son solo del autor. */
+    /** Editar y vender son solo del autor. */
     public void asegurarEsAutor(Publicacion publicacion, Actor actor) {
         if (!esAutor(publicacion, actor)) {
             throw new AccesoDenegadoException("Solo el autor puede modificar esta publicación");
+        }
+    }
+
+    /** Eliminar: el autor o un ADMIN, que modera el catálogo. */
+    public void asegurarPuedeEliminar(Publicacion publicacion, Actor actor) {
+        if (!actor.esAdmin()) {
+            asegurarEsAutor(publicacion, actor);
         }
     }
 }
