@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import com.upmarket.catalogo.infrastructure.perfil.CredencialesPort;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
@@ -20,6 +21,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** Perfil: ver, editar (celular colombiano completo), perfil público sin celular y eliminar la cuenta. */
@@ -34,6 +36,9 @@ class PerfilRestTest {
 
     @Autowired
     private MockMvc mvc;
+
+    @MockitoBean
+    private CredencialesPort credenciales;
 
     private String token(String usuario) {
         Instant ahora = Instant.now();
@@ -88,6 +93,7 @@ class PerfilRestTest {
         String t = "Bearer " + token("borrar@correo.com");
         mvc.perform(get("/api/perfil").header("Authorization", t)).andExpect(status().isOk());
         mvc.perform(delete("/api/perfil").header("Authorization", t)).andExpect(status().isNoContent());
+        org.mockito.Mockito.verify(credenciales).eliminarCuenta(t);
         mvc.perform(get("/api/perfil").header("Authorization", t)).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/categorias").header("Authorization", t)).andExpect(status().isUnauthorized());
     }

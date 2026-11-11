@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Perfil del usuario: ver, editar y eliminar la cuenta (en UPMarket; las credenciales siguen en AuthCore). */
+/** Perfil del usuario: ver, editar y eliminar la cuenta (en UPMarket y en AuthCore). */
 @Service
 public class PerfilService {
 
@@ -18,10 +18,12 @@ public class PerfilService {
 
     private final PerfilRepository perfiles;
     private final AlmacenFotosLocal fotos;
+    private final CredencialesPort credenciales;
 
-    public PerfilService(PerfilRepository perfiles, AlmacenFotosLocal fotos) {
+    public PerfilService(PerfilRepository perfiles, AlmacenFotosLocal fotos, CredencialesPort credenciales) {
         this.perfiles = perfiles;
         this.fotos = fotos;
+        this.credenciales = credenciales;
     }
 
     @Transactional
@@ -58,16 +60,18 @@ public class PerfilService {
     }
 
     /**
-     * Borra las publicaciones del usuario (con sus fotos), su foto de perfil y sus datos, y deja la cuenta marcada
-     * como eliminada: desde ese momento sus tokens ya no sirven en UPMarket. AuthCore no ofrece borrar credenciales,
-     * así que el correo no se puede volver a registrar.
+     * Borra las publicaciones del usuario (con sus fotos), su foto de perfil y sus datos, y después elimina sus
+     * credenciales en AuthCore: el username queda libre y el login deja de funcionar. Si AuthCore falla se lanza una
+     * excepción y la transacción revierte, para no dejar una cuenta a medias.
      */
-    public void eliminarCuenta(Actor actor, PublicacionUseCase publicaciones) {
+    @Transactional
+    public void eliminarCuenta(Actor actor, PublicacionUseCase publicaciones, String authorizationHeader) {
         for (var p : publicaciones.mias(actor)) {
             publicaciones.eliminar(actor, p.getId());
             p.getFotos().forEach(f -> borrarArchivo(f.url()));
         }
         marcarEliminada(actor.username());
+        credenciales.eliminarCuenta(authorizationHeader);
     }
 
     @Transactional

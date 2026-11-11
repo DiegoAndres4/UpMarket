@@ -49,8 +49,8 @@ public class PerfilController {
     }
 
     @DeleteMapping
-    public ResponseEntity<Void> eliminarCuenta() {
-        perfiles.eliminarCuenta(ActorActual.obtener(), publicaciones);
+    public ResponseEntity<Void> eliminarCuenta(@RequestHeader("Authorization") String authorization) {
+        perfiles.eliminarCuenta(ActorActual.obtener(), publicaciones, authorization);
         return ResponseEntity.noContent().build();
     }
 }
