@@ -9,6 +9,9 @@ Internet ─▶ :80 nginx ─┬─ /api/auth/login, /register ─▶ authcore:8
                        └─ /  (frontend estático)                       │   volumen fotos-data (imágenes)
 ```
 
+Los servicios Java no publican puertos en el servidor: nginx es la única puerta y habla con
+`authcore` y `domain` por la red interna de Docker.
+
 ## 1. Crear la instancia
 1. EC2 → *Launch instance* → **Ubuntu 24.04**, tipo **t3.medium** (4 GB; con 2 GB las tres JVM + MySQL quedan justas), disco **20 GB gp3**.
 2. Par de llaves: cree o elija una y guarde el `.pem`.
@@ -24,41 +27,81 @@ sudo usermod -aG docker ubuntu && exit        # vuelva a entrar por SSH
 
 ## 3. Traer el proyecto y levantarlo
 ```bash
-git clone https://github.com/DiegoAndres4/upmarket.git && cd upmarket
+git clone https://github.com/DiegoAndres4/UpMarket.git && cd UpMarket
 ./deploy/generar-env.sh                       # crea .env con contraseñas y clave JWT aleatorias
+grep ADMIN_PASSWORD .env                      # contraseña inicial del usuario admin
 docker compose up -d --build                  # primera vez: 5–10 min (compila los dos servicios)
-docker compose ps                             # los 4 deben estar "running"
+docker compose ps                             # los 4 deben estar "healthy" o "running"
 ```
-- AuthCore se construye desde `github.com/DiegoAndres4/auth-core-upmarket`, rama **`main`** (su `master` quedó desactualizada). Si prefiere la copia local:
-  `git clone <url-authcore> ../Auth-Core-UpMarket` y añada `AUTHCORE_CONTEXT=../Auth-Core-UpMarket` al `.env`.
+
+`generar-env.sh` crea `.env` con permisos `600` y genera, con `openssl`, `DB_ROOT_PASSWORD`,
+`DB_PASSWORD`, `ADMIN_PASSWORD`, `JWT_SECRET` y su `JWT_SECRET_BASE64` (los mismos bytes en Base64).
+**Guarde una copia de `.env` fuera del servidor**: sin él la pila no vuelve a arrancar y, si cambia
+`JWT_SECRET`, todas las sesiones se invalidan y la contraseña de MySQL deja de coincidir con el volumen ya creado.
+
+- AuthCore se construye desde `github.com/DiegoAndres4/Auth-Core-UpMarket`, rama **`main`**. Para que el
+  despliegue sea reproducible (o si el repositorio no es accesible desde la instancia), clone la copia local
+  al lado del proyecto y añada al `.env`:
+  ```bash
+  git clone https://github.com/DiegoAndres4/Auth-Core-UpMarket.git ../Auth-Core-UpMarket
+  echo 'AUTHCORE_CONTEXT=../Auth-Core-UpMarket' >> .env
+  ```
 - Abra `http://<IP>` en el navegador: debe verse la pantalla de ingreso.
+
+### Verificación después del primer arranque
+```bash
+docker compose ps                                                    # 4 servicios arriba
+curl -s -o /dev/null -w 'web=%{http_code}\n' http://localhost/       # web=200
+curl -s -o /dev/null -w 'api=%{http_code}\n' http://localhost/api/publicaciones   # api=401 (falta token)
+docker compose exec -T domain   curl -fsS http://127.0.0.1:8084/actuator/health   # {"status":"UP"}
+docker compose exec -T authcore curl -fsS http://127.0.0.1:8081/actuator/health   # status UP
+```
+Un `401` en `/api/publicaciones` es lo correcto: significa que nginx está reenviando al servicio de dominio y que la API exige token.
 
 ## 4. Primer uso
 1. **Crear cuenta** (con correo, nombre y contraseña; el celular es opcional) y entrar; publique algo de prueba con foto.
-2. Cuenta administradora: AuthCore crea sola el usuario `admin` al primer arranque. La contraseña inicial es la de `ADMIN_PASSWORD` en `.env`; si se deja vacía, AuthCore genera una aleatoria y la muestra una sola vez en `docker compose logs authcore`. Con ella se entra (en el campo de correo se escribe `admin`) y aparece la pestaña **Categorías**.
+2. **Cuenta administradora:** AuthCore crea sola el usuario `admin` en el primer arranque, con la contraseña de
+   `ADMIN_PASSWORD` en `.env`. No se genera ninguna clave aleatoria: si `ADMIN_PASSWORD` falta, AuthCore
+   **no arranca** y el error queda en `docker compose logs authcore`.
+   Para entrar, escriba `admin` en el campo "Correo".
 3. **Cambiar la contraseña de `admin` de inmediato**:
    ```bash
    ./deploy/cambiar-admin.sh
    ```
-   Genera un hash BCrypt y lo escribe en la base de datos de AuthCore. No modifica ese repositorio y es permanente: el bootstrap solo crea el usuario si no existe.
+   Pide la clave nueva (mínimo 12 caracteres), genera un hash BCrypt y lo escribe en la base de datos de
+   AuthCore. No modifica ese repositorio y es permanente: el bootstrap solo crea el usuario si no existe.
+   `ADMIN_PASSWORD` del `.env` queda obsoleto después de este paso; no hace falta cambiarlo, pero tampoco sirve.
 
-> ⚠️ **Limitación heredada de AuthCore:** no existe endpoint para cambiar contraseñas,
-> y nginx no publica `/api/auth/users`, así que **el único ADMIN posible es `admin`**. El script anterior
-> es la forma soportada de asegurarlo sin tocar el repositorio del otro grupo.
+> **Roles ADMIN:** nginx no publica la administración de usuarios de AuthCore (`/api/auth/users*` devuelve 404),
+> así que el rol se asigna por SQL con `./deploy/dar-admin.sh correo@dominio`. El usuario debe estar registrado
+> antes y tiene que cerrar sesión y volver a entrar para que el token incluya el rol.
 
 ## 5. Operación
 | Tarea | Comando |
 |---|---|
+| Ver estado | `docker compose ps` |
 | Ver logs | `docker compose logs -f domain` (o `authcore`, `web`, `db`) |
 | Actualizar tras un `git pull` | `docker compose up -d --build` |
 | Reiniciar todo | `docker compose restart` |
+| Aplicar una migración nueva | añada `V2__descripcion.sql` en `src/main/resources/db/migration/` y `docker compose up -d --build` |
 | Respaldo (bases + fotos) | `./deploy/respaldo.sh` (guarda en `respaldos/`, conserva 14 días) |
 | Dar rol ADMIN a un usuario | `./deploy/dar-admin.sh correo@dominio` |
 | Crear bases en un volumen ya existente | `./deploy/crear-bases.sh` |
-| Copia de las fotos | `docker run --rm -v upmarket_fotos-data:/d -v $PWD:/b alpine tar czf /b/fotos.tgz -C /d .` |
+| Copia manual de las fotos | `docker run --rm -v upmarket_fotos-data:/d -v $PWD:/b alpine tar czf /b/fotos.tgz -C /d .` |
 
-Los datos viven en los volúmenes `mysql-data` y `fotos-data`: sobreviven a reinicios y reconstrucciones; **no** a `docker compose down -v`.
-Guarde una copia del `.env`: si se pierde `JWT_SECRET`, todas las sesiones se invalidan (los usuarios solo vuelven a ingresar).
+Los datos viven en los volúmenes `mysql-data` y `fotos-data`: sobreviven a reinicios y reconstrucciones; **no** a
+`docker compose down -v`.
+
+### Esquema de base de datos (Flyway)
+- El esquema lo manda **Flyway**. Cada servicio trae su línea base en `src/main/resources/db/migration/V1__baseline.sql`.
+- En producción `ddl-auto=validate`: Hibernate comprueba el esquema pero no lo modifica. Si la validación falla,
+  el servicio no arranca (falla rápido, a propósito).
+- `baseline-on-migrate=true` y `baseline-version=1`: una base que ya tenía las tablas (creadas por versiones
+  anteriores con `ddl-auto=update`) se marca como V1 aplicada y no se toca.
+- Para cambiar el esquema: cree `V2__...sql`, nunca edite `V1`. Los archivos ya aplicados no se pueden modificar
+  (Flyway valida el checksum).
+- `FLYWAY_ENABLED` en AuthCore lo fija el compose de producción; en el servicio de dominio lo activa el perfil
+  `prod` (`application-prod.yml`). No los apague.
 
 ## 6. HTTPS (obligatorio antes de usar contraseñas reales)
 El sitio sale en HTTP plano por defecto: las contraseñas y los tokens viajan sin cifrar.
@@ -86,20 +129,25 @@ Verificación: `docker compose -f docker-compose.yml -f docker-compose.https.yml
 ## 7. Si algo falla
 | Síntoma | Causa probable |
 |---|---|
+| `authcore` reinicia y el log dice "AUTHCORE_ADMIN_PASSWORD es obligatorio" | Falta `ADMIN_PASSWORD` en `.env`. Ejecute `./deploy/generar-env.sh` o añádala a mano. |
+| `authcore` o `domain` fallan con "Schema-validation: missing table" | La migración no se aplicó o el volumen quedó a medias. Revise `docker compose logs authcore` y, si la base está vacía, `docker compose down -v` (destructivo) y vuelva a arrancar. |
+| `domain` no arranca y el log menciona Flyway checksum | Se editó un archivo `V*.sql` ya aplicado. Restaure el original y cree un `V2` para el cambio. |
 | Todo da 401 tras ingresar | `JWT_SECRET_BASE64` no corresponde a `JWT_SECRET`. Use `generar-env.sh`, no los edite a mano. |
-| `domain` se reinicia | `docker compose logs domain`: falta una variable o MySQL aún no estaba lista. |
-| No sube fotos | Debe ser JPG/PNG de ≤ 5 MB; el contenido se verifica, no solo la extensión. |
+| No sube fotos | Debe ser JPG/PNG de ≤ 5 MB; el contenido se verifica por los bytes, no por la extensión. |
 | `authcore` no compila | El contexto de GitHub no es accesible: use `AUTHCORE_CONTEXT` con la copia local. |
-| Sin memoria (OOM) | Use t3.medium o mayor. Cada servicio tiene `mem_limit` y heap de 300 MB; el tope total es ~2.3 GB. |
-| Login devuelve **429** | Limitador de nginx: 10 intentos/min por IP (3 registros/min). Es intencional; espere un minuto. |
+| Sin memoria (OOM) | Use t3.medium o mayor. Cada servicio tiene `mem_limit` y heap de 256 MB; el tope total es ~2.7 GB. |
+| Login devuelve **429** | Limitador de nginx: 20 intentos/min por IP (10 registros/min y 20 subidas/min). Es intencional; espere un minuto. |
 | Las fotos dan 404 | El volumen `fotos-data` solo se llena con subidas de esa instalación; una base nueva no trae fotos. |
-
 
 ## 8. Endurecimiento y límites conocidos
 
 - **Respaldos automáticos:** `crontab -e` → `15 3 * * * cd ~/UpMarket && ./deploy/respaldo.sh >> respaldos.log 2>&1`. Copie `respaldos/` fuera del servidor (S3) y/o active snapshots diarios del volumen EBS. **Nunca** use `docker compose down -v` en producción: borra la base y las fotos.
-- **Esquema de BD:** ambos servicios usan `ddl-auto=update` por defecto (configurable con `DDL_AUTO`). Después del primer arranque exitoso puede poner `DDL_AUTO=validate` en `.env` y reiniciar. No hay Flyway: los cambios de esquema futuros requieren migración manual.
-- **Sesiones:** AuthCore no tiene refresh ni revocación; el token dura 1 h (`JWT_EXPIRATION_MS` en `.env`). Una cuenta eliminada se bloquea en el servicio de dominio.
-- **Healthchecks:** `web` solo arranca cuando `authcore` y `domain` aceptan conexiones. AuthCore corre sin root y sin SQL en logs.
-- **Contraseña admin:** defina `ADMIN_PASSWORD` en `.env` o ejecute `./deploy/cambiar-admin.sh` tras el primer arranque.
+- **Sesiones:** AuthCore no tiene refresh ni revocación; el token dura 1 h (`JWT_EXPIRATION_MS` en `.env`). Una cuenta eliminada se bloquea en el servicio de dominio y sus credenciales se borran en AuthCore (`DELETE /api/auth/users/me`).
+- **Healthchecks:** `authcore` y `domain` se consideran sanos cuando `/actuator/health` responde 200 (incluye la consulta a la base). `web` solo arranca cuando ambos están sanos.
+- **Contraseña admin:** `ADMIN_PASSWORD` es obligatoria en el primer arranque; después se cambia con `./deploy/cambiar-admin.sh`.
 - **Algoritmo JWT:** el token es HS512; la clave del dominio es `JWT_SECRET_BASE64` (Base64 de los mismos bytes de `JWT_SECRET`). Si cambia una, regenere la otra con `generar-env.sh`.
+- **Aislamiento de datos:** ambos servicios comparten el usuario MySQL `upmarket`, con permisos sobre las dos bases. Es aceptable en una sola máquina, pero no aísla `authcoredb` de `upmarket`.
+- **Sin CI ni monitorización:** no hay pipeline ni alertas. El despliegue es `git clone` + compose, y la única señal de vida son los healthchecks de Docker. Añada al menos un chequeo externo (por ejemplo UptimeRobot) contra `https://su-dominio/`.
+- **Logs de Docker:** no tienen rotación configurada en el compose; en un servidor de larga vida pueden llenar el disco. Añada `log-driver`/`max-size` en `/etc/docker/daemon.json` o en cada servicio.
+- **Una sola máquina:** no hay alta disponibilidad. Si la instancia cae, el sitio cae. El respaldo y la Elastic IP reducen el tiempo de recuperación, no la caída.
+- **Token en `localStorage`:** el frontend guarda el JWT ahí; la mitigación es la CSP estricta y que todo el texto se inserta con `textContent`. Migrar a cookies `HttpOnly` requeriría cambios en AuthCore y nginx.
