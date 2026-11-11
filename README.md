@@ -30,10 +30,10 @@ Paquete base: `com.upmarket.catalogo` · Java 17 · Spring Boot 3.5.6 · Maven �
 | Parte | Estado |
 |---|---|
 | Frontend | Probado de punta a punta en navegador (Playwright) contra un servidor simulado: registro, publicar con foto, detalle, contacto, vender, buscar |
-| Subida de fotos (`/api/fotos`), CORS opcional, perfil prod | Añadidos en el cierre del proyecto; **sin compilar** en el entorno de generación (sin acceso a Maven): `mvn verify` es el primer paso |
-| Dominio + aplicación | Compilado y probado: **44 pruebas puras** pasan |
-| Infraestructura (Spring, JPA, REST, seguridad) | Escrita y revisada, **sin ejecutar** (sin acceso a Maven en el entorno de generación) |
-| Pruebas Spring (contrato JPA, unicidad de categoría, REST de punta a punta, arquitectura, JWT) | Escritas, **sin ejecutar**: son la primera tarea del grupo con `mvn verify` |
+| Subida de fotos (`/api/fotos`), CORS opcional, perfil prod | Compilados y cubiertos por `mvn verify` (REST de punta a punta) |
+| Dominio + aplicación | Compilado y probado: incluidas en las **96 pruebas** de `mvn verify` |
+| Infraestructura (Spring, JPA, REST, seguridad) | Compilada y ejecutada: `mvn verify` en verde |
+| Pruebas Spring (contrato JPA, unicidad de categoría, REST de punta a punta, arquitectura, JWT) | **96 pruebas, 0 fallos, 0 omitidas** con `mvn verify` |
 
 ## Arquitectura (hexagonal)
 
@@ -68,7 +68,8 @@ mvn spring-boot:run         # REST en http://localhost:8084 (H2 en memoria)
 
 Frontend en local sin Docker: sirva `frontend/` con cualquier servidor estático y arranque el servicio con `CORS_ORIGENES=http://localhost:5500`; en `frontend/js/app.js` cambie `API` a las URLs de los servicios (AuthCore está en otro puerto y no tiene CORS, por eso el despliegue usa nginx como puerta única).
 
-Producción: perfil `prod` con `DB_URL`, `DB_USER`, `DB_PASSWORD` como variables de entorno.
+Producción: `./deploy/generar-env.sh` crea `.env` con secretos aleatorios coherentes (`JWT_SECRET` y su `JWT_SECRET_BASE64`, contraseñas de MySQL y `ADMIN_PASSWORD`). No copie `.env.example` literalmente: sus valores son marcadores y `JWT_SECRET_BASE64` no es Base64 válido; use `deploy/env.ejemplo` como referencia de formato. Las variables `DB_URL`, `DB_USER` y `DB_PASSWORD` las toma el perfil `prod` del compose.
+En producción Flyway aplica `src/main/resources/db/migration` y Hibernate solo valida el esquema (`ddl-auto=validate`); en dev/test el esquema lo crea Hibernate. `GET /actuator/health` es público y sirve de healthcheck.
 Pruebas manuales: `requests.http` (los tokens los emite AuthCore; no los guarde en el repositorio).
 Al arrancar se crean las categorías iniciales que falten (Tecnología, Libros, Útiles académicos, Alimentos, Servicios, Otros).
 
@@ -89,6 +90,16 @@ Levanta web, AuthCore, dominio y MySQL sin necesitar `.env`. AuthCore se toma de
 
 Borrar los datos y empezar de cero: `docker compose -f docker-compose.dev.yml down -v`. Este entorno usa volúmenes propios y no afecta al despliegue.
 
+### Datos de ejemplo (seed)
+
+El entorno de desarrollo siembra datos de demostración al arrancar el dominio: 4 perfiles (incluido `admin`) y 12 publicaciones con foto. Es idempotente: si ya existen, no se duplican.
+
+- Se activa con el perfil `demo` y `UPMARKET_SEED_ENABLED=true` (ambos ya están en `docker-compose.dev.yml`).
+- Para desactivarlo, quite esas variables del compose o póngalas en `false`.
+- Para empezar de cero (base y fotos), use `docker compose -f docker-compose.dev.yml down -v`.
+- En producción no se activa: el compose solo usa el perfil `prod` y la variable queda en `false` por defecto.
+- Los vendedores demo no son cuentas de AuthCore; solo `admin` puede iniciar sesión. Si borra una publicación sembrada, reaparecerá al reiniciar mientras el seed esté activo.
+
 ## Endpoints
 
 | Método y ruta | Quién | Respuestas |
@@ -106,7 +117,7 @@ Borrar los datos y empezar de cero: `docker compose -f docker-compose.dev.yml do
 | `POST /api/fotos` (multipart, campo `archivo`) | autenticado | 201 con `{url,tipo,tamanoBytes}` · 400 (no es JPG/PNG por contenido, o pesa más de 5 MB) |
 | `GET /api/perfil` · `PUT /api/perfil` | autenticado | Perfil propio (nombre, celular colombiano, foto). 400 si el nombre o el celular no son válidos |
 | `GET /api/perfil/publico?usuario=` | autenticado | Nombre y foto de otra persona, nunca el celular |
-| `DELETE /api/perfil` | autenticado | 204: borra publicaciones, fotos y datos; el token deja de servir (401 «cuenta eliminada») |
+| `DELETE /api/perfil` | autenticado | 204: borra publicaciones y fotos, inhabilita el perfil y elimina las credenciales en AuthCore; el token deja de servir (401 «cuenta eliminada») |
 | `GET /api/fotos/{nombre}` | público (la etiqueta `img` no envía token) | 200 · 404 |
 
 ## Reglas de negocio clave
@@ -116,7 +127,7 @@ Borrar los datos y empezar de cero: `docker compose -f docker-compose.dev.yml do
 - Precio: número mayor que cero, hasta 999 999 999.99, dos decimales; llega como texto y lo valida el dominio. Título 3–100 y descripción 5–2000 caracteres.
 - Fotos: hasta 5 por publicación, JPG o PNG, máximo 5 MB. El archivo se sube primero a `POST /api/fotos` (se valida por su **contenido**, no por el nombre ni el `Content-Type`) y la `url` que devuelve se envía en `fotos` al publicar. Se guardan en disco (`FOTOS_DIR`; en Docker, el volumen `fotos-data`). Con más usuarios convendría pasarlas a S3 detrás de un puerto de salida.
 - Contacto: celular colombiano y/o correo (al menos uno). Celular válido = 10 dígitos que empiezan por 3, con 57 o +57 opcional; el vendedor elige qué medios publica.
-- Cuenta: el **correo es el nombre de usuario en AuthCore** (AuthCore no cambió). La contraseña y el borrado de credenciales son de AuthCore, que no los ofrece: eliminar la cuenta en UPMarket borra sus datos y la inhabilita aquí, pero ese correo no puede volver a registrarse. El detalle **no** lo incluye; se pide aparte y solo mientras la publicación está disponible.
+- Cuenta: el **correo es el nombre de usuario en AuthCore**. Eliminar la cuenta en UPMarket borra sus datos aquí y sus credenciales en AuthCore (llamada `DELETE /api/auth/users/me`); si AuthCore falla, la operación se revierte y responde error. El detalle **no** lo incluye; se pide aparte y solo mientras la publicación está disponible.
 - Categoría: se identifica por su nombre sin tildes ni mayúsculas («libros» = «Libros»); la base tiene una restricción única como última defensa.
 - Búsqueda: palabra clave sin importar tildes ni mayúsculas, en título y descripción; categoría, rango de precio (inclusivo) y estado (NUEVO/USADO) combinables. Los comodines `%` y `_` se tratan como texto.
 - Orden de validación: 400 → 404 → 403 → 409.
@@ -125,8 +136,8 @@ Borrar los datos y empezar de cero: `docker compose -f docker-compose.dev.yml do
 
 ## Pendiente para el grupo
 
-1. Ejecutar `mvn verify` y corregir lo que aparezca en las pruebas Spring.
-2. Adjuntar la evidencia de `UpmarketRestTest`.
+1. Ejecutar la suite contra MySQL real: hoy los contratos JPA corren contra H2 en modo MySQL.
+2. Adjuntar la evidencia de `UpmarketRestTest` (ya en verde con `mvn verify`).
 3. Ejercicios: fotos en S3; moderación por el ADMIN; paginación de la búsqueda; perfil público del vendedor.
 4. Confirmar con el profesor las decisiones del Excel (contacto guardado en la publicación, ADMIN sin moderación, borrado definitivo).
 

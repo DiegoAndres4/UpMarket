@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Cambia la contraseña del usuario "admin" de AuthCore sin modificar el repositorio de AuthCore.
-# AuthCore crea admin/admin123 solo si NO existe, así que cambiar el hash en la BD es permanente.
+# AuthCore crea el usuario admin solo si NO existe, así que cambiar el hash en la BD es permanente.
 # Uso:  ./deploy/cambiar-admin.sh      (pide la clave)   |   ./deploy/cambiar-admin.sh 'MiClaveNueva'
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -39,4 +39,4 @@ mysql_q "UPDATE users SET \`$COL\`='$HASH' WHERE username='admin';" >/dev/null
 GUARDADO="$(mysql_q "SELECT \`$COL\`='$HASH' FROM users WHERE username='admin';" | tr -d '[:space:]')"
 [ "$GUARDADO" = "1" ] || { echo "ERROR: el hash no quedó guardado." >&2; exit 1; }
 
-echo ">> Listo: la contraseña de 'admin' fue cambiada. Ya no sirve admin123."
+echo ">> Listo: la contraseña de 'admin' fue cambiada."
