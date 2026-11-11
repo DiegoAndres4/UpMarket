@@ -123,7 +123,8 @@ Flyway crea el esquema en el primer arranque (`Successfully applied 1 migration`
 2. **Cuenta administradora:** AuthCore crea sola el usuario `admin` en el primer arranque, con la contraseña de
    `ADMIN_PASSWORD` en `.env`. No se genera ninguna clave aleatoria: si `ADMIN_PASSWORD` falta, AuthCore
    **no arranca** y el error queda en `docker compose logs authcore`.
-   Para entrar, escriba `admin` en el campo "Correo".
+   Para entrar, escriba `admin` en el campo "Correo o usuario". Es la única cuenta que no usa un correo:
+   el resto de usuarios ingresa con el correo con el que se registró.
 3. **Cambiar la contraseña de `admin` de inmediato**:
    ```bash
    ./deploy/cambiar-admin.sh

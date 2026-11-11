@@ -191,7 +191,9 @@ async function enrutar() {
 window.addEventListener('hashchange', enrutar);
 window.addEventListener('load', enrutar);
 
-/* ---------- ingreso y registro (AuthCore: el nombre de usuario ES el correo) ---------- */
+/* ---------- ingreso y registro (AuthCore: el nombre de usuario ES el correo) ----------
+   Excepción: el administrador inicial se crea con el usuario `admin`, sin correo. */
+const esUsuarioLogin = (valor) => !/\s/.test(valor) && (!valor.includes('@') || esCorreo(valor));
 function campoClave(id, etiqueta, ayuda, autocompletar) {
   return [h('label', { for: id }, etiqueta, ayuda ? h('small', {}, ' ' + ayuda) : null),
           h('input', { id, type: 'password', required: true, minlength: 6, maxlength: 72, autocomplete: autocompletar || 'new-password' })];
@@ -205,7 +207,7 @@ async function iniciarSesion(correo, clave) {
 }
 function vistaLogin() {
   const error = h('p', { class: 'error', id: 'error-login', role: 'alert', hidden: true });
-  const correo = h('input', { id: 'correo', type: 'email', autocapitalize: 'none', spellcheck: 'false', required: true, autocomplete: 'username', maxlength: 120, placeholder: 'tucorreo@ejemplo.com', 'aria-describedby': 'error-login' });
+  const correo = h('input', { id: 'correo', type: 'text', inputmode: 'email', autocapitalize: 'none', spellcheck: 'false', required: true, autocomplete: 'username', maxlength: 120, placeholder: 'tucorreo@ejemplo.com o admin', 'aria-describedby': 'error-login' });
   const [lblClave, clave] = campoClave('clave', 'Contraseña', null, 'current-password');
   clave.setAttribute('aria-describedby', 'error-login');
   const ver = h('button', { type: 'button', 'aria-pressed': 'false', 'aria-controls': 'clave' }, 'Mostrar contraseña');
@@ -235,11 +237,11 @@ function vistaLogin() {
     h('form', { class: 'acceso__form', novalidate: true, onsubmit: async (ev) => {
       ev.preventDefault();
       const c = correo.value.trim().toLowerCase();
-      const problema = !c ? 'Escribe tu correo'
-        : !esCorreo(c) ? 'Escribe un correo válido'
+      const problema = !c ? 'Escribe tu correo o usuario'
+        : !esUsuarioLogin(c) ? 'Escribe un correo válido o el usuario admin'
         : !clave.value ? 'Escribe tu contraseña'
         : clave.value.length < 6 ? 'La contraseña debe tener al menos 6 caracteres' : null;
-      if (problema) { fallar(problema, !c || !esCorreo(c) ? correo : clave); return; }
+      if (problema) { fallar(problema, !c || !esUsuarioLogin(c) ? correo : clave); return; }
       error.hidden = true;
       boton.disabled = true; boton.setAttribute('aria-busy', 'true'); boton.textContent = 'Ingresando…';
       try { await iniciarSesion(c, clave.value); }
@@ -248,7 +250,7 @@ function vistaLogin() {
     } },
       h('h1', {}, 'Ingresar a UPMarket'),
       h('p', { class: 'acceso__sub' }, 'Tus publicaciones, tus ventas y tus mensajes.'),
-      h('label', { for: 'correo' }, 'Correo'), correo,
+      h('label', { for: 'correo' }, 'Correo o usuario'), correo,
       lblClave, clave,
       h('div', { class: 'ver-clave' }, ver),
       error,
