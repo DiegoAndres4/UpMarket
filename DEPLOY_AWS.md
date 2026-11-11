@@ -3,6 +3,9 @@
 Es la ruta más simple y barata: **una sola máquina** que corre cuatro contenedores
 (`web` nginx+frontend, `authcore`, `domain`, `db` MySQL). Solo el puerto 80 (y el 443 si activa HTTPS) queda abierto al público.
 
+Si en lugar de MySQL local usa **RDS**, salte el servicio `db` con la capa `docker-compose.rds.yml`
+(ver [sección 3.1](#31-despliegue-contra-rds-en-lugar-del-contenedor-mysql)): quedan tres contenedores.
+
 ```
 Internet ─▶ :80 nginx ─┬─ /api/auth/login, /register ─▶ authcore:8081 ─┐
                        ├─ /api/*                      ─▶ domain:8084 ──┼─▶ MySQL (authcoredb, upmarket)
@@ -57,6 +60,63 @@ docker compose exec -T domain   curl -fsS http://127.0.0.1:8084/actuator/health 
 docker compose exec -T authcore curl -fsS http://127.0.0.1:8081/actuator/health   # status UP
 ```
 Un `401` en `/api/publicaciones` es lo correcto: significa que nginx está reenviando al servicio de dominio y que la API exige token.
+
+## 3.1 Despliegue contra RDS (en lugar del contenedor MySQL)
+
+Si usa una instancia MySQL administrada (RDS), no levante el servicio `db`: las aplicaciones deben
+conectarse al endpoint del RDS. El archivo `docker-compose.rds.yml` del repositorio hace el cambio sin
+tocar el compose principal.
+
+**Requisitos previos**
+- RDS MySQL 8.x accesible desde la EC2: el *security group* del RDS debe permitir el puerto **3306**
+  desde el security group de la instancia (no abra 3306 a internet).
+- Las dos bases creadas (RDS no las crea solo):
+  ```sql
+  CREATE DATABASE upmarket   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  CREATE DATABASE authcoredb CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  ```
+- Un usuario con permisos sobre ambas bases. Para el laboratorio sirve el usuario maestro; en un entorno
+  real cree uno dedicado con permisos solo sobre `upmarket` y `authcoredb`.
+
+**`.env` para RDS.** No use `generar-env.sh`: ese script genera contraseñas aleatorias que no existen en RDS.
+```bash
+DB_HOST=<endpoint>.rds.amazonaws.com
+DB_USER=<usuario de RDS>
+DB_PASSWORD=<contraseña de ese usuario>
+DB_ROOT_PASSWORD=<valor cualquiera; el servicio db está desactivado>
+JWT_SECRET=<openssl rand -hex 32>
+JWT_SECRET_BASE64=<base64 del JWT_SECRET anterior>
+ADMIN_PASSWORD=<contraseña inicial del admin de la aplicación>
+AUTHCORE_CONTEXT=../Auth-Core-UpMarket
+```
+`DB_PASSWORD` y `DB_USER` deben ser los del RDS, no los que inventa el script. El `ADMIN_PASSWORD` sigue
+siendo el de la **aplicación** (usuario `admin`), no el de MySQL.
+
+**Qué cambia el override**
+- `db` queda con `profiles: ["local-db"]`: no se crea ni se arranca.
+- `authcore` y `domain` pierden el `depends_on` del contenedor (`!reset {}`) y apuntan a
+  `jdbc:mysql://${DB_HOST}:3306/...`.
+- El usuario de las dos bases pasa a `${DB_USER}` en lugar del `upmarket` local.
+
+**Levantar y verificar**
+```bash
+docker compose -f docker-compose.yml -f docker-compose.rds.yml config --services   # authcore, domain, web
+docker compose -f docker-compose.yml -f docker-compose.rds.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.rds.yml ps                  # authcore y domain "healthy"
+docker compose -f docker-compose.yml -f docker-compose.rds.yml logs domain | grep Flyway
+curl -s -o /dev/null -w 'web=%{http_code}\n' http://localhost/                     # web=200
+```
+Flyway crea el esquema en el primer arranque (`Successfully applied 1 migration`). No cree las tablas a mano.
+
+**Notas propias de RDS**
+- Los datos viven en RDS, no en el volumen `mysql-data`: `deploy/respaldo.sh` y `deploy/crear-bases.sh`
+  **no aplican**. El respaldo es el de RDS (snapshots o *automated backups*).
+- Detener la instancia RDS la conserva, pero AWS la reinicia sola a los 7 días; para volver, arránquela y
+  espere a que esté `available` antes de levantar los contenedores.
+- En una `t3.small` (2 GB) los builds de Maven y Gradle compiten por memoria: añada 2–4 GB de swap
+  (`fallocate` + `mkswap` + `swapon`, con línea en `/etc/fstab`) y compile en serie con
+  `COMPOSE_PARALLEL_LIMIT=1`. Si la memoria sigue justa, use `t3.medium` o construya las imágenes fuera.
+- Mantenga el mismo criterio de seguridad: solo nginx publica el 80/443; 8081, 8084 y 3306 no se exponen.
 
 ## 4. Primer uso
 1. **Crear cuenta** (con correo, nombre y contraseña; el celular es opcional) y entrar; publique algo de prueba con foto.
