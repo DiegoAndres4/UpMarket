@@ -538,6 +538,8 @@ Todas las rutas requieren `Authorization: Bearer <token de AuthCore>`.
 | `PUT /api/publicaciones/{id}` | HU-12 | Solo el autor | 200 · 400 · 403 · 404 · 409 (vendida) |
 | `POST /api/publicaciones/{id}/sold` | HU-12 | Solo el autor | 200 · 403 · 404 · 409 (ya vendida) |
 | `DELETE /api/publicaciones/{id}` | HU-12 | Autor o `ADMIN` (moderación) | 204 · 403 · 404 |
+| `GET /api/perfil/{usuario}/resenas` | HU-13 | Autenticado | 200 `{ vendedor, promedio, total, resenas[] }` (promedio con un decimal) |
+| `POST /api/perfil/{usuario}/resenas` | HU-13 | Autenticado (no el propio vendedor) | 201 · 400 (estrellas 0–5, comentario 3–500 o auto-reseña) · 409 (ya reseñó) |
 
 **Ejemplo de publicación (`POST /api/publicaciones`):**
 
@@ -585,6 +587,7 @@ Ver la tabla de la [sección 7](#endpoints).
 - **Búsqueda:** palabra clave en título y descripción sin importar tildes ni mayúsculas; filtros combinables de categoría, rango de precio (inclusivo) y estado. Una categoría inexistente devuelve una lista vacía.
 - **Orden de validación:** 400 → 404 → 403 → 409.
 - **Concurrencia:** si dos administradores crean la misma categoría a la vez, una recibe 201 y la otra 409. Si dos operaciones modifican la misma publicación a la vez, la segunda recibe 409.
+- **Reseñas:** una sola por comprador y vendedor, definitiva: no se edita ni se borra desde la aplicación. Estrellas enteras de 0 a 5 y comentario de 3 a 500 caracteres; el autor sale del token y nadie puede calificarse a sí mismo. El promedio se calcula al leer, con un decimal, y la base tiene una restricción única `(vendedor, autor)` como última defensa.
 
 ---
 
@@ -602,6 +605,9 @@ Ver la tabla de la [sección 7](#endpoints).
 | `infrastructure/adapters/out/persistence/*JpaContractTest` | Integración JPA | Contrato contra H2, restricción única de categoría y bloqueo optimista |
 | `infrastructure/security/JwtTokenValidatorTest` | Unitaria (6) | Token válido, vencido, otra clave, texto inválido, sin firma y sin clave |
 | `infrastructure/adapters/in/rest/UpmarketRestTest` | Punta a punta (10) | HTTP → casos de uso → dominio → H2, con JWT real |
+| `domain/ResenaTest` | Unitaria (5) | Estrellas 0–5, comentario 3–500, auto-reseña y vendedor obligatorio |
+| `application/ResenaServiceTest` | Unitaria (5) | Crear/listar con promedio y nombre visible, duplicada, auto-reseña y lista vacía |
+| `infrastructure/adapters/in/rest/ResenaRestTest` | Punta a punta (7) | 201, 409 duplicada, 400 datos inválidos, 401 y listado con promedio |
 | `architecture/ArquitecturaHexagonalTest` | ArchUnit (8 reglas) | El dominio y la aplicación no dependen de la infraestructura ni de frameworks |
 
 **Pruebas de `UpmarketRestTest`:**

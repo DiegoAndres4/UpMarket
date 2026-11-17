@@ -154,6 +154,7 @@ const rutas = [
   [/^#\/login$/, vistaLogin], [/^#\/registro$/, vistaRegistro], [/^#\/?$/, vistaCatalogo],
   [/^#\/publicar$/, () => vistaFormulario(null)], [/^#\/mias$/, vistaMias], [/^#\/categorias$/, vistaCategorias],
   [/^#\/perfil$/, vistaPerfil],
+  [/^#\/vendedor\/(.+)$/, (m) => vistaVendedor(decodeURIComponent(m[1]))],
   [/^#\/p\/(\d+)$/, (m) => vistaDetalle(m[1])], [/^#\/editar\/(\d+)$/, (m) => vistaFormulario(m[1])],
 ];
 const TITULOS = {
@@ -163,6 +164,7 @@ const TITULOS = {
 function tituloDe(hash) {
   if (/^#\/p\//.test(hash)) return 'Detalle de publicación';
   if (/^#\/editar\//.test(hash)) return 'Editar publicación';
+  if (/^#\/vendedor\//.test(hash)) return 'Vendedor';
   return TITULOS[hash] || '';
 }
 async function enrutar() {
@@ -522,7 +524,8 @@ async function vistaDetalle(id) {
 
   const vend = { nombre: nombreCorto(p.vendedor), fotoUrl: null };
   const avatarVendedor = avatar(null, vend.nombre, 'mediano');
-  const nombreVendedor = h('strong', {}, vend.nombre);
+  const nombreVendedor = h('a', { class: 'vendedor__enlace', href: '#/vendedor/' + encodeURIComponent(p.vendedor) }, vend.nombre);
+  const resumenVendedor = h('div', { class: 'meta vendedor__resumen' }, '');
   api('GET', '/api/perfil/publico?usuario=' + encodeURIComponent(p.vendedor))
     .then((perfil) => {
       if (!perfil) return;
@@ -530,6 +533,13 @@ async function vistaDetalle(id) {
       avatarVendedor.replaceWith(avatar(perfil.fotoUrl, vend.nombre, 'mediano'));
     })
     .catch(() => { /* se mantiene el nombre corto */ });
+  api('GET', '/api/perfil/' + encodeURIComponent(p.vendedor) + '/resenas')
+    .then((r) => {
+      resumenVendedor.textContent = r.total
+        ? '★ ' + r.promedio.toFixed(1) + ' · ' + r.total + (r.total === 1 ? ' reseña' : ' reseñas')
+        : 'Sin reseñas todavía';
+    })
+    .catch(() => { resumenVendedor.textContent = ''; });
 
   let actual = 0;
   const grande = h('img', { class: 'grande', decoding: 'async' });
@@ -619,9 +629,99 @@ async function vistaDetalle(id) {
         h('p', { class: 'detalle-desc' }, p.descripcion),
         h('h2', { class: 'detalle-sub' }, 'Vendedor'),
         h('div', { class: 'vendedor' }, avatarVendedor,
-          h('div', {}, nombreVendedor, h('div', { class: 'meta' }, 'Publicado el ' + fecha(p.publicadaEn)))),
+          h('div', {}, h('strong', {}, nombreVendedor), resumenVendedor,
+            h('div', { class: 'meta' }, 'Publicado el ' + fecha(p.publicadaEn)))),
         btnContacto, estadoVendido, zonaContacto, acciones)));
 }
+
+/* ---------- reseñas del vendedor ---------- */
+function estrellasDe(n) {
+  const llenas = Math.max(0, Math.min(5, Math.round(Number(n) || 0)));
+  return '★'.repeat(llenas) + '☆'.repeat(5 - llenas);
+}
+
+async function vistaVendedor(usuario) {
+  const enc = encodeURIComponent(usuario);
+  const [perfil, datos] = await Promise.all([
+    api('GET', '/api/perfil/publico?usuario=' + enc),
+    api('GET', '/api/perfil/' + enc + '/resenas'),
+  ]);
+  const sesion = leerSesion();
+  const esMio = Boolean(sesion && sesion.usuario === usuario);
+  const mia = datos.resenas.find((r) => r.autor === (sesion && sesion.usuario));
+  const nombreVisible = perfil.nombre || nombreCorto(usuario);
+  document.title = nombreVisible + ' · UPMarket';
+
+  const resumen = h('p', { class: 'vendedor-resumen' }, datos.total
+    ? h('span', { class: 'estrellas', 'aria-label': 'Promedio ' + datos.promedio.toFixed(1) + ' de 5' },
+        '★ ' + datos.promedio.toFixed(1) + ' · ' + datos.total + (datos.total === 1 ? ' reseña' : ' reseñas'))
+    : h('span', { class: 'meta' }, 'Sin reseñas todavía'));
+
+  const lista = datos.resenas.length
+    ? h('ul', { class: 'resenas' }, datos.resenas.map((r) => h('li', { class: 'resena' },
+        h('div', { class: 'resena__cab' },
+          h('strong', {}, r.autorNombre || nombreCorto(r.autor)),
+          h('span', { class: 'estrellas', 'aria-label': r.estrellas + ' de 5 estrellas' }, estrellasDe(r.estrellas)),
+          h('span', { class: 'resena__fecha' }, fecha(r.creadaEn))),
+        h('p', { class: 'resena__texto' }, r.comentario))))
+    : h('p', { class: 'meta' }, 'Este vendedor todavía no tiene reseñas.');
+
+  const formulario = (!esMio && !mia) ? formularioResena(usuario, enc) : null;
+  const avisoPropio = esMio ? h('p', { class: 'meta' }, 'Este es tu perfil: no puedes calificarte a ti mismo.')
+    : mia ? h('p', { class: 'meta' }, 'Ya calificaste a este vendedor. Tu reseña es definitiva.') : null;
+
+  montar(
+    h('a', { class: 'volver', href: '#/' }, '← Volver al catálogo'),
+    h('header', { class: 'vendedor-cab' },
+      avatar(perfil.fotoUrl, nombreVisible, 'grande'),
+      h('div', {}, h('h1', {}, nombreVisible), resumen)),
+    h('div', { class: 'panel' },
+      h('h2', { class: 'detalle-sub' }, 'Reseñas'),
+      avisoPropio,
+      formulario,
+      lista));
+}
+
+function formularioResena(usuario, enc) {
+  const sel = h('select', { id: 'estrellas', required: true, 'aria-describedby': 'ayuda-estrellas' },
+    [5, 4, 3, 2, 1, 0].map((n) => h('option', { value: String(n) }, estrellasDe(n) + ' (' + n + ')')));
+  const txt = h('textarea', { id: 'comentario', required: true, minlength: 3, maxlength: 500, rows: 3,
+    placeholder: 'Cuenta cómo fue tu experiencia con este vendedor' });
+  const contador = h('span', { class: 'contador' }, '0/500');
+  txt.addEventListener('input', () => { contador.textContent = txt.value.length + '/500'; });
+  const error = h('p', { class: 'error', role: 'alert', hidden: true });
+
+  return h('form', { class: 'resena-form', onsubmit: async (ev) => {
+    ev.preventDefault();
+    const estrellas = Number(sel.value);
+    const comentario = txt.value.trim();
+    if (comentario.length < 3) {
+      error.textContent = 'El comentario debe tener al menos 3 caracteres.';
+      error.hidden = false; txt.focus(); return;
+    }
+    error.hidden = true;
+    const boton = ev.submitter || ev.target.querySelector('button[type="submit"]');
+    if (boton) boton.disabled = true;
+    try {
+      await api('POST', '/api/perfil/' + enc + '/resenas', { estrellas, comentario });
+      aviso('Gracias por tu reseña');
+      await vistaVendedor(usuario);
+    } catch (e) {
+      error.textContent = e.message; error.hidden = false;
+      if (boton) boton.disabled = false;
+    }
+  } },
+    h('h3', {}, 'Califica a este vendedor'),
+    h('label', { for: 'estrellas' }, 'Estrellas'),
+    sel,
+    h('label', { for: 'comentario' }, 'Comentario'),
+    txt,
+    h('div', { class: 'contador-fila' }, contador),
+    error,
+    h('button', { class: 'btn', type: 'submit' }, 'Publicar reseña'),
+    h('p', { class: 'meta', id: 'ayuda-estrellas' }, 'Solo puedes calificar una vez y la reseña no se puede editar después.'));
+}
+
 async function accion(fn, exito, despues) {
   try { await fn(); aviso(exito); await despues(); } catch (e) { aviso(e.message, true); }
 }

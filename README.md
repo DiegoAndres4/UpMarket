@@ -57,6 +57,7 @@ Los repositorios tienen una prueba de contrato (`contract/`) que se ejecuta cont
 | HU-10 | Buscar por palabra clave y filtros combinados | `PublicacionService.buscar`, `GET /api/publicaciones` |
 | HU-11 | Ver el detalle y contactar al vendedor | `PublicacionService.detalle/contacto`, `GET /api/publicaciones/{id}` y `/contacto` |
 | HU-12 | Editar, marcar como vendido, eliminar y ver mis publicaciones | `PublicacionService`, `PUT/DELETE /api/publicaciones/{id}`, `POST .../sold`, `GET .../mias` |
+| HU-13 | Reseñar al vendedor con comentario y 0–5 estrellas | `ResenaService`, `Resena`, `POST/GET /api/perfil/{usuario}/resenas` |
 
 ## Ejecutar
 
@@ -117,6 +118,8 @@ El entorno de desarrollo siembra datos de demostración al arrancar el dominio: 
 | `POST /api/fotos` (multipart, campo `archivo`) | autenticado | 201 con `{url,tipo,tamanoBytes}` · 400 (no es JPG/PNG por contenido, o pesa más de 5 MB) |
 | `GET /api/perfil` · `PUT /api/perfil` | autenticado | Perfil propio (nombre, celular colombiano, foto). 400 si el nombre o el celular no son válidos |
 | `GET /api/perfil/publico?usuario=` | autenticado | Nombre y foto de otra persona, nunca el celular |
+| `GET /api/perfil/{usuario}/resenas` | autenticado | 200 `{ vendedor, promedio, total, resenas[] }`; promedio con un decimal y reseñas más recientes primero |
+| `POST /api/perfil/{usuario}/resenas` | autenticado (no el propio vendedor) | 201 · 400 (estrellas fuera de 0–5, comentario fuera de 3–500 o auto-reseña) · 409 (ya reseñó a ese vendedor) |
 | `DELETE /api/perfil` | autenticado | 204: borra publicaciones y fotos, inhabilita el perfil y elimina las credenciales en AuthCore; el token deja de servir (401 «cuenta eliminada») |
 | `GET /api/fotos/{nombre}` | público (la etiqueta `img` no envía token) | 200 · 404 |
 
@@ -133,6 +136,7 @@ El entorno de desarrollo siembra datos de demostración al arrancar el dominio: 
 - Orden de validación: 400 → 404 → 403 → 409.
 - Concurrencia: `@Version` en la publicación; si dos operaciones la cambian a la vez, la segunda recibe 409.
 - Eliminar es definitivo (borrado físico).
+- Reseñas: una sola por comprador y vendedor, y es definitiva (no se edita ni se borra). Estrellas enteras de 0 a 5 y comentario de 3 a 500 caracteres; el autor sale del token. El promedio se calcula al leer, con un decimal, y se muestra en el perfil público del vendedor y en el detalle de cada publicación.
 
 ## Pendiente para el grupo
 
