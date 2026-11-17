@@ -91,7 +91,7 @@ public class PerfilService {
         }
     }
 
-    private static String nombrePorDefecto(String usuario) {
+    static String nombrePorDefecto(String usuario) {
         int arroba = usuario.indexOf('@');
         String base = arroba > 0 ? usuario.substring(0, arroba) : usuario;
         return base.length() > 60 ? base.substring(0, 60) : base;

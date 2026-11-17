@@ -40,6 +40,12 @@ public class BeanConfig {
         return new PublicacionService(publicaciones, categorias, transaccion, reloj, acceso);
     }
 
+    @Bean
+    ResenaService resenaService(ResenaRepositoryPort resenas, TransaccionPort transaccion, Clock reloj,
+                                PerfilPublicoPort perfiles) {
+        return new ResenaService(resenas, transaccion, reloj, perfiles);
+    }
+
     /** Al arrancar crea las categorías iniciales que falten (HU-9). Repetirlo no duplica nada. */
     @Bean
     ApplicationRunner categoriasIniciales(CategoriaUseCase categorias) {
