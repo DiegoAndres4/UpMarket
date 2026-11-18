@@ -202,6 +202,8 @@ input[readonly]{background:var(--surface-2);color:var(--text-muted);cursor:defau
 .estado-vendido strong{display:block;margin-bottom:4px}
 .estado-vendido p{margin:0;font-size:.92rem;color:var(--text-muted)}
 .zona-contacto:empty{display:none}
+.zona-resena{margin-top:12px}
+.zona-resena:empty{display:none}
 .previas{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 .previas figure{margin:0;position:relative}
 .previas img{width:96px;height:96px;object-fit:cover;border-radius:var(--radius-control);border:1px solid var(--border)}
@@ -410,6 +412,16 @@ a{text-decoration:underline;text-underline-offset:2px}
 .resena__texto{margin:8px 0 0;overflow-wrap:anywhere;white-space:pre-wrap}
 .resena-form{margin:20px 0 0;padding-top:16px;border-top:1px solid var(--border)}
 .resena-form h3{margin:0 0 4px}
+.estrellas-picker{border:0;padding:0;margin:8px 0 4px;min-width:0}
+.estrellas-picker legend{padding:0;font-weight:500;font-size:var(--text-sm);color:var(--text);margin-bottom:6px}
+.estrellas-picker__fila{display:inline-flex;gap:0}
+.estrellas-picker__fila label{display:inline-flex;align-items:center;justify-content:center;margin:0;padding:2px 3px;font-size:34px;line-height:1;font-weight:400;color:var(--border-strong);cursor:pointer;border-radius:6px;transition:color .12s,transform .12s;user-select:none}
+.estrellas-picker__fila label.llena{color:var(--primary)}
+.estrellas-picker__fila label:active{transform:scale(.9)}
+.estrella__radio{position:absolute;width:1px;height:1px;min-height:0;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.estrella__radio:focus-visible{outline:none}
+.estrellas-picker__fila input:focus-visible + label{outline:3px solid var(--text);outline-offset:2px}
+.estrellas-picker__valor{margin:4px 0 0;font-size:var(--text-sm);color:var(--text-muted)}
 @media(max-width:520px){
   .vendedor-cab{gap:12px}
   .vendedor-cab .avatar.grande{width:64px;height:64px;font-size:1.6rem}

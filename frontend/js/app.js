@@ -526,6 +526,23 @@ async function vistaDetalle(id) {
   const avatarVendedor = avatar(null, vend.nombre, 'mediano');
   const nombreVendedor = h('a', { class: 'vendedor__enlace', href: '#/vendedor/' + encodeURIComponent(p.vendedor) }, vend.nombre);
   const resumenVendedor = h('div', { class: 'meta vendedor__resumen' }, '');
+  const zonaResena = h('div', { class: 'zona-resena' });
+  let datosResenas = null;
+
+  function pintarBotonResena() {
+    if (esMia) return;
+    if (s && datosResenas && datosResenas.resenas.some((r) => r.autor === s.usuario)) return;
+    zonaResena.replaceChildren(h('button', {
+      class: 'btn sec', type: 'button',
+      onclick: () => {
+        if (!leerSesion()) { location.hash = '#/login'; return; }
+        zonaResena.replaceChildren(formularioResena(p.vendedor, encodeURIComponent(p.vendedor), () => vistaDetalle(id)));
+        const campo = zonaResena.querySelector('#estrellas');
+        if (campo) campo.focus();
+      },
+    }, 'Dejar reseña al vendedor'));
+  }
+
   api('GET', '/api/perfil/publico?usuario=' + encodeURIComponent(p.vendedor))
     .then((perfil) => {
       if (!perfil) return;
@@ -535,9 +552,11 @@ async function vistaDetalle(id) {
     .catch(() => { /* se mantiene el nombre corto */ });
   api('GET', '/api/perfil/' + encodeURIComponent(p.vendedor) + '/resenas')
     .then((r) => {
+      datosResenas = r;
       resumenVendedor.textContent = r.total
         ? '★ ' + r.promedio.toFixed(1) + ' · ' + r.total + (r.total === 1 ? ' reseña' : ' reseñas')
         : 'Sin reseñas todavía';
+      pintarBotonResena();
     })
     .catch(() => { resumenVendedor.textContent = ''; });
 
@@ -631,13 +650,46 @@ async function vistaDetalle(id) {
         h('div', { class: 'vendedor' }, avatarVendedor,
           h('div', {}, h('strong', {}, nombreVendedor), resumenVendedor,
             h('div', { class: 'meta' }, 'Publicado el ' + fecha(p.publicadaEn)))),
-        btnContacto, estadoVendido, zonaContacto, acciones)));
+        btnContacto, zonaContacto, zonaResena, estadoVendido, acciones)));
 }
 
 /* ---------- reseñas del vendedor ---------- */
 function estrellasDe(n) {
   const llenas = Math.max(0, Math.min(5, Math.round(Number(n) || 0)));
   return '★'.repeat(llenas) + '☆'.repeat(5 - llenas);
+}
+
+/* Selector de estrellas 1..5: radios nativos (teclado y lector de pantalla) con estrellas clicables. */
+function selectorEstrellas() {
+  const fila = h('div', { class: 'estrellas-picker__fila' },
+    [1, 2, 3, 4, 5].flatMap((n) => [
+      h('input', { type: 'radio', name: 'estrellas', id: 'estrella-' + n, value: String(n), class: 'estrella__radio' }),
+      h('label', { for: 'estrella-' + n, class: 'estrella__opcion', title: n + ' de 5 estrellas' },
+        h('span', { 'aria-hidden': 'true' }, '★'),
+        h('span', { class: 'sr-only' }, n + (n === 1 ? ' estrella' : ' estrellas'))),
+    ]));
+  const labels = [...fila.querySelectorAll('label')];
+  const pista = h('p', { class: 'estrellas-picker__valor', 'aria-live': 'polite' }, 'Elige de 1 a 5 estrellas');
+  const campo = h('fieldset', { class: 'estrellas-picker' }, h('legend', {}, 'Estrellas'), fila, pista);
+  const valor = () => Number(campo.querySelector('input:checked')?.value || 0);
+  const pintar = (n) => labels.forEach((l, i) => l.classList.toggle('llena', i < n));
+
+  fila.addEventListener('mouseover', (ev) => {
+    const l = ev.target.closest('label');
+    if (l) pintar(labels.indexOf(l) + 1);
+  });
+  fila.addEventListener('mouseleave', () => pintar(valor()));
+  campo.addEventListener('change', () => {
+    const n = valor();
+    pintar(n);
+    pista.textContent = n ? n + ' de 5 estrellas' : 'Elige de 1 a 5 estrellas';
+  });
+
+  return {
+    campo,
+    valor,
+    foco: () => (campo.querySelector('input:checked') || campo.querySelector('input'))?.focus(),
+  };
 }
 
 async function vistaVendedor(usuario) {
@@ -682,9 +734,8 @@ async function vistaVendedor(usuario) {
       lista));
 }
 
-function formularioResena(usuario, enc) {
-  const sel = h('select', { id: 'estrellas', required: true, 'aria-describedby': 'ayuda-estrellas' },
-    [5, 4, 3, 2, 1, 0].map((n) => h('option', { value: String(n) }, estrellasDe(n) + ' (' + n + ')')));
+function formularioResena(usuario, enc, alPublicar = () => vistaVendedor(usuario)) {
+  const estrellas = selectorEstrellas();
   const txt = h('textarea', { id: 'comentario', required: true, minlength: 3, maxlength: 500, rows: 3,
     placeholder: 'Cuenta cómo fue tu experiencia con este vendedor' });
   const contador = h('span', { class: 'contador' }, '0/500');
@@ -693,7 +744,11 @@ function formularioResena(usuario, enc) {
 
   return h('form', { class: 'resena-form', onsubmit: async (ev) => {
     ev.preventDefault();
-    const estrellas = Number(sel.value);
+    const estrellasElegidas = estrellas.valor();
+    if (!estrellasElegidas) {
+      error.textContent = 'Elige de 1 a 5 estrellas.';
+      error.hidden = false; estrellas.foco(); return;
+    }
     const comentario = txt.value.trim();
     if (comentario.length < 3) {
       error.textContent = 'El comentario debe tener al menos 3 caracteres.';
@@ -703,17 +758,16 @@ function formularioResena(usuario, enc) {
     const boton = ev.submitter || ev.target.querySelector('button[type="submit"]');
     if (boton) boton.disabled = true;
     try {
-      await api('POST', '/api/perfil/' + enc + '/resenas', { estrellas, comentario });
+      await api('POST', '/api/perfil/' + enc + '/resenas', { estrellas: estrellasElegidas, comentario });
       aviso('Gracias por tu reseña');
-      await vistaVendedor(usuario);
+      await alPublicar();
     } catch (e) {
       error.textContent = e.message; error.hidden = false;
       if (boton) boton.disabled = false;
     }
   } },
     h('h3', {}, 'Califica a este vendedor'),
-    h('label', { for: 'estrellas' }, 'Estrellas'),
-    sel,
+    estrellas.campo,
     h('label', { for: 'comentario' }, 'Comentario'),
     txt,
     h('div', { class: 'contador-fila' }, contador),
