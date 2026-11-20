@@ -13,6 +13,13 @@ public class PoliticaAcceso {
         }
     }
 
+    /** Publicar es de estudiantes: el administrador modera el catálogo, no vende. */
+    public void asegurarPuedePublicar(Actor actor) {
+        if (actor.esAdmin()) {
+            throw new AccesoDenegadoException("El administrador no publica artículos.");
+        }
+    }
+
     public boolean esAutor(Publicacion publicacion, Actor actor) {
         return actor.username().equals(publicacion.getVendedor());
     }

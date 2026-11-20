@@ -57,6 +57,15 @@ class DatosDemoSeederTest {
         assertEquals(12, publicaciones.buscar(filtro()).size());
         assertEquals(1, publicaciones.buscar(filtro()).stream()
                 .filter(p -> p.getEstado() == EstadoPublicacion.VENDIDA).count());
+        // El admin no tiene publicaciones: las cuatro semillas suyas se reparten entre estudiantes.
+        assertEquals(0, publicaciones.buscar(filtro()).stream()
+                .filter(p -> p.getVendedor().equals("admin")).count());
+        assertEquals(4, publicaciones.buscar(filtro()).stream()
+                .filter(p -> p.getVendedor().equals("laura.gomez@demo.upmarket")).count());
+        assertEquals(4, publicaciones.buscar(filtro()).stream()
+                .filter(p -> p.getVendedor().equals("carlos.ruiz@demo.upmarket")).count());
+        assertEquals(4, publicaciones.buscar(filtro()).stream()
+                .filter(p -> p.getVendedor().equals("andrea.torres@demo.upmarket")).count());
         try (var archivos = Files.list(fotos)) {
             assertEquals(12, archivos.count());
         }

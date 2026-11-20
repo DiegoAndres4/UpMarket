@@ -151,8 +151,9 @@ function pintarNav() {
   const enlace = (href, texto, clase) => h('a', { href, class: (ruta === href ? 'activo ' : '') + (clase || '') }, texto);
   const nombre = perfilActual ? perfilActual.nombre : nombreCorto(s.usuario);
   nav.replaceChildren(...[
-    enlace('#/', 'Catálogo'), enlace('#/publicar', 'Publicar', 'cta'), enlace('#/mias', 'Mis publicaciones'),
-    s.esAdmin ? enlace('#/categorias', 'Categorías') : null,
+    enlace('#/', 'Catálogo'),
+    s.esAdmin ? null : enlace('#/publicar', 'Publicar', 'cta'),
+    s.esAdmin ? null : enlace('#/mias', 'Mis publicaciones'),
     s.esAdmin ? h('a', { href: '/admin/' }, 'Admin') : null,
     h('a', { href: '#/perfil', class: ruta === '#/perfil' ? 'activo' : '' },
       avatar(perfilActual && perfilActual.fotoUrl, nombre, ''), 'Mi perfil'),
@@ -167,14 +168,15 @@ function pintarPie() {
   const s = leerSesion();
   const anio = new Date().getFullYear();
   const enlace = (href, texto) => h('li', {}, h('a', { href }, texto));
+  const esAdmin = Boolean(s && s.esAdmin);
   const mercado = [
     enlace('#/', 'Buscar'),
-    enlace('#/publicar', 'Publicar'),
-    s ? enlace('#/mias', 'Mis publicaciones') : null,
-    s && s.esAdmin ? enlace('/admin/', 'Panel de administración') : null,
+    s && !esAdmin ? enlace('#/publicar', 'Publicar') : null,
+    s && !esAdmin ? enlace('#/mias', 'Mis publicaciones') : null,
+    esAdmin ? enlace('/admin/', 'Panel de administración') : null,
   ].filter(Boolean);
   const ayuda = [
-    h('li', {}, h('span', { class: 'pie__dato' }, 'Publicar cuesta $3.000 (pago simulado)')),
+    esAdmin ? null : h('li', {}, h('span', { class: 'pie__dato' }, 'Publicar cuesta $3.000 (pago simulado)')),
     SOPORTE_CORREO ? h('li', {}, h('a', { href: 'mailto:' + SOPORTE_CORREO }, 'Contactar soporte')) : null,
   ].filter(Boolean);
   pie.replaceChildren(
@@ -182,7 +184,8 @@ function pintarPie() {
       h('div', { class: 'pie__destacado' },
         h('a', { class: 'marca pie__marca', href: '#/' }, 'UP', h('span', {}, 'Market')),
         h('p', { class: 'pie__lema' }, 'El mercado de los estudiantes de la Universidad de Pamplona, sede Villa del Rosario.'),
-        h('a', { class: 'btn pie__accion', href: s ? '#/publicar' : '#/registro' }, s ? 'Publicar un artículo' : 'Crear cuenta')),
+        h('a', { class: 'btn pie__accion', href: esAdmin ? '/admin/' : (s ? '#/publicar' : '#/registro') },
+          esAdmin ? 'Ir al panel de administración' : (s ? 'Publicar un artículo' : 'Crear cuenta'))),
       h('nav', { class: 'pie__nav', 'aria-label': 'Pie de página' },
         h('div', { class: 'pie__grupo' },
           h('h2', { class: 'pie__grupo-titulo' }, 'Mercado'),
@@ -207,7 +210,8 @@ const rutas = [
   [/^#\/login$/, vistaLogin], [/^#\/registro$/, vistaRegistro],
   [/^#\/verificar(?:\?.*)?$/, vistaVerificar],
   [/^#\/?$/, () => (leerSesion() ? vistaCatalogo() : vistaLanding())],
-  [/^#\/publicar$/, () => vistaFormulario(null)], [/^#\/mias$/, vistaMias], [/^#\/categorias$/, vistaCategorias],
+  [/^#\/publicar$/, () => (leerSesion() && leerSesion().esAdmin ? vistaSoloEstudiantes() : vistaFormulario(null))],
+  [/^#\/mias$/, () => (leerSesion() && leerSesion().esAdmin ? vistaSoloEstudiantes() : vistaMias())],
   [/^#\/perfil$/, vistaPerfil],
   [/^#\/vendedor\/(.+)$/, (m) => vistaVendedor(decodeURIComponent(m[1]))],
   [/^#\/pagar\/(\d+)$/, (m) => vistaPago(m[1])],
@@ -215,7 +219,7 @@ const rutas = [
 ];
 const TITULOS = {
   '#/': 'Catálogo', '#/login': 'Ingresar', '#/registro': 'Crear cuenta', '#/publicar': 'Publicar',
-  '#/mias': 'Mis publicaciones', '#/categorias': 'Categorías', '#/perfil': 'Mi perfil',
+  '#/mias': 'Mis publicaciones', '#/perfil': 'Mi perfil',
   '#/verificar': 'Confirmar correo',
 };
 function tituloDe(hash) {
@@ -898,7 +902,7 @@ async function vistaCatalogo() {
       h('p', {}, hayFiltros ? 'No encontramos publicaciones con esos filtros.' : 'Todavía no hay publicaciones. ¡Sé el primero en publicar!'),
       h('div', { class: 'acciones' },
         hayFiltros ? h('button', { class: 'btn sec', type: 'button', onclick: limpiarFiltros }, 'Quitar filtros') : null,
-        h('a', { class: 'btn', href: '#/publicar' }, 'Publicar un artículo')));
+        leerSesion() && !leerSesion().esAdmin ? h('a', { class: 'btn', href: '#/publicar' }, 'Publicar un artículo') : null));
   }
 
   async function buscar() {
@@ -1519,6 +1523,14 @@ function esqueletoMias() {
       h('span', { class: 'bloque bloque--precio' }))));
 }
 
+/** Un ADMIN no publica: si entra a #/publicar o #/mias se le manda al panel. */
+function vistaSoloEstudiantes() {
+  montar(h('div', { class: 'panel vacio' },
+    h('h1', {}, 'El administrador no publica artículos.'),
+    h('p', { class: 'sub' }, 'Desde el panel puedes moderar el catálogo, revisar pagos y generar reportes.'),
+    h('a', { class: 'btn', href: '/admin/' }, 'Ir al panel de administración')));
+}
+
 async function vistaMias(enfocar) {
   const subtitulo = h('p', { class: 'sub', role: 'status' }, 'Cargando tus publicaciones…');
   const filtros = h('div', { class: 'mias-filtros', role: 'group', 'aria-label': 'Filtrar por estado' });
@@ -1702,124 +1714,4 @@ async function vistaPerfil() {
           h('label', { for: 'conf' }, 'Escribe ELIMINAR para confirmar'), confirmacion,
           h('p', { class: 'ayuda', id: 'ayuda-conf' }, 'Esta acción elimina tu cuenta de forma definitiva.'),
           h('div', { class: 'acciones' }, borrar)))));
-}
-
-/* ---------- categorías (HU-9, solo ADMIN) ---------- */
-async function vistaCategorias() {
-  if (!leerSesion().esAdmin) throw new Error('Solo un administrador puede gestionar categorías');
-
-  const numero = new Intl.NumberFormat('es-CO');
-  const nombre = h('input', {
-    id: 'categoria-nombre', name: 'nombre', required: true, minlength: 2, maxlength: 40,
-    autocomplete: 'off', placeholder: 'Ej. Deportes',
-    'aria-describedby': 'categoria-ayuda categoria-error',
-  });
-  const ayuda = h('p', { id: 'categoria-ayuda', class: 'ayuda' }, 'Entre 2 y 40 caracteres. No puede repetirse.');
-  const error = h('p', { id: 'categoria-error', class: 'error', role: 'alert', hidden: true });
-  const crear = h('button', { class: 'btn', type: 'submit' }, 'Crear categoría');
-  const resumen = h('p', { class: 'resumen' });
-  const cuerpo = h('tbody');
-  const lista = h('div', { class: 'tabla-wrap', role: 'region', 'aria-label': 'Tabla de categorías', tabindex: '0' },
-    h('table', { class: 'tabla-cats' },
-      h('caption', { class: 'sr-only' }, 'Categorías del catálogo y número de publicaciones disponibles'),
-      h('thead', {}, h('tr', {},
-        h('th', { scope: 'col' }, 'Categoría'),
-        h('th', { scope: 'col', class: 'num' }, 'Publicaciones disponibles'))),
-      cuerpo));
-  let creando = false;
-  let cargaId = 0;
-
-  nombre.addEventListener('input', () => {
-    error.hidden = true;
-    nombre.removeAttribute('aria-invalid');
-  });
-
-  function pintar(cats) {
-    const total = cats.reduce((t, c) => t + (Number(c.disponibles) || 0), 0);
-    resumen.textContent = `${numero.format(cats.length)} ${cats.length === 1 ? 'categoría' : 'categorías'} · ${numero.format(total)} ${total === 1 ? 'publicación disponible' : 'publicaciones disponibles'}`;
-    if (cats.length === 0) {
-      cuerpo.replaceChildren(h('tr', {}, h('td', { colspan: '2' },
-        h('div', { class: 'vacio' },
-          h('p', {}, 'Todavía no hay categorías.'),
-          h('p', { class: 'ayuda' }, 'Crea la primera con el formulario de la izquierda.')))));
-      return;
-    }
-    cuerpo.replaceChildren(...cats.map((c) => h('tr', {},
-      h('th', { scope: 'row' }, c.nombre),
-      h('td', { class: 'num' }, c.disponibles === null || c.disponibles === undefined ? '—' : numero.format(c.disponibles)))));
-  }
-
-  async function cargar(silencioso = false) {
-    const id = ++cargaId;
-    lista.setAttribute('aria-busy', 'true');
-    if (!silencioso) {
-      resumen.textContent = '';
-      cuerpo.replaceChildren(...[0, 1, 2].map(() => h('tr', { class: 'cargando' },
-        h('td', {}, h('span', { class: 'barra-carga' })),
-        h('td', { class: 'num' }, h('span', { class: 'barra-carga barra-corta' })))));
-    }
-    try {
-      const cats = await api('GET', '/api/categorias');
-      if (id !== cargaId) return;
-      pintar(cats);
-    } catch (e) {
-      if (id !== cargaId) return;
-      resumen.textContent = 'No se pudieron cargar';
-      cuerpo.replaceChildren(h('tr', {}, h('td', { colspan: '2' },
-        h('div', { class: 'vacio' },
-          h('p', {}, e.message),
-          h('button', { class: 'btn sec', type: 'button', onclick: () => cargar() }, 'Reintentar')))));
-    } finally {
-      if (id === cargaId) lista.removeAttribute('aria-busy');
-    }
-  }
-
-  const formulario = h('form', { class: 'panel', novalidate: true, onsubmit: async (ev) => {
-    ev.preventDefault();
-    if (creando) return;
-    error.hidden = true;
-    nombre.removeAttribute('aria-invalid');
-    const valor = nombre.value.trim().replace(/\s+/g, ' ');
-    if (valor.length < 2) {
-      error.textContent = 'Escribe un nombre de al menos 2 caracteres.';
-      error.hidden = false;
-      nombre.setAttribute('aria-invalid', 'true');
-      nombre.focus();
-      return;
-    }
-    creando = true;
-    crear.disabled = true;
-    crear.textContent = 'Creando…';
-    try {
-      await api('POST', '/api/categorias', { nombre: valor });
-      nombre.value = '';
-      nombre.focus();
-      aviso('Categoría creada');
-      await cargar(true);
-    } catch (e) {
-      error.textContent = e.message;
-      error.hidden = false;
-      nombre.setAttribute('aria-invalid', 'true');
-      nombre.focus();
-    } finally {
-      creando = false;
-      crear.disabled = false;
-      crear.textContent = 'Crear categoría';
-    }
-  } },
-    h('h2', { class: 'panel-titulo' }, 'Nueva categoría'),
-    h('label', { for: 'categoria-nombre' }, 'Nombre'),
-    nombre, ayuda, error,
-    h('div', { class: 'acciones' }, crear));
-
-  montar(
-    h('h1', {}, 'Categorías'),
-    h('p', { class: 'sub' }, 'Administra las categorías del catálogo. Solo administradores.'),
-    h('div', { class: 'categorias' }, formulario,
-      h('section', { class: 'panel', 'aria-labelledby': 'cats-titulo' },
-        h('div', { class: 'seccion-cab' },
-          h('h2', { id: 'cats-titulo' }, 'Categorías existentes'),
-          resumen),
-        lista)));
-  await cargar();
 }

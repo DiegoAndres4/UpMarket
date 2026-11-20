@@ -1,5 +1,6 @@
 package com.upmarket.catalogo.infrastructure.adapters.in.rest;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -117,6 +118,19 @@ class AdminRestTest {
         mvc.perform(con(get("/api/admin/estadisticas"), admin(), null)).andExpect(status().isOk());
         mvc.perform(con(get("/api/admin/publicaciones"), admin(), null)).andExpect(status().isOk());
         mvc.perform(con(get("/api/admin/usuarios"), admin(), null)).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("El ADMIN no puede publicar; un usuario normal sí")
+    void adminNoPublica() throws Exception {
+        mvc.perform(con(post("/api/publicaciones"), admin(), json(unico("Admin "), "50000", "Otros")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.mensaje").value("El administrador no publica artículos."));
+        assertThat(publicaciones.count()).isZero();
+
+        mvc.perform(con(post("/api/publicaciones"), estudiante("ana.publica"), json(unico("Ana "), "50000", "Otros")))
+                .andExpect(status().isCreated());
+        assertThat(publicaciones.count()).isEqualTo(1);
     }
 
     @Test

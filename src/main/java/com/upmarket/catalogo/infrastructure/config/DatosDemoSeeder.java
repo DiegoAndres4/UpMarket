@@ -21,7 +21,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -57,7 +56,7 @@ public class DatosDemoSeeder implements ApplicationRunner {
     }
 
     private static final List<Semilla> SEMILLAS = List.of(
-            new Semilla("admin", "Tecnología", "MacBook Air M1 2020",
+            new Semilla("laura.gomez@demo.upmarket", "Tecnología", "MacBook Air M1 2020",
                     "MacBook Air M1 de 2020, 8 GB de RAM y 256 GB SSD. Incluye cargador original y funda.",
                     "2400000", EstadoArticulo.USADO, false, 2),
             new Semilla("laura.gomez@demo.upmarket", "Tecnología", "Audífonos Sony WH-1000XM4",
@@ -81,16 +80,16 @@ public class DatosDemoSeeder implements ApplicationRunner {
             new Semilla("laura.gomez@demo.upmarket", "Otros", "Bicicleta GW de montaña",
                     "Bicicleta GW de montaña, rin 29, frenos de disco. Recién ajustada.",
                     "750000", EstadoArticulo.USADO, false, 24),
-            new Semilla("admin", "Útiles académicos", "Calculadora Casio fx-991LA X",
+            new Semilla("carlos.ruiz@demo.upmarket", "Útiles académicos", "Calculadora Casio fx-991LA X",
                     "Calculadora científica Casio fx-991LA X, con tapa y manual. Funciona perfectamente.",
                     "95000", EstadoArticulo.USADO, false, 30),
             new Semilla("andrea.torres@demo.upmarket", "Servicios", "Mantenimiento de PC y portátiles",
                     "Mantenimiento preventivo y correctivo de PC y portátiles. Incluye limpieza y diagnóstico.",
                     "60000", EstadoArticulo.NUEVO, false, 36),
-            new Semilla("admin", "Servicios", "Clases de cálculo diferencial",
+            new Semilla("andrea.torres@demo.upmarket", "Servicios", "Clases de cálculo diferencial",
                     "Clases personalizadas de cálculo diferencial para estudiantes universitarios. Primera sesión de prueba.",
                     "45000", EstadoArticulo.NUEVO, false, 48),
-            new Semilla("admin", "Otros", "Silla ergonómica de oficina",
+            new Semilla("carlos.ruiz@demo.upmarket", "Otros", "Silla ergonómica de oficina",
                     "Silla ergonómica de oficina con soporte lumbar y brazos ajustables. Vendida.",
                     "320000", EstadoArticulo.USADO, true, 72)
     );
@@ -139,19 +138,16 @@ public class DatosDemoSeeder implements ApplicationRunner {
     }
 
     private Resumen sembrarPublicaciones() {
-        Map<String, Set<String>> titulosExistentes = new HashMap<>();
-        for (String vendedor : PERFILES.keySet()) {
-            Set<String> titulos = publicaciones.buscar(filtroDe(vendedor)).stream()
-                    .map(publicacion -> Texto.normalizar(publicacion.getTitulo()))
-                    .collect(Collectors.toCollection(HashSet::new));
-            titulosExistentes.put(vendedor, titulos);
-        }
+        // Los títulos se comparan entre todos los vendedores: si una base local todavía tiene una
+        // publicación del admin con el mismo título, no se duplica al reasignarla a un estudiante.
+        Set<String> titulosExistentes = publicaciones.buscar(filtroDe()).stream()
+                .map(publicacion -> Texto.normalizar(publicacion.getTitulo()))
+                .collect(Collectors.toCollection(HashSet::new));
 
         int creadas = 0;
         int omitidas = 0;
         for (Semilla semilla : SEMILLAS) {
-            Set<String> titulos = titulosExistentes.get(semilla.vendedor());
-            if (!titulos.add(Texto.normalizar(semilla.titulo()))) {
+            if (!titulosExistentes.add(Texto.normalizar(semilla.titulo()))) {
                 omitidas++;
                 continue;
             }
@@ -187,8 +183,8 @@ public class DatosDemoSeeder implements ApplicationRunner {
         }
     }
 
-    private static FiltroPublicacion filtroDe(String vendedor) {
-        return new FiltroPublicacion(null, null, null, null, null, null, vendedor, null);
+    private static FiltroPublicacion filtroDe() {
+        return new FiltroPublicacion(null, null, null, null, null, null, null, null);
     }
 
     private static int colorDe(String categoria) {

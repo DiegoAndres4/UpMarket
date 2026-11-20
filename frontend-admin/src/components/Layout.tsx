@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { BarChart3, CreditCard, ExternalLink, LogOut, Package, Users } from 'lucide-react'
+import { BarChart3, CreditCard, ExternalLink, LogOut, Package, Tags, Users } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { Button } from './ui/button'
 
@@ -7,6 +7,7 @@ const enlaces = [
   { a: '/', texto: 'Tablero', Icono: BarChart3, fin: true },
   { a: '/publicaciones', texto: 'Publicaciones', Icono: Package, fin: false },
   { a: '/pagos', texto: 'Pagos', Icono: CreditCard, fin: false },
+  { a: '/categorias', texto: 'Categorías', Icono: Tags, fin: false },
   { a: '/usuarios', texto: 'Usuarios', Icono: Users, fin: false },
 ]
 

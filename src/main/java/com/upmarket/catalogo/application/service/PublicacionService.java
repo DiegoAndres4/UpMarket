@@ -35,6 +35,7 @@ public class PublicacionService implements PublicacionUseCase {
 
     @Override
     public Publicacion publicar(Actor actor, PublicarCommand c) {
+        acceso.asegurarPuedePublicar(actor);
         Validacion.exigir("título", c.titulo(), "descripción", c.descripcion(), "precio", c.precio(),
                 "estado", c.estado(), "categoría", c.categoria());
         EstadoArticulo estado = EstadoArticulo.de(c.estado());

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { leerSesion, salir } from './lib/api'
+import Categorias from './pages/Categorias'
 import Dashboard from './pages/Dashboard'
 import Pagos from './pages/Pagos'
 import Publicaciones from './pages/Publicaciones'
@@ -25,6 +26,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="publicaciones" element={<Publicaciones />} />
           <Route path="pagos" element={<Pagos />} />
+          <Route path="categorias" element={<Categorias />} />
           <Route path="usuarios" element={<Usuarios />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

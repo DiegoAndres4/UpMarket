@@ -24,6 +24,15 @@ class PoliticaAccesoTest {
     }
 
     @Test
+    @DisplayName("El ADMIN no publica artículos; un estudiante sí puede")
+    void publicar() {
+        acceso.asegurarPuedePublicar(Datos.estudiante("maria"));
+        AccesoDenegadoException error = assertThrows(AccesoDenegadoException.class,
+                () -> acceso.asegurarPuedePublicar(Datos.admin()));
+        assertEquals("El administrador no publica artículos.", error.getMessage());
+    }
+
+    @Test
     @DisplayName("Solo el autor modifica su publicación; el ADMIN tampoco")
     void autor() {
         Publicacion p = Datos.publicacion();
