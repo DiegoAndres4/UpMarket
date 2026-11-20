@@ -1,6 +1,8 @@
 package com.upmarket.catalogo.infrastructure.config;
 
 import com.upmarket.catalogo.application.port.in.CategoriaUseCase;
+import com.upmarket.catalogo.application.port.in.PublicacionUseCase;
+import com.upmarket.catalogo.application.port.in.admin.AdminUseCase;
 import com.upmarket.catalogo.application.port.out.*;
 import com.upmarket.catalogo.application.service.*;
 import com.upmarket.catalogo.domain.service.PoliticaAcceso;
@@ -82,6 +84,13 @@ public class BeanConfig {
     ResenaService resenaService(ResenaRepositoryPort resenas, TransaccionPort transaccion, Clock reloj,
                                 PerfilPublicoPort perfiles) {
         return new ResenaService(resenas, transaccion, reloj, perfiles);
+    }
+
+    @Bean
+    AdminUseCase adminUseCase(PublicacionRepositoryPort publicaciones, PagoRepositoryPort pagos,
+                              ResenaRepositoryPort resenas, PerfilAdminPort perfiles,
+                              PublicacionUseCase casosDePublicacion, PoliticaAcceso acceso, Clock reloj) {
+        return new AdminService(publicaciones, pagos, resenas, perfiles, casosDePublicacion, acceso, reloj);
     }
 
     /** Al arrancar crea las categorías iniciales que falten (HU-9). Repetirlo no duplica nada. */

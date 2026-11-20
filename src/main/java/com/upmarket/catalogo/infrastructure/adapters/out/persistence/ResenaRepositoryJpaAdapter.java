@@ -30,4 +30,9 @@ public class ResenaRepositoryJpaAdapter implements ResenaRepositoryPort {
                 .map(ResenaJpaEntity::aDominio)
                 .toList();
     }
+
+    @Override
+    public long contar() {
+        return jpa.count();
+    }
 }

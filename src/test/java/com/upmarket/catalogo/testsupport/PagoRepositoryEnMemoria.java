@@ -4,6 +4,7 @@ import com.upmarket.catalogo.application.port.out.PagoRepositoryPort;
 import com.upmarket.catalogo.domain.model.Pago;
 
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -28,6 +29,11 @@ public final class PagoRepositoryEnMemoria implements PagoRepositoryPort {
                 .filter(p -> p.getPublicacionId() == publicacionId)
                 .max(Comparator.comparing(Pago::getCreadoEn))
                 .map(p -> copiar(p.getId(), p));
+    }
+
+    @Override
+    public List<Pago> todos() {
+        return filas.values().stream().map(p -> copiar(p.getId(), p)).toList();
     }
 
     private Pago copiar(Long id, Pago p) {

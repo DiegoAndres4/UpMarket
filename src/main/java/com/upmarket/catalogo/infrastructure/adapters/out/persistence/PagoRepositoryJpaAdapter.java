@@ -2,6 +2,7 @@ package com.upmarket.catalogo.infrastructure.adapters.out.persistence;
 
 import com.upmarket.catalogo.application.port.out.PagoRepositoryPort;
 import com.upmarket.catalogo.domain.model.Pago;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
@@ -23,5 +24,10 @@ public class PagoRepositoryJpaAdapter implements PagoRepositoryPort {
     public Optional<Pago> buscarPorPublicacion(long publicacionId) {
         return jpa.findFirstByPublicacionIdOrderByCreadoEnDesc(publicacionId)
                 .map(PagoJpaEntity::aDominio);
+    }
+
+    @Override
+    public List<Pago> todos() {
+        return jpa.findAll().stream().map(PagoJpaEntity::aDominio).toList();
     }
 }

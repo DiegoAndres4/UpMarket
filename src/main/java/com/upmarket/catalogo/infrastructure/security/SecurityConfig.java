@@ -44,8 +44,9 @@ public class SecurityConfig {
                 // vuelve a verificar el rol, así que un cambio de rutas no deja un hueco.
                 .requestMatchers(HttpMethod.POST, "/api/categorias").hasRole("ADMIN")
                 // Fotos: ver es público (la etiqueta img no envía token); subir exige estar autenticado.
-                .requestMatchers(HttpMethod.GET, "/api/fotos/*").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/fotos").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/fotos/*").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/fotos").authenticated()
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 // El resto lo usa cualquier usuario autenticado; quién puede editar, vender o borrar lo decide el dominio.
                 .requestMatchers("/api/categorias/**", "/api/publicaciones/**", "/api/perfil", "/api/perfil/**").authenticated()
                 // Lo demás se niega por defecto.

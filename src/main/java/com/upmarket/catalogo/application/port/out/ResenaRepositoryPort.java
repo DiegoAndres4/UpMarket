@@ -11,4 +11,7 @@ public interface ResenaRepositoryPort {
     boolean existe(String vendedor, String autor);
 
     List<Resena> porVendedor(String vendedor);
+
+    /** Total de reseñas, para las cifras del panel de administración. */
+    long contar();
 }

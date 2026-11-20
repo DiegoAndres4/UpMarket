@@ -36,4 +36,9 @@ public class ResenaRepositoryEnMemoria implements ResenaRepositoryPort {
     public int total() {
         return datos.size();
     }
+
+    @Override
+    public long contar() {
+        return datos.size();
+    }
 }
