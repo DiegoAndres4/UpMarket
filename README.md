@@ -116,6 +116,8 @@ El entorno de desarrollo siembra datos de demostración al arrancar el dominio: 
 
 | Método y ruta | Quién | Respuestas |
 |---|---|---|
+| `GET /api/publico/cartelera?texto&categoria&limite` | público (sin token) | 200 con avisos disponibles y pagados, más recientes primero (`id`, `titulo`, `precio`, `categoria`, `estadoArticulo`, `fotoUrl`, `creadoEn`) · 400 (`limite` fuera de 1..24 o `texto` de más de 80) |
+| `GET /api/publico/categorias` | público (sin token) | 200 con los nombres de las categorías |
 | `GET /api/categorias` | autenticado | 200 con nombre y publicaciones disponibles |
 | `POST /api/categorias` | ADMIN | 201 · 400 · 403 · 409 (nombre repetido sin importar tildes ni mayúsculas) |
 | `POST /api/publicaciones` | autenticado | 201 · 400 (lista todos los faltantes) · 404 (categoría) |

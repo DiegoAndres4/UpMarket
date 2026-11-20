@@ -5,6 +5,15 @@
 @tokenVendedor = PEGA_AQUI_EL_TOKEN_DEL_VENDEDOR_ROL_USER
 @tokenComprador = PEGA_AQUI_EL_TOKEN_DE_OTRO_ESTUDIANTE_ROL_USER
 
+### Landing: cartelera pública (SIN token). Solo avisos disponibles y pagados, más recientes primero.
+GET {{host}}/api/publico/cartelera?texto=&categoria=&limite=12
+
+### Landing: cartelera filtrada por palabra y categoría (límite permitido 1..24; texto máximo 80)
+GET {{host}}/api/publico/cartelera?texto=calculadora&categoria=Tecnología&limite=8
+
+### Landing: nombres de categorías (SIN token)
+GET {{host}}/api/publico/categorias
+
 ### HU-9: categorías con cuántas publicaciones disponibles tiene cada una
 GET {{host}}/api/categorias
 Authorization: Bearer {{tokenComprador}}

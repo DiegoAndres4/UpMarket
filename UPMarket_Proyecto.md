@@ -533,10 +533,12 @@ Las dos bases son independientes: UpMarket no tiene tabla de usuarios. El vended
 
 ### domain-service-upmarket (`http://localhost:8084`)
 
-Todas las rutas requieren `Authorization: Bearer <token de AuthCore>`.
+Todas las rutas requieren `Authorization: Bearer <token de AuthCore>` salvo las de `/api/publico/**`, que son de lectura pública para la landing.
 
 | Método y ruta | Historia | Quién | Respuestas |
 |---|---|---|---|
+| `GET /api/publico/cartelera?texto&categoria&limite` | Landing | Público | 200 `[ { id, titulo, precio, categoria, estadoArticulo, fotoUrl, creadoEn } ]` (solo disponibles y pagadas, más recientes primero) · 400 (`limite` fuera de 1..24 o `texto` de más de 80) |
+| `GET /api/publico/categorias` | Landing | Público | 200 `[ nombre ]` |
 | `GET /api/categorias` | HU-9 | Autenticado | 200 `[ { nombre, disponibles } ]` |
 | `POST /api/categorias` | HU-9 | ADMIN | 201 · 400 · 403 · 409 (nombre repetido sin importar tildes ni mayúsculas) |
 | `POST /api/publicaciones` | HU-8 | Autenticado | 201 · 400 (lista todos los faltantes) · 404 (categoría) |
