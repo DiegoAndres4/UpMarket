@@ -1,15 +1,26 @@
 package com.upmarket.catalogo.infrastructure.rendering;
 
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
+import com.upmarket.catalogo.application.port.in.admin.EstadisticasAdmin;
 import com.upmarket.catalogo.application.port.out.DatosRecibo;
+import com.upmarket.catalogo.application.port.out.DatosReporte;
 import com.upmarket.catalogo.application.port.out.GeneradorDocumentosPort;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
+import javax.xml.stream.XMLOutputFactory;
+import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.XMLStreamWriter;
 import org.springframework.stereotype.Component;
 
 /**
@@ -27,6 +38,7 @@ public class GeneradorDocumentosHtml implements GeneradorDocumentosPort {
 
     private static final String REGULAR = "/fonts/Archivo-Regular.ttf";
     private static final String BOLD = "/fonts/Archivo-Bold.ttf";
+    private static final String ESPACIO_NOMBRES = "https://upmarket.local/schema/estadisticas/1";
 
     private final boolean conArchivo;
     private final String familia;
@@ -42,6 +54,117 @@ public class GeneradorDocumentosHtml implements GeneradorDocumentosPort {
     public byte[] reciboPago(DatosRecibo datos) {
         String html = recibo(datos);
         return pdf(html);
+    }
+
+    @Override
+    public byte[] reporteEstadisticasPdf(DatosReporte datos) {
+        return pdf(reporte(datos));
+    }
+
+    @Override
+    public byte[] reporteEstadisticasXml(DatosReporte datos) {
+        try (ByteArrayOutputStream salida = new ByteArrayOutputStream()) {
+            XMLStreamWriter w = XMLOutputFactory.newFactory().createXMLStreamWriter(salida, "UTF-8");
+            w.writeStartDocument("UTF-8", "1.0");
+            w.setDefaultNamespace(ESPACIO_NOMBRES);
+            w.writeStartElement("", "reporteEstadisticas", ESPACIO_NOMBRES);
+            w.writeDefaultNamespace(ESPACIO_NOMBRES);
+            w.writeAttribute("version", "1.0");
+            w.writeAttribute("numero", datos.numero());
+            w.writeAttribute("generadoEn", OffsetDateTime.ofInstant(datos.generadoEn(), BOGOTA)
+                    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            w.writeAttribute("zonaHoraria", "America/Bogota");
+            texto(w, "generadoPor", datos.generadoPor());
+
+            EstadisticasAdmin e = datos.estadisticas();
+            w.writeStartElement("", "publicaciones", ESPACIO_NOMBRES);
+            w.writeAttribute("total", Long.toString(e.totalPublicaciones()));
+            porEstado(w, "porEstado", e.publicacionesPorEstado());
+            porEstado(w, "porEstadoPago", e.publicacionesPorEstadoPago());
+            w.writeStartElement("", "porCategoria", ESPACIO_NOMBRES);
+            for (Map.Entry<String, Long> categoria : new TreeMap<>(e.publicacionesPorCategoria()).entrySet()) {
+                w.writeStartElement("", "categoria", ESPACIO_NOMBRES);
+                w.writeAttribute("nombre", categoria.getKey());
+                w.writeAttribute("cantidad", Long.toString(categoria.getValue()));
+                w.writeEndElement();
+            }
+            w.writeEndElement();
+            w.writeStartElement("", "porDia", ESPACIO_NOMBRES);
+            for (EstadisticasAdmin.ConteoDia dia : e.publicacionesPorDia()) {
+                w.writeStartElement("", "dia", ESPACIO_NOMBRES);
+                w.writeAttribute("fecha", dia.fecha());
+                w.writeAttribute("cantidad", Long.toString(dia.total()));
+                w.writeEndElement();
+            }
+            w.writeEndElement();
+            w.writeEndElement(); // publicaciones
+
+            long pendientes = e.publicacionesPorEstadoPago().getOrDefault("PENDIENTE", 0L);
+            long rechazados = e.publicacionesPorEstadoPago().getOrDefault("RECHAZADO", 0L);
+            w.writeStartElement("", "pagos", ESPACIO_NOMBRES);
+            w.writeAttribute("aprobados", Long.toString(e.pagosAprobados()));
+            w.writeAttribute("pendientes", Long.toString(pendientes));
+            w.writeAttribute("rechazados", Long.toString(rechazados));
+            w.writeStartElement("", "ingresosSimulados", ESPACIO_NOMBRES);
+            w.writeAttribute("moneda", "COP");
+            BigDecimal ingresos = e.ingresosAprobados() == null ? BigDecimal.ZERO : e.ingresosAprobados();
+            w.writeCharacters(ingresos.setScale(2).toPlainString());
+            w.writeEndElement();
+            w.writeEndElement();
+
+            w.writeStartElement("", "vistas", ESPACIO_NOMBRES);
+            w.writeAttribute("total", Long.toString(e.vistasTotales()));
+            w.writeStartElement("", "masVistas", ESPACIO_NOMBRES);
+            for (EstadisticasAdmin.VistaPublicacion publicacion : e.topPublicaciones()) {
+                w.writeStartElement("", "publicacion", ESPACIO_NOMBRES);
+                w.writeAttribute("id", Long.toString(publicacion.id()));
+                w.writeAttribute("titulo", publicacion.titulo());
+                w.writeAttribute("categoria", publicacion.categoria() == null ? "" : publicacion.categoria());
+                w.writeAttribute("vistas", Long.toString(publicacion.vistas()));
+                w.writeEndElement();
+            }
+            w.writeEndElement();
+            w.writeEndElement();
+
+            w.writeStartElement("", "perfiles", ESPACIO_NOMBRES);
+            w.writeAttribute("total", Long.toString(e.totalPerfiles()));
+            w.writeEndElement();
+            w.writeStartElement("", "resenas", ESPACIO_NOMBRES);
+            w.writeAttribute("total", Long.toString(e.totalResenas()));
+            w.writeEndElement();
+
+            w.writeStartElement("", "notas", ESPACIO_NOMBRES);
+            for (String nota : datos.notas()) {
+                texto(w, "nota", nota);
+            }
+            w.writeEndElement();
+
+            w.writeEndElement(); // reporteEstadisticas
+            w.writeEndDocument();
+            w.flush();
+            w.close();
+            return salida.toByteArray();
+        } catch (Exception e) {
+            throw new IllegalStateException("No se pudo generar el XML del reporte", e);
+        }
+    }
+
+    private static void porEstado(XMLStreamWriter escritor, String nombre, Map<String, Long> valores)
+            throws XMLStreamException {
+        escritor.writeStartElement("", nombre, ESPACIO_NOMBRES);
+        for (Map.Entry<String, Long> estado : valores.entrySet()) {
+            escritor.writeStartElement("", "estado", ESPACIO_NOMBRES);
+            escritor.writeAttribute("nombre", estado.getKey());
+            escritor.writeAttribute("cantidad", Long.toString(estado.getValue()));
+            escritor.writeEndElement();
+        }
+        escritor.writeEndElement();
+    }
+
+    private static void texto(XMLStreamWriter escritor, String nombre, String valor) throws XMLStreamException {
+        escritor.writeStartElement("", nombre, ESPACIO_NOMBRES);
+        escritor.writeCharacters(valor == null ? "" : valor);
+        escritor.writeEndElement();
     }
 
     private String recibo(DatosRecibo datos) {
@@ -152,6 +275,145 @@ public class GeneradorDocumentosHtml implements GeneradorDocumentosPort {
                 escapar(datos.referencia()), escapar(aprobado), escapar(emitido));
     }
 
+    private String reporte(DatosReporte datos) {
+        EstadisticasAdmin e = datos.estadisticas();
+        long maxCategoria = Math.max(1,
+                e.publicacionesPorCategoria().values().stream().mapToLong(Long::longValue).max().orElse(0));
+        long maxDia = Math.max(1,
+                e.publicacionesPorDia().stream().mapToLong(EstadisticasAdmin.ConteoDia::total).max().orElse(0));
+
+        String categorias = e.publicacionesPorCategoria().entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .map(entrada -> barra(entrada.getKey(), entrada.getValue(), maxCategoria))
+                .collect(Collectors.joining());
+        String dias = e.publicacionesPorDia().stream()
+                .map(dia -> barra(dia.fecha(), dia.total(), maxDia))
+                .collect(Collectors.joining());
+
+        StringBuilder filasTop = new StringBuilder();
+        int puesto = 1;
+        for (EstadisticasAdmin.VistaPublicacion publicacion : e.topPublicaciones()) {
+            filasTop.append("<tr><td class=\"derecha\">").append(puesto++)
+                    .append("</td><td>").append(escapar(publicacion.titulo()))
+                    .append("</td><td>").append(escapar(publicacion.categoria()))
+                    .append("</td><td class=\"derecha\">").append(numero(publicacion.vistas()))
+                    .append("</td></tr>");
+        }
+
+        long pendientes = e.publicacionesPorEstadoPago().getOrDefault("PENDIENTE", 0L);
+        long rechazados = e.publicacionesPorEstadoPago().getOrDefault("RECHAZADO", 0L);
+        String emitido = FECHA_HORA.format(datos.generadoEn());
+
+        StringBuilder h = new StringBuilder(16384);
+        h.append("<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"utf-8\" /><style>")
+                .append(estilos())
+                .append("</style></head><body>");
+        h.append("<table class=\"cabecera\"><tr><td>")
+                .append("<div class=\"marca negrita\"><span class=\"tinta\">UP</span>")
+                .append("<span class=\"rojo\">Market</span></div>")
+                .append("<div style=\"margin-top:2mm; color:#4A4A4A; font-size:9pt;\">")
+                .append("Universidad de Pamplona · Villa del Rosario</div></td>")
+                .append("<td class=\"meta\"><div class=\"titulo negrita\">Reporte de estadísticas</div>")
+                .append("<div style=\"margin-top:1.5mm;\"><span class=\"negrita\">N.º</span> ")
+                .append(escapar(datos.numero())).append("</div>")
+                .append("<div><span class=\"negrita\">Generado el</span> ").append(escapar(emitido)).append("</div>")
+                .append("<div><span class=\"negrita\">Generado por</span> ")
+                .append(escapar(datos.generadoPor())).append("</div></td></tr></table>")
+                .append("<div class=\"regla\"></div>");
+
+        h.append("<table class=\"kpis\"><tr>")
+                .append(cifra("Publicaciones", numero(e.totalPublicaciones()),
+                        numero(e.publicacionesPorEstado().getOrDefault("DISPONIBLE", 0L)) + " disponibles · "
+                                + numero(e.publicacionesPorEstado().getOrDefault("VENDIDA", 0L)) + " vendidas", null))
+                .append(cifra("Vistas acumuladas", numero(e.vistasTotales()), null, null))
+                .append(cifra("Perfiles de usuario", numero(e.totalPerfiles()), null, null))
+                .append("</tr><tr>")
+                .append(cifra("Reseñas", numero(e.totalResenas()), null, null))
+                .append(cifra("Pagos aprobados", numero(e.pagosAprobados()),
+                        numero(pendientes) + " pendientes · " + numero(rechazados) + " rechazados", null))
+                .append(cifra("Ingresos simulados", dinero(e.ingresosAprobados()), null,
+                        "Suma de pagos aprobados en la app. El pago aún es simulado."))
+                .append("</tr><tr>")
+                .append(cifra("Categorías con publicaciones",
+                        numero(e.publicacionesPorCategoria().size()), null, null))
+                .append("<td></td><td></td></tr></table>");
+
+        h.append("<div class=\"seccion negrita\">Publicaciones por día (últimos 30 días)</div>").append(dias);
+        h.append("<div class=\"seccion negrita\">Publicaciones por categoría</div>").append(categorias);
+        h.append("<div class=\"seccion negrita\">Publicaciones más vistas</div>")
+                .append("<table class=\"datos\"><thead><tr><th class=\"derecha\">#</th><th>Título</th>")
+                .append("<th>Categoría</th><th class=\"derecha\">Vistas</th></tr></thead><tbody>")
+                .append(filasTop).append("</tbody></table>");
+
+        h.append("<div class=\"notas\"><div class=\"negrita\">Notas</div>");
+        for (String nota : datos.notas()) {
+            h.append("<div>· ").append(escapar(nota)).append("</div>");
+        }
+        h.append("</div></body></html>");
+        return h.toString();
+    }
+
+    private String estilos() {
+        return """
+                @page { size: A4 portrait; margin: 18mm; }
+                * { box-sizing: border-box; }
+                body { margin: 0; font-family: '%s', Helvetica, Arial, sans-serif; color: #1A1A1A;
+                       font-size: 9.5pt; line-height: 1.4; }
+                .negrita { font-family: '%s', Helvetica, Arial, sans-serif; font-weight: 700; }
+                .cabecera { width: 100%%; border-collapse: collapse; }
+                .cabecera td { vertical-align: top; }
+                .marca { font-size: 24pt; letter-spacing: -0.045em; line-height: 1; }
+                .marca .rojo { color: #D62828; }
+                .marca .tinta { color: #1A1A1A; }
+                .meta { text-align: right; color: #4A4A4A; font-size: 9pt; }
+                .meta .titulo { color: #1A1A1A; font-size: 14pt; }
+                .regla { border-top: 1.2pt solid #1A1A1A; margin: 6mm 0 4mm; }
+                .kpis { width: 100%%; border-collapse: collapse; }
+                .kpis td { padding: 0 2mm 2mm 0; vertical-align: top; }
+                .kpis td.cifra { width: 33.33%%; background: #FAF7F0; border: 0.5pt solid #E5E0D5;
+                                 padding: 3.5mm; }
+                .kpi-titulo { font-size: 8.5pt; color: #4A4A4A; }
+                .kpi-valor { font-size: 16pt; letter-spacing: -0.02em; margin-top: 1mm; }
+                .kpi-detalle { font-size: 8.5pt; color: #4A4A4A; margin-top: 1mm; }
+                .kpi-nota { font-size: 7.5pt; color: #4A4A4A; margin-top: 1.5mm; }
+                .seccion { font-size: 12pt; margin: 7mm 0 3mm; }
+                .barra { width: 100%%; border-collapse: collapse; margin-bottom: 1.4mm; }
+                .barra td { padding: 0; vertical-align: middle; }
+                .barra .etq { width: 46mm; font-size: 8pt; padding-right: 3mm; }
+                .barra .pista { background: #F2EDE3; height: 4mm; }
+                .barra .relleno { background: #F5B700; height: 4mm; }
+                .barra .val { width: 12mm; text-align: right; font-size: 8pt; padding-left: 2mm; }
+                table.datos { width: 100%%; border-collapse: collapse; margin-top: 3mm; }
+                table.datos th { background: #F2EDE3; text-align: left; padding: 2.6mm 2.5mm; font-size: 8.5pt; }
+                table.datos td { padding: 2.6mm 2.5mm; border-bottom: 0.4pt solid #E5E0D5; font-size: 8.5pt; }
+                .derecha { text-align: right; }
+                .notas { margin-top: 7mm; background: #FAF7F0; padding: 4mm 5mm; font-size: 8.5pt; color: #4A4A4A; }
+                .notas div { margin-bottom: 1mm; }
+                """.formatted(familia, familiaNegrita);
+    }
+
+    private static String cifra(String titulo, String valor, String detalle, String nota) {
+        StringBuilder celda = new StringBuilder("<td class=\"cifra\"><div class=\"kpi-titulo\">")
+                .append(escapar(titulo)).append("</div><div class=\"kpi-valor negrita\">")
+                .append(escapar(valor)).append("</div>");
+        if (detalle != null) {
+            celda.append("<div class=\"kpi-detalle\">").append(escapar(detalle)).append("</div>");
+        }
+        if (nota != null) {
+            celda.append("<div class=\"kpi-nota\">").append(escapar(nota)).append("</div>");
+        }
+        return celda.append("</td>").toString();
+    }
+
+    private static String barra(String etiqueta, long valor, long maximo) {
+        int porcentaje = maximo <= 0 ? 0 : (int) Math.round(valor * 100.0 / maximo);
+        return String.format(Locale.ROOT,
+                "<table class=\"barra\"><tr><td class=\"etq\">%s</td>"
+                        + "<td class=\"pista\"><div class=\"relleno\" style=\"width:%d%%\"></div></td>"
+                        + "<td class=\"val\">%s</td></tr></table>",
+                escapar(etiqueta), porcentaje, numero(valor));
+    }
+
     private byte[] pdf(String html) {
         try (ByteArrayOutputStream salida = new ByteArrayOutputStream()) {
             PdfRendererBuilder builder = new PdfRendererBuilder();
@@ -178,6 +440,10 @@ public class GeneradorDocumentosHtml implements GeneradorDocumentosPort {
         formato.setMinimumFractionDigits(0);
         formato.setMaximumFractionDigits(0);
         return "$ " + formato.format(monto == null ? BigDecimal.ZERO : monto);
+    }
+
+    static String numero(long valor) {
+        return NumberFormat.getIntegerInstance(ES_CO).format(valor);
     }
 
     static String escapar(String valor) {

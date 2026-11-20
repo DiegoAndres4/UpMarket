@@ -1,16 +1,21 @@
 package com.upmarket.catalogo.application.service;
 
+import com.upmarket.catalogo.application.port.in.admin.AdminUseCase;
 import com.upmarket.catalogo.application.port.in.admin.DescargaDocumento;
 import com.upmarket.catalogo.application.port.in.admin.DocumentoAdmin;
 import com.upmarket.catalogo.application.port.in.admin.DocumentosUseCase;
+import com.upmarket.catalogo.application.port.in.admin.EstadisticasAdmin;
 import com.upmarket.catalogo.application.port.in.admin.PaginaAdmin;
 import com.upmarket.catalogo.application.port.in.admin.PagoAdmin;
 import com.upmarket.catalogo.application.port.in.admin.PagoAdmin.ResumenComprador;
 import com.upmarket.catalogo.application.port.in.admin.PagoAdmin.ResumenPublicacion;
 import com.upmarket.catalogo.application.port.in.admin.PagoAdmin.ResumenRecibo;
+import com.upmarket.catalogo.application.port.in.admin.ReporteAdmin;
+import com.upmarket.catalogo.application.port.in.admin.ReporteGenerado;
 import com.upmarket.catalogo.application.port.in.admin.ResultadoRecibo;
 import com.upmarket.catalogo.application.port.out.AlmacenDocumentosPort;
 import com.upmarket.catalogo.application.port.out.DatosRecibo;
+import com.upmarket.catalogo.application.port.out.DatosReporte;
 import com.upmarket.catalogo.application.port.out.DocumentoAlmacenado;
 import com.upmarket.catalogo.application.port.out.DocumentoRepositoryPort;
 import com.upmarket.catalogo.application.port.out.FiltroPublicacion;
@@ -35,9 +40,13 @@ import com.upmarket.catalogo.domain.service.PoliticaAcceso;
 import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -51,6 +60,13 @@ public class DocumentosService implements DocumentosUseCase {
 
     /** Los enlaces firmados de Cloudinary valen diez minutos, como máximo. */
     private static final Duration VALIDEZ_ENLACE = Duration.ofMinutes(10);
+    private static final DateTimeFormatter MARCA_ARCHIVO =
+            DateTimeFormatter.ofPattern("yyyyMMdd-HHmm").withZone(ZoneId.of("America/Bogota"));
+
+    /** Notas honestas que el tablero ya muestra; se repiten en el PDF y en el XML. */
+    private static final List<String> NOTAS = List.of(
+            "Las publicaciones de demostración se activaron sin registro de pago.",
+            "Suma de pagos aprobados en la app. El pago aún es simulado.");
 
     private final PagoRepositoryPort pagos;
     private final PublicacionRepositoryPort publicaciones;
@@ -58,19 +74,21 @@ public class DocumentosService implements DocumentosUseCase {
     private final DocumentoRepositoryPort documentos;
     private final AlmacenDocumentosPort almacen;
     private final GeneradorDocumentosPort generador;
+    private final AdminUseCase admin;
     private final PoliticaAcceso acceso;
     private final Clock reloj;
 
     public DocumentosService(PagoRepositoryPort pagos, PublicacionRepositoryPort publicaciones,
                              PerfilAdminPort perfiles, DocumentoRepositoryPort documentos,
                              AlmacenDocumentosPort almacen, GeneradorDocumentosPort generador,
-                             PoliticaAcceso acceso, Clock reloj) {
+                             AdminUseCase admin, PoliticaAcceso acceso, Clock reloj) {
         this.pagos = pagos;
         this.publicaciones = publicaciones;
         this.perfiles = perfiles;
         this.documentos = documentos;
         this.almacen = almacen;
         this.generador = generador;
+        this.admin = admin;
         this.acceso = acceso;
         this.reloj = reloj;
     }
@@ -164,6 +182,67 @@ public class DocumentosService implements DocumentosUseCase {
                     nombreArchivo, pdf.length));
         }
         return new ResultadoRecibo(nuevo, DocumentoAdmin.de(fila));
+    }
+
+    @Override
+    public ReporteGenerado generarReporteEstadisticas(Actor actor) {
+        acceso.asegurarAdmin(actor, "generar reportes de estadísticas");
+        // Una sola foto: el PDF y el XML no pueden discrepar.
+        EstadisticasAdmin estadisticas = admin.estadisticas(actor);
+        Instant ahora = reloj.instant();
+
+        DocumentoGenerado pdfFila = documentos.guardar(DocumentoGenerado.nuevo(
+                TipoDocumento.REPORTE_ESTADISTICAS, FormatoDocumento.PDF, null, actor.username(), ahora));
+        String numero = pdfFila.numero();
+        DocumentoGenerado xmlFila = documentos.guardar(new DocumentoGenerado(null,
+                TipoDocumento.REPORTE_ESTADISTICAS, FormatoDocumento.XML, numero, null, null, null, null, 0L,
+                ahora, actor.username()));
+
+        DatosReporte datos = new DatosReporte(estadisticas, numero, actor.username(), ahora, NOTAS);
+        byte[] pdf = generador.reporteEstadisticasPdf(datos);
+        byte[] xml = generador.reporteEstadisticasXml(datos);
+        String base = "upmarket-estadisticas-" + MARCA_ARCHIVO.format(ahora);
+
+        DocumentoAlmacenado pdfGuardado = almacen.guardar(pdf, base + ".pdf",
+                AlmacenDocumentosPort.CARPETA_REPORTES, "application/pdf");
+        DocumentoAlmacenado xmlGuardado = almacen.guardar(xml, base + ".xml",
+                AlmacenDocumentosPort.CARPETA_REPORTES, "application/xml");
+
+        pdfFila = documentos.actualizar(pdfFila.conAlmacenamiento(pdfGuardado.proveedor(),
+                pdfGuardado.referencia(), base + ".pdf", pdf.length));
+        xmlFila = documentos.actualizar(xmlFila.conAlmacenamiento(xmlGuardado.proveedor(),
+                xmlGuardado.referencia(), base + ".xml", xml.length));
+
+        return new ReporteGenerado(numero, ahora, actor.username(), DocumentoAdmin.de(pdfFila),
+                DocumentoAdmin.de(xmlFila));
+    }
+
+    @Override
+    public PaginaAdmin<ReporteAdmin> reportes(Actor actor, int pagina, int tamano) {
+        acceso.asegurarAdmin(actor, "ver los reportes");
+        Map<String, List<DocumentoGenerado>> porNumero = new LinkedHashMap<>();
+        for (DocumentoGenerado documento : documentos.reportes()) {
+            if (documento.numero() == null) {
+                continue;
+            }
+            porNumero.computeIfAbsent(documento.numero(), clave -> new ArrayList<>()).add(documento);
+        }
+        List<ReporteAdmin> filas = new ArrayList<>();
+        for (List<DocumentoGenerado> grupo : porNumero.values()) {
+            DocumentoGenerado pdf = grupo.stream()
+                    .filter(documento -> documento.formato() == FormatoDocumento.PDF).findFirst().orElse(null);
+            DocumentoGenerado xml = grupo.stream()
+                    .filter(documento -> documento.formato() == FormatoDocumento.XML).findFirst().orElse(null);
+            DocumentoGenerado base = pdf != null ? pdf : xml;
+            if (base == null) {
+                continue;
+            }
+            filas.add(new ReporteAdmin(base.numero(), base.generadoEn(), base.generadoPor(),
+                    pdf == null ? null : DocumentoAdmin.de(pdf),
+                    xml == null ? null : DocumentoAdmin.de(xml)));
+        }
+        filas.sort(Comparator.comparing(ReporteAdmin::generadoEn).reversed());
+        return PaginaAdmin.de(filas, pagina, tamano);
     }
 
     @Override

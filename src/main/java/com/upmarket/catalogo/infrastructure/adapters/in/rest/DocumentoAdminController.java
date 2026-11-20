@@ -5,6 +5,8 @@ import com.upmarket.catalogo.application.port.in.admin.DocumentoAdmin;
 import com.upmarket.catalogo.application.port.in.admin.DocumentosUseCase;
 import com.upmarket.catalogo.application.port.in.admin.PaginaAdmin;
 import com.upmarket.catalogo.application.port.in.admin.PagoAdmin;
+import com.upmarket.catalogo.application.port.in.admin.ReporteAdmin;
+import com.upmarket.catalogo.application.port.in.admin.ReporteGenerado;
 import com.upmarket.catalogo.application.port.in.admin.ResultadoRecibo;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
@@ -49,6 +51,18 @@ public class DocumentoAdminController {
         ResultadoRecibo resultado = documentos.generarRecibo(ActorActual.obtener(), pagoId);
         return ResponseEntity.status(resultado.nuevo() ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(resultado.documento());
+    }
+
+    @PostMapping("/reportes/estadisticas")
+    public ResponseEntity<ReporteGenerado> generarReporte() {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(documentos.generarReporteEstadisticas(ActorActual.obtener()));
+    }
+
+    @GetMapping("/reportes")
+    public PaginaAdmin<ReporteAdmin> reportes(@RequestParam(defaultValue = "1") int pagina,
+                                              @RequestParam(defaultValue = "20") int tamano) {
+        return documentos.reportes(ActorActual.obtener(), pagina, tamano);
     }
 
     @GetMapping("/documentos/{id}/descarga")

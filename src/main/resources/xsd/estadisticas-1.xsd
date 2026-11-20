@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Esquema propio del reporte de estadísticas de UPMarket (versión 1). -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="https://upmarket.local/schema/estadisticas/1"
+           xmlns="https://upmarket.local/schema/estadisticas/1"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+
+    <xs:element name="reporteEstadisticas">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="generadoPor" type="xs:string"/>
+                <xs:element name="publicaciones">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="porEstado">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="estado" minOccurs="0" maxOccurs="unbounded">
+                                            <xs:complexType>
+                                                <xs:attribute name="nombre" type="xs:string" use="required"/>
+                                                <xs:attribute name="cantidad" type="xs:long" use="required"/>
+                                            </xs:complexType>
+                                        </xs:element>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="porEstadoPago">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="estado" minOccurs="0" maxOccurs="unbounded">
+                                            <xs:complexType>
+                                                <xs:attribute name="nombre" type="xs:string" use="required"/>
+                                                <xs:attribute name="cantidad" type="xs:long" use="required"/>
+                                            </xs:complexType>
+                                        </xs:element>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="porCategoria">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="categoria" minOccurs="0" maxOccurs="unbounded">
+                                            <xs:complexType>
+                                                <xs:attribute name="nombre" type="xs:string" use="required"/>
+                                                <xs:attribute name="cantidad" type="xs:long" use="required"/>
+                                            </xs:complexType>
+                                        </xs:element>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="porDia">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="dia" minOccurs="0" maxOccurs="unbounded">
+                                            <xs:complexType>
+                                                <xs:attribute name="fecha" type="xs:date" use="required"/>
+                                                <xs:attribute name="cantidad" type="xs:long" use="required"/>
+                                            </xs:complexType>
+                                        </xs:element>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                        <xs:attribute name="total" type="xs:long" use="required"/>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="pagos">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="ingresosSimulados">
+                                <xs:complexType>
+                                    <xs:simpleContent>
+                                        <xs:extension base="xs:decimal">
+                                            <xs:attribute name="moneda" type="xs:string" use="required"/>
+                                        </xs:extension>
+                                    </xs:simpleContent>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                        <xs:attribute name="aprobados" type="xs:long" use="required"/>
+                        <xs:attribute name="pendientes" type="xs:long" use="required"/>
+                        <xs:attribute name="rechazados" type="xs:long" use="required"/>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="vistas">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="masVistas">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="publicacion" minOccurs="0" maxOccurs="unbounded">
+                                            <xs:complexType>
+                                                <xs:attribute name="id" type="xs:long" use="required"/>
+                                                <xs:attribute name="titulo" type="xs:string" use="required"/>
+                                                <xs:attribute name="categoria" type="xs:string" use="required"/>
+                                                <xs:attribute name="vistas" type="xs:long" use="required"/>
+                                            </xs:complexType>
+                                        </xs:element>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                        <xs:attribute name="total" type="xs:long" use="required"/>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="perfiles">
+                    <xs:complexType>
+                        <xs:attribute name="total" type="xs:long" use="required"/>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="resenas">
+                    <xs:complexType>
+                        <xs:attribute name="total" type="xs:long" use="required"/>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="notas">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="nota" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+            </xs:sequence>
+            <xs:attribute name="version" type="xs:string" use="required"/>
+            <xs:attribute name="numero" type="xs:string" use="required"/>
+            <xs:attribute name="generadoEn" type="xs:dateTime" use="required"/>
+            <xs:attribute name="zonaHoraria" type="xs:string" use="required"/>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>

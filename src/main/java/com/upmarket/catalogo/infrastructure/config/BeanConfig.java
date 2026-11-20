@@ -92,8 +92,9 @@ public class BeanConfig {
     DocumentosUseCase documentosUseCase(PagoRepositoryPort pagos, PublicacionRepositoryPort publicaciones,
                                         PerfilAdminPort perfiles, DocumentoRepositoryPort documentos,
                                         AlmacenDocumentosPort almacen, GeneradorDocumentosPort generador,
-                                        PoliticaAcceso acceso, Clock reloj) {
-        return new DocumentosService(pagos, publicaciones, perfiles, documentos, almacen, generador, acceso, reloj);
+                                        AdminUseCase admin, PoliticaAcceso acceso, Clock reloj) {
+        return new DocumentosService(pagos, publicaciones, perfiles, documentos, almacen, generador, admin, acceso,
+                reloj);
     }
 
     @Bean

@@ -11,8 +11,8 @@ public record EstadisticasAdmin(long totalPublicaciones, Map<String, Long> publi
                                 List<VistaPublicacion> topPublicaciones, Map<String, Long> publicacionesPorCategoria,
                                 List<ConteoDia> publicacionesPorDia, long totalPerfiles, long totalResenas) {
 
-    /** Publicación con su número de vistas, para el ranking del tablero. */
-    public record VistaPublicacion(long id, String titulo, long vistas) {
+    /** Publicación con su número de vistas, para el ranking del tablero y del reporte. */
+    public record VistaPublicacion(long id, String titulo, String categoria, long vistas) {
     }
 
     /** Publicaciones creadas en un día (fecha ISO, zona horaria del negocio). */

@@ -96,7 +96,7 @@ public class AdminService implements AdminUseCase {
                 .sorted(Comparator.comparingLong(Publicacion::getVistas).reversed()
                         .thenComparing(Publicacion::getId))
                 .limit(5)
-                .map(p -> new VistaPublicacion(p.getId(), p.getTitulo(), p.getVistas()))
+                .map(p -> new VistaPublicacion(p.getId(), p.getTitulo(), p.getCategoria(), p.getVistas()))
                 .toList();
 
         return new EstadisticasAdmin(todas.size(), porEstado, porEstadoPago, pagosAprobados, ingresos,

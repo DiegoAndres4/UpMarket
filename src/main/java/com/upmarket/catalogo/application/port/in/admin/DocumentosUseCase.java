@@ -14,4 +14,10 @@ public interface DocumentosUseCase {
     ResultadoRecibo generarRecibo(Actor actor, long pagoId);
 
     DescargaDocumento descargar(Actor actor, long documentoId);
+
+    /** Genera PDF y XML desde UNA sola foto de {@code AdminService.estadisticas}. */
+    ReporteGenerado generarReporteEstadisticas(Actor actor);
+
+    /** Historial agrupado por número: cada reporte con sus descargas PDF y XML. */
+    PaginaAdmin<ReporteAdmin> reportes(Actor actor, int pagina, int tamano);
 }
