@@ -51,6 +51,27 @@ docker compose ps                             # los 4 deben estar "healthy" o "r
   ```
 - Abra `http://<IP>` en el navegador: debe verse la pantalla de ingreso.
 
+### Fotos en Cloudinary (opcional)
+
+Por defecto las fotos se guardan en el volumen `fotos-data`. Para usar Cloudinary:
+
+1. Cree una cuenta gratuita en <https://cloudinary.com> y abra **Console → Product Environment Credentials**.
+2. Copie *Cloud name*, *API Key* y *API Secret*.
+3. Añada las variables al `.env` del servidor (nunca al repositorio):
+   ```bash
+   FOTOS_PROVEEDOR=cloudinary
+   CLOUDINARY_CLOUD_NAME=...
+   CLOUDINARY_API_KEY=...
+   CLOUDINARY_API_SECRET=...
+   # Alternativa: una sola variable con el formato cloudinary://api_key:api_secret@cloud_name
+   # CLOUDINARY_URL=cloudinary://...
+   ```
+4. Recreate el servicio: `docker compose up -d domain`.
+
+Si `FOTOS_PROVEEDOR=cloudinary` y faltan credenciales, el servicio falla al arrancar con un mensaje que
+nombra las variables. El plan gratuito de Cloudinary alcanza para el proyecto; revise sus límites de
+transformaciones y ancho de banda. El navegador nunca recibe el secreto: las subidas pasan por el backend.
+
 ### Verificación después del primer arranque
 ```bash
 docker compose ps                                                    # 4 servicios arriba

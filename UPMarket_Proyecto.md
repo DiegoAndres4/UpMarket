@@ -428,10 +428,12 @@ UpMarket/
 
 ### Infraestructura
 
-- **REST:** dos controladores que solo traducen HTTP a casos de uso; los permisos los decide el dominio.
+- **REST:** controladores delgados que solo traducen HTTP a casos de uso; los permisos los decide el dominio. `AdminController` expone el panel bajo `/api/admin/**`, protegido además por rol en Spring Security.
+- **Fotos:** el puerto `AlmacenFotosPort` desacopla el dominio del proveedor. `AlmacenFotosLocal` guarda en disco y `AlmacenFotosCloudinary` sube al CDN con el SDK oficial; se elige con `upmarket.fotos.proveedor` (`local` por defecto, `cloudinary` con credenciales por variables de entorno). El navegador solo ve la URL final.
 - **Persistencia JPA:** tablas `categoria`, `publicacion` y `publicacion_foto`. La búsqueda es una consulta JPQL con filtros opcionales, ordenada de la más reciente a la más antigua; los comodines `%` y `_` se escapan.
 - **Concurrencia:** `UNIQUE (nombre_normalizado)` en categorías (traducido a 409 con el mensaje "La categoría '<nombre>' ya existe") y `@Version` en publicaciones (bloqueo optimista, 409).
-- **Seguridad:** sesión sin estado, CSRF desactivado, `POST /api/categorias` solo para ADMIN, el resto de `/api/categorias/**` y `/api/publicaciones/**` para cualquier usuario autenticado, y todo lo demás denegado.
+- **Seguridad:** sesión sin estado, CSRF desactivado, `POST /api/categorias` solo para ADMIN, `/api/admin/**` solo para ADMIN, el resto de `/api/categorias/**`, `/api/publicaciones/**` y `/api/perfil/**` para cualquier usuario autenticado, y todo lo demás denegado.
+- **Panel de administración:** `AdminService` calcula las estadísticas con los repositorios existentes (sin duplicar reglas), reutiliza el caso de uso de eliminación para moderar publicaciones y lee perfiles por un puerto propio, de solo lectura. El frontend del panel es una SPA aparte (`frontend-admin/`, React + Vite + shadcn/ui) servida en `/admin/`.
 
 ---
 
@@ -547,6 +549,12 @@ Todas las rutas requieren `Authorization: Bearer <token de AuthCore>`.
 | `DELETE /api/publicaciones/{id}` | HU-12 | Autor o `ADMIN` (moderación) | 204 · 403 · 404 |
 | `GET /api/perfil/{usuario}/resenas` | HU-13 | Autenticado | 200 `{ vendedor, promedio, total, resenas[] }` (promedio con un decimal) |
 | `POST /api/perfil/{usuario}/resenas` | HU-13 | Autenticado (no el propio vendedor) | 201 · 400 (estrellas 0–5, comentario 3–500 o auto-reseña) · 409 (ya reseñó) |
+| `POST /api/perfil/foto` (multipart) | — | Autenticado | 200 con el perfil actualizado · 400 (JPG/PNG inválido o mayor a 5 MB) |
+| `DELETE /api/perfil/foto` | — | Autenticado | 204: quita la foto del perfil |
+| `GET /api/admin/estadisticas` | — | ADMIN | 200 con totales, ingresos, vistas, top 5, categorías, últimos 30 días, perfiles y reseñas · 403 |
+| `GET /api/admin/publicaciones?texto&categoria&estadoPublicacion&estadoPago&vendedor&pagina&tamano` | — | ADMIN | 200 paginado con todas las publicaciones, incluidas las pendientes de pago · 403 |
+| `DELETE /api/admin/publicaciones/{id}` | — | ADMIN | 204 · 403 · 404 |
+| `GET /api/admin/usuarios?pagina&tamano` | — | ADMIN | 200 paginado con perfiles y su número de publicaciones (solo lectura) · 403 |
 
 **Ejemplo de publicación (`POST /api/publicaciones`):**
 
@@ -604,6 +612,8 @@ Ver la tabla de la [sección 7](#endpoints).
 
 ### domain-service-upmarket
 
+Suite actual: **145 pruebas**, todas verdes (`mvn -q verify`).
+
 | Archivo | Tipo | Qué verifica |
 |---|---|---|
 | `domain/PublicacionTest` | Unitaria (9) | Publicar, textos, precio, fotos, contacto, editar, vender, búsqueda, categoría |
@@ -615,6 +625,11 @@ Ver la tabla de la [sección 7](#endpoints).
 | `infrastructure/adapters/out/persistence/*JpaContractTest` | Integración JPA | Contrato contra H2, restricción única de categoría y bloqueo optimista |
 | `infrastructure/security/JwtTokenValidatorTest` | Unitaria (6) | Token válido, vencido, otra clave, texto inválido, sin firma y sin clave |
 | `infrastructure/adapters/in/rest/UpmarketRestTest` | Punta a punta (10) | HTTP → casos de uso → dominio → H2, con JWT real |
+| `infrastructure/adapters/in/rest/AdminRestTest` | Punta a punta (5) | 403 a no-admin en todo `/api/admin/**`, estadísticas contra datos conocidos, listado con pendientes de pago, filtros, paginación y eliminación |
+| `infrastructure/adapters/in/rest/PerfilRestTest` | Punta a punta (9) | Perfil por defecto, edición, visibilidad pública, borrado de cuenta y subida/borrado de foto propia |
+| `infrastructure/adapters/in/rest/FotoRestTest` | Punta a punta (4) | 401, subida PNG, rechazo por contenido y nombre inválido |
+| `infrastructure/storage/AlmacenFotosCloudinaryTest` | Unitaria (5) | SDK simulado: carpeta, URL segura, rechazo sin llamar al CDN y borrado por id público |
+| `infrastructure/config/CloudinaryConfigTest` | Unitaria (3) | Falla rápido sin credenciales, construye el cliente con las tres claves y no lo crea con proveedor local |
 | `domain/ResenaTest` | Unitaria (5) | Estrellas 0–5, comentario 3–500, auto-reseña y vendedor obligatorio |
 | `application/ResenaServiceTest` | Unitaria (5) | Crear/listar con promedio y nombre visible, duplicada, auto-reseña y lista vacía |
 | `infrastructure/adapters/in/rest/ResenaRestTest` | Punta a punta (7) | 201, 409 duplicada, 400 datos inválidos, 401 y listado con promedio |

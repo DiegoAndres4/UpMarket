@@ -31,9 +31,9 @@ Paquete base: `com.upmarket.catalogo` · Java 17 · Spring Boot 3.5.6 · Maven �
 |---|---|
 | Frontend | Probado de punta a punta en navegador (Playwright) contra un servidor simulado: registro, publicar con foto, detalle, contacto, vender, buscar |
 | Subida de fotos (`/api/fotos`), CORS opcional, perfil prod | Compilados y cubiertos por `mvn verify` (REST de punta a punta) |
-| Dominio + aplicación | Compilado y probado: incluidas en las **128 pruebas** de `mvn verify` |
+| Dominio + aplicación | Compilado y probado: incluidas en las **145 pruebas** de `mvn verify` |
 | Infraestructura (Spring, JPA, REST, seguridad) | Compilada y ejecutada: `mvn verify` en verde |
-| Pruebas Spring (contrato JPA, unicidad de categoría, REST de punta a punta, arquitectura, JWT) | **128 pruebas, 0 fallos, 0 omitidas** con `mvn verify` |
+| Pruebas Spring (contrato JPA, unicidad de categoría, REST de punta a punta, arquitectura, JWT) | **145 pruebas, 0 fallos, 0 omitidas** con `mvn verify` |
 
 ## Arquitectura (hexagonal)
 
@@ -83,6 +83,16 @@ docker compose -f docker-compose.dev.yml up --build --watch
 
 Levanta web, AuthCore, dominio y MySQL sin necesitar `.env`. AuthCore se toma de `../Auth-Core-UpMarket`; si está en otra ruta, defina `AUTHCORE_DEV_PATH`. Al guardar en `src/main` de cualquiera de los dos servicios, ese servicio se recompila y reinicia solo. Los cambios del frontend se ven al recargar el navegador (Ctrl+F5).
 
+El panel de administración (`frontend-admin/`) se sirve como archivos estáticos desde `frontend-admin/dist`. Antes de levantar el compose, compílelo una vez:
+
+```bash
+cd frontend-admin
+npm install
+npm run build          # o `npm run dev` con proxy a http://localhost:8084 mientras desarrolla
+```
+
+Sin ese `dist`, `http://localhost:8080/admin/` responde 404 hasta que lo compile (el resto del sitio funciona igual).
+
 | Servicio | Dirección |
 |---|---|
 | Web | `http://localhost:8080` (502 hasta que terminen de compilar los servicios) |
@@ -118,6 +128,12 @@ El entorno de desarrollo siembra datos de demostración al arrancar el dominio: 
 | `POST /api/publicaciones/{id}/sold` | solo el autor | 200 · 403 · 404 · 409 (ya vendida) |
 | `DELETE /api/publicaciones/{id}` | autor o ADMIN (moderación) | 204 · 403 · 404 |
 | `POST /api/fotos` (multipart, campo `archivo`) | autenticado | 201 con `{url,tipo,tamanoBytes}` · 400 (no es JPG/PNG por contenido, o pesa más de 5 MB) |
+| `POST /api/perfil/foto` (multipart, campo `archivo`) | autenticado | 200 con el perfil y su nuevo `fotoUrl` · 400 (JPG/PNG inválido o mayor a 5 MB) |
+| `DELETE /api/perfil/foto` | autenticado | 204: quita la foto del perfil y borra el archivo anterior |
+| `GET /api/admin/estadisticas` | ADMIN | 200: totales por estado, pagos aprobados e ingresos, vistas, top 5, categorías, últimos 30 días, perfiles y reseñas · 403 |
+| `GET /api/admin/publicaciones?texto&categoria&estadoPublicacion&estadoPago&vendedor&pagina&tamano` | ADMIN | 200 paginado con **todas** las publicaciones (incluye pendientes de pago), más recientes primero · 403 |
+| `DELETE /api/admin/publicaciones/{id}` | ADMIN | 204 (reutiliza el caso de uso de eliminación) · 403 · 404 |
+| `GET /api/admin/usuarios?pagina&tamano` | ADMIN | 200 paginado: usuario, nombre, correo, foto, eliminada y número de publicaciones. Solo lectura · 403 |
 | `GET /api/perfil` · `PUT /api/perfil` | autenticado | Perfil propio (nombre, celular colombiano, foto). 400 si el nombre o el celular no son válidos |
 | `GET /api/perfil/publico?usuario=` | autenticado | Nombre y foto de otra persona, nunca el celular |
 | `GET /api/perfil/{usuario}/resenas` | autenticado | 200 `{ vendedor, promedio, total, resenas[] }`; promedio con un decimal y reseñas más recientes primero |
@@ -131,7 +147,15 @@ El entorno de desarrollo siembra datos de demostración al arrancar el dominio: 
 - El vendedor sale del token, nunca del cuerpo. La publicación nace `DISPONIBLE` pero `PENDIENTE` de pago: no aparece en búsquedas ni en el detalle de otras personas hasta que el autor paga la tarifa de 3.000 COP. El pago es simulado (`SIM-…`), solo lo puede hacer el autor y no se puede cobrar dos veces. Al venderla pasa a `VENDIDA` (ya no se edita ni se contacta).
 - Vistas: cada `GET /api/publicaciones/{id}` de una persona distinta del autor suma una vista de forma atómica (`vistas = vistas + 1`). El contador solo se devuelve al autor y al ADMIN, en el detalle y en «Mis publicaciones».
 - Precio: número mayor que cero, hasta 999 999 999.99, dos decimales; llega como texto y lo valida el dominio. Título 3–100 y descripción 5–2000 caracteres.
-- Fotos: hasta 5 por publicación, JPG o PNG, máximo 5 MB. El archivo se sube primero a `POST /api/fotos` (se valida por su **contenido**, no por el nombre ni el `Content-Type`) y la `url` que devuelve se envía en `fotos` al publicar. Se guardan en disco (`FOTOS_DIR`; en Docker, el volumen `fotos-data`). Con más usuarios convendría pasarlas a S3 detrás de un puerto de salida.
+- Fotos: hasta 5 por publicación, JPG o PNG, máximo 5 MB. El archivo se sube primero a `POST /api/fotos` (se valida por su **contenido**, no por el nombre ni el `Content-Type`) y la `url` que devuelve se envía en `fotos` al publicar. El proveedor se elige con `FOTOS_PROVEEDOR`: `local` (por defecto; disco `FOTOS_DIR`, volumen `fotos-data`) o `cloudinary` (URLs `https://` absolutas). Si elige Cloudinary, defina `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` y `CLOUDINARY_API_SECRET`, o `CLOUDINARY_URL`; sin credenciales la aplicación falla al arrancar con un mensaje claro. El navegador nunca ve el secreto: la subida siempre pasa por el backend.
+- Las fotos guardadas como nombre local (`/api/fotos/...`) siguen sirviéndose igual; las URLs absolutas de Cloudinary se usan tal cual. No hay migración de datos entre proveedores.
+
+### Panel de administración (`/admin/`)
+
+- Aplicación aparte en `frontend-admin/` (Vite + React + TypeScript + Tailwind + componentes shadcn/ui). El sitio público sigue en JavaScript sin compilación.
+- Comparte el origen y el token del sitio: lee `upmarket.token` de `localStorage`. Si no hay token o el rol no es `ADMIN`, redirige a `/`.
+- Se compila en la imagen Docker (`frontend/Dockerfile`, etapa Node) y nginx lo sirve bajo `/admin/` con respaldo de SPA.
+- Los administradores ven el enlace «Admin» en la barra del sitio público.
 - Contacto: celular colombiano y/o correo (al menos uno). Celular válido = 10 dígitos que empiezan por 3, con 57 o +57 opcional; el vendedor elige qué medios publica.
 - Cuenta: el **correo es el nombre de usuario en AuthCore**. Eliminar la cuenta en UPMarket borra sus datos aquí y sus credenciales en AuthCore (llamada `DELETE /api/auth/users/me`); si AuthCore falla, la operación se revierte y responde error. El detalle **no** lo incluye; se pide aparte y solo mientras la publicación está disponible.
 - Categoría: se identifica por su nombre sin tildes ni mayúsculas («libros» = «Libros»); la base tiene una restricción única como última defensa.

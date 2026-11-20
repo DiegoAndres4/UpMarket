@@ -13,6 +13,12 @@ JWT_SECRET_BASE64=$(printf '%s' "${JWT_SECRET}" | base64 -w0)
 ADMIN_PASSWORD=$(openssl rand -hex 12)
 # Opcional: ruta local de AuthCore si no se quiere construir desde GitHub
 # AUTHCORE_CONTEXT=../Auth-Core-UpMarket
+# Cloudinary (opcional). Vacío = fotos en disco local. NUNCA pongas valores reales aquí.
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+CLOUDINARY_URL=
+FOTOS_PROVEEDOR=local
 ENV
 chmod 600 .env
 echo ".env creado. Guárdalo en un lugar seguro: NO se sube a Git."

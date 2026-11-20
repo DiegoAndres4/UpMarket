@@ -71,6 +71,12 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET_BASE64: ${JWT_SECRET_BASE64:?falta JWT_SECRET_BASE64 en .env}
       FOTOS_DIR: /data/fotos
+      # Proveedor de fotos: local (disco del contenedor) o cloudinary. Ver README.
+      FOTOS_PROVEEDOR: ${FOTOS_PROVEEDOR:-local}
+      CLOUDINARY_URL: ${CLOUDINARY_URL:-}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
       # Para borrar las credenciales en AuthCore cuando un usuario elimina su cuenta.
       AUTHCORE_URL: http://authcore:8081
       JAVA_TOOL_OPTIONS: -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC
@@ -85,7 +91,10 @@ services:
     mem_limit: 640m
 
   web:
-    build: ./frontend
+    # Contexto raíz: el Dockerfile compila frontend-admin/ y copia también frontend/.
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
     restart: unless-stopped
     # La web solo arranca cuando los dos servicios ya responden.
     depends_on:

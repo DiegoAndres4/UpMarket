@@ -12,3 +12,6 @@ fotos/
 respaldos/
 
 odd/
+
+frontend-admin/node_modules/
+frontend-admin/dist/

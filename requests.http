@@ -77,3 +77,35 @@ Authorization: Bearer {{tokenVendedor}}
 ### HU-12: eliminar (definitivo; 204)
 DELETE {{host}}/api/publicaciones/1
 Authorization: Bearer {{tokenVendedor}}
+
+### Foto de perfil: multipart con el campo "archivo" (JPG o PNG, hasta 5 MB)
+POST {{host}}/api/perfil/foto
+Authorization: Bearer {{tokenVendedor}}
+Content-Type: multipart/form-data; boundary=----UpMarket
+
+------UpMarket
+Content-Disposition: form-data; name="archivo"; filename="perfil.png"
+Content-Type: image/png
+
+< ./perfil.png
+------UpMarket--
+
+### Quitar la foto de perfil (204)
+DELETE {{host}}/api/perfil/foto
+Authorization: Bearer {{tokenVendedor}}
+
+### Panel de administración: estadísticas (403 si el token no es ADMIN)
+GET {{host}}/api/admin/estadisticas
+Authorization: Bearer {{tokenAdmin}}
+
+### Panel de administración: todas las publicaciones, con filtros y paginación
+GET {{host}}/api/admin/publicaciones?texto=&categoria=&estadoPublicacion=&estadoPago=PENDIENTE&vendedor=&pagina=1&tamano=20
+Authorization: Bearer {{tokenAdmin}}
+
+### Panel de administración: usuarios con su número de publicaciones (solo lectura)
+GET {{host}}/api/admin/usuarios?pagina=1&tamano=20
+Authorization: Bearer {{tokenAdmin}}
+
+### Panel de administración: eliminar una publicación (204; reutiliza el caso de uso)
+DELETE {{host}}/api/admin/publicaciones/1
+Authorization: Bearer {{tokenAdmin}}

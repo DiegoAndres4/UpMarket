@@ -3,5 +3,8 @@ target/
 .idea/
 *.iml
 .env
-frontend/
 deploy/
+odd/
+fotos/
+frontend-admin/node_modules/
+frontend-admin/dist/

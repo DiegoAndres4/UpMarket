@@ -140,6 +140,7 @@ function pintarNav() {
   nav.replaceChildren(...[
     enlace('#/', 'Catálogo'), enlace('#/publicar', 'Publicar', 'cta'), enlace('#/mias', 'Mis publicaciones'),
     s.esAdmin ? enlace('#/categorias', 'Categorías') : null,
+    s.esAdmin ? h('a', { href: '/admin/' }, 'Admin') : null,
     h('a', { href: '#/perfil', class: ruta === '#/perfil' ? 'activo' : '' },
       avatar(perfilActual && perfilActual.fotoUrl, nombre, ''), 'Mi perfil'),
     h('button', { onclick: cerrarSesion }, 'Salir')].filter(Boolean));
