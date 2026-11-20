@@ -2,6 +2,7 @@ package com.upmarket.catalogo.infrastructure.storage;
 
 import com.upmarket.catalogo.application.port.out.AlmacenDocumentosPort;
 import com.upmarket.catalogo.application.port.out.DocumentoAlmacenado;
+import com.upmarket.catalogo.domain.exception.AlmacenDocumentosException;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
@@ -75,6 +76,25 @@ public class AlmacenDocumentosCloudinary implements AlmacenDocumentosPort {
             return cliente.descargar(enlace.toString());
         } catch (IOException e) {
             throw new IllegalStateException("No se pudo leer el documento de Cloudinary", e);
+        }
+    }
+
+    @Override
+    public void eliminar(DocumentoAlmacenado documento) {
+        Map<String, Object> opciones = new LinkedHashMap<>();
+        opciones.put("resource_type", "raw");
+        opciones.put("type", "private");
+        opciones.put("invalidate", true);
+        Map<?, ?> resultado;
+        try {
+            resultado = cliente.destruir(documento.referencia(), opciones);
+        } catch (IOException e) {
+            throw new AlmacenDocumentosException("No se pudo eliminar el documento de Cloudinary");
+        }
+        Object estado = resultado == null ? null : resultado.get("result");
+        // «not found» es un borrado ya hecho: la operación sigue siendo idempotente.
+        if (estado == null || !("ok".equals(estado.toString()) || "not found".equals(estado.toString()))) {
+            throw new AlmacenDocumentosException("Cloudinary no confirmó la eliminación del documento");
         }
     }
 }

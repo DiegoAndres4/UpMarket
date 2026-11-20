@@ -27,4 +27,10 @@ public interface DocumentoRepositoryPort {
 
     /** Reportes de estadísticas (PDF y XML), más recientes primero. */
     List<DocumentoGenerado> reportes();
+
+    /** Las dos filas (PDF y XML) de un reporte, identificadas por su número {@code EST-…}. */
+    List<DocumentoGenerado> reportesPorNumero(String numero);
+
+    /** Borra en una sola transacción todas las filas indicadas. */
+    void eliminarPorIds(List<Long> ids);
 }

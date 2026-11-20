@@ -17,6 +17,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -64,6 +65,13 @@ public class DocumentoAdminController {
     public PaginaAdmin<ReporteAdmin> reportes(@RequestParam(defaultValue = "1") int pagina,
                                               @RequestParam(defaultValue = "20") int tamano) {
         return documentos.reportes(ActorActual.obtener(), pagina, tamano);
+    }
+
+    /** Borra el reporte completo (PDF y XML) identificado por su número {@code EST-…}. */
+    @DeleteMapping("/reportes/{numero}")
+    public ResponseEntity<Void> eliminarReporte(@PathVariable String numero) {
+        documentos.eliminarReporte(ActorActual.obtener(), numero);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/documentos/{id}/descarga")

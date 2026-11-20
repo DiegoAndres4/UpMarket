@@ -55,6 +55,18 @@ class AlmacenDocumentosLocalTest {
     }
 
     @Test
+    void eliminaElArchivoYRepetirNoFalla() {
+        AlmacenDocumentosLocal almacen = new AlmacenDocumentosLocal(directorio.toString());
+        DocumentoAlmacenado documento = almacen.guardar(PDF, "reporte.pdf",
+                AlmacenDocumentosPort.CARPETA_REPORTES, "application/pdf");
+
+        almacen.eliminar(documento);
+        almacen.eliminar(documento);
+
+        assertThat(Files.exists(directorio.resolve(documento.referencia()))).isFalse();
+    }
+
+    @Test
     void rechazaReferenciasQueNoGeneroElServidor() {
         AlmacenDocumentosLocal almacen = new AlmacenDocumentosLocal(directorio.toString());
         DocumentoAlmacenado ajeno = new DocumentoAlmacenado("local", "../recibo.pdf", "recibo.pdf",

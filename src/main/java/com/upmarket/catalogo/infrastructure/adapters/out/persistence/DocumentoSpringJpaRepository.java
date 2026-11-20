@@ -12,4 +12,6 @@ public interface DocumentoSpringJpaRepository extends JpaRepository<DocumentoGen
                                                                            FormatoDocumento formato, Long pagoId);
 
     List<DocumentoGeneradoJpaEntity> findByTipoOrderByGeneradoEnDescIdDesc(TipoDocumento tipo);
+
+    List<DocumentoGeneradoJpaEntity> findByTipoAndNumeroOrderByFormatoAsc(TipoDocumento tipo, String numero);
 }

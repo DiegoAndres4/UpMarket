@@ -23,4 +23,10 @@ public interface DocumentosUseCase {
 
     /** Historial agrupado por número: cada reporte con sus descargas PDF y XML. */
     PaginaAdmin<ReporteAdmin> reportes(Actor actor, int pagina, int tamano);
+
+    /**
+     * Elimina un reporte completo (PDF y XML). Primero borra los archivos del almacén y solo después
+     * las filas; si el almacén falla, las filas se conservan. Solo ADMIN y solo reportes.
+     */
+    void eliminarReporte(Actor actor, String numero);
 }

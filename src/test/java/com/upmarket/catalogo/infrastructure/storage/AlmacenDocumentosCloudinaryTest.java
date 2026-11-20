@@ -1,6 +1,7 @@
 package com.upmarket.catalogo.infrastructure.storage;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
@@ -10,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import com.upmarket.catalogo.application.port.out.AlmacenDocumentosPort;
 import com.upmarket.catalogo.application.port.out.DocumentoAlmacenado;
+import com.upmarket.catalogo.domain.exception.AlmacenDocumentosException;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
@@ -90,5 +92,41 @@ class AlmacenDocumentosCloudinaryTest {
         assertThat(opciones.getValue()).containsEntry("resource_type", "raw")
                 .containsEntry("type", "private")
                 .containsEntry("attachment", true);
+    }
+
+    @Test
+    void eliminaComoRawPrivadoEInvalidaLaCache() throws Exception {
+        Map<?, ?> respuesta = Map.of("result", "ok");
+        when(cliente.destruir(eq(PUBLIC_ID), anyMap())).thenAnswer(invocacion -> respuesta);
+        DocumentoAlmacenado documento = new DocumentoAlmacenado("cloudinary", PUBLIC_ID, NOMBRE,
+                "application/pdf", PDF.length);
+
+        almacen.eliminar(documento);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> opciones = ArgumentCaptor.forClass(Map.class);
+        verify(cliente).destruir(eq(PUBLIC_ID), opciones.capture());
+        assertThat(opciones.getValue()).containsEntry("resource_type", "raw")
+                .containsEntry("type", "private")
+                .containsEntry("invalidate", true);
+    }
+
+    @Test
+    void unArchivoYaAusenteCuentaComoEliminado() throws Exception {
+        Map<?, ?> respuesta = Map.of("result", "not found");
+        when(cliente.destruir(eq(PUBLIC_ID), anyMap())).thenAnswer(invocacion -> respuesta);
+
+        almacen.eliminar(new DocumentoAlmacenado("cloudinary", PUBLIC_ID, NOMBRE, "application/pdf", PDF.length));
+        // sin excepción: el borrado es idempotente
+    }
+
+    @Test
+    void unFalloDelProveedorSeInformaParaNoTocarLaBase() throws Exception {
+        Map<?, ?> respuesta = Map.of("result", "error");
+        when(cliente.destruir(eq(PUBLIC_ID), anyMap())).thenAnswer(invocacion -> respuesta);
+
+        assertThatThrownBy(() -> almacen.eliminar(new DocumentoAlmacenado("cloudinary", PUBLIC_ID, NOMBRE,
+                "application/pdf", PDF.length)))
+                .isInstanceOf(AlmacenDocumentosException.class);
     }
 }

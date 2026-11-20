@@ -36,6 +36,11 @@ public class RestExceptionHandler {
         return responder(HttpStatus.NOT_FOUND, e.getMessage());
     }
 
+    @ExceptionHandler(AlmacenDocumentosException.class)
+    ResponseEntity<ErrorResponse> almacen(AlmacenDocumentosException e) {
+        return responder(HttpStatus.BAD_GATEWAY, e.getMessage());
+    }
+
     @ExceptionHandler({DuplicadoException.class, EstadoInvalidoException.class})
     ResponseEntity<ErrorResponse> conflicto(DominioException e) {
         return responder(HttpStatus.CONFLICT, e.getMessage());

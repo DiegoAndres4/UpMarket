@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 public class DocumentoRepositoryJpaAdapter implements DocumentoRepositoryPort {
@@ -64,6 +65,24 @@ public class DocumentoRepositoryJpaAdapter implements DocumentoRepositoryPort {
     public List<DocumentoGenerado> reportes() {
         return jpa.findByTipoOrderByGeneradoEnDescIdDesc(TipoDocumento.REPORTE_ESTADISTICAS).stream()
                 .map(DocumentoGeneradoJpaEntity::aDominio).toList();
+    }
+
+    @Override
+    public List<DocumentoGenerado> reportesPorNumero(String numero) {
+        if (numero == null || numero.isBlank()) {
+            return List.of();
+        }
+        return jpa.findByTipoAndNumeroOrderByFormatoAsc(TipoDocumento.REPORTE_ESTADISTICAS, numero).stream()
+                .map(DocumentoGeneradoJpaEntity::aDominio).toList();
+    }
+
+    @Override
+    @Transactional
+    public void eliminarPorIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        jpa.deleteAllByIdInBatch(ids);
     }
 
     private static String prefijo(TipoDocumento tipo) {

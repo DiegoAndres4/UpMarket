@@ -14,6 +14,9 @@ public interface ClienteDocumentosCloudinary {
 
     String enlacePrivado(String publicId, String formato, Map<String, Object> opciones) throws Exception;
 
+    /** Destruye el archivo remoto; el SDK devuelve un mapa con {@code result=ok|not found|error}. */
+    Map<?, ?> destruir(String publicId, Map<String, Object> opciones) throws IOException;
+
     /** Descarga el contenido de un enlace firmado, del lado del servidor. */
     byte[] descargar(String enlace) throws IOException;
 }

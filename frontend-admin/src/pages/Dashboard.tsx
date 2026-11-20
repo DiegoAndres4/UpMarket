@@ -8,11 +8,12 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { Download, Eye } from 'lucide-react'
+import { Download, Eye, Trash2 } from 'lucide-react'
 import { api, descargarDocumento } from '../lib/api'
 import { fecha, numero, precio } from '../lib/formato'
 import type { DocumentoAdmin, Estadisticas, Pagina, ReporteAdmin, ReporteGenerado } from '../lib/tipos'
 import { DocumentoViewer, type DocumentoVista } from '../components/DocumentoViewer'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
@@ -55,6 +56,8 @@ export default function Dashboard() {
   const [errorAccionReporte, setErrorAccionReporte] = useState<string | null>(null)
   const [recargaReportes, setRecargaReportes] = useState(0)
   const [vista, setVista] = useState<DocumentoVista | null>(null)
+  const [reporteAEliminar, setReporteAEliminar] = useState<ReporteAdmin | null>(null)
+  const [eliminando, setEliminando] = useState(false)
 
   const cargar = () => {
     setCargando(true)
@@ -104,11 +107,29 @@ export default function Dashboard() {
     }
   }
 
+  const eliminarReporte = async () => {
+    if (!reporteAEliminar) return
+    setEliminando(true)
+    setAvisoReporte(null)
+    setErrorAccionReporte(null)
+    try {
+      await api(`/admin/reportes/${encodeURIComponent(reporteAEliminar.numero)}`, { method: 'DELETE' })
+      if (ultimoReporte?.numero === reporteAEliminar.numero) setUltimoReporte(null)
+      setAvisoReporte('Reporte eliminado')
+      setRecargaReportes((valor) => valor + 1)
+    } catch (e) {
+      setErrorAccionReporte(e instanceof Error ? e.message : 'No se pudo eliminar el reporte')
+    } finally {
+      setEliminando(false)
+      setReporteAEliminar(null)
+    }
+  }
+
   const ver = (documento: DocumentoAdmin, numeroReporte: string) => {
     setVista({
       id: documento.id,
       numero: numeroReporte,
-      formato: documento.formato,
+      formato: 'PDF',
       nombreArchivo: documento.nombreArchivo,
       tipo: 'Reporte de estadísticas',
     })
@@ -290,9 +311,6 @@ export default function Dashboard() {
                 <Button variant="outline" onClick={() => void descargarDocumento(ultimoReporte.pdf)}>
                   <Download className="h-4 w-4" /> Descargar PDF
                 </Button>
-                <Button variant="outline" onClick={() => ver(ultimoReporte.xml, ultimoReporte.numero)}>
-                  <Eye className="h-4 w-4" /> Ver XML
-                </Button>
                 <Button variant="outline" onClick={() => void descargarDocumento(ultimoReporte.xml)}>
                   <Download className="h-4 w-4" /> Descargar XML
                 </Button>
@@ -347,12 +365,12 @@ export default function Dashboard() {
                           </div>
                           <div className="flex justify-end gap-2">
                             <Button variant="outline" size="sm" disabled={!reporte.xml}
-                              onClick={() => reporte.xml ? ver(reporte.xml, reporte.numero) : undefined}>
-                              <Eye className="h-4 w-4" /> Ver XML
-                            </Button>
-                            <Button variant="outline" size="sm" disabled={!reporte.xml}
                               onClick={() => reporte.xml ? void descargarDocumento(reporte.xml) : undefined}>
                               Descargar XML
+                            </Button>
+                            <Button variant="destructive" size="sm"
+                              onClick={() => setReporteAEliminar(reporte)}>
+                              <Trash2 className="h-4 w-4" /> Eliminar
                             </Button>
                           </div>
                         </div>
@@ -367,6 +385,25 @@ export default function Dashboard() {
       </Card>
 
       <DocumentoViewer documento={vista} onCerrar={() => setVista(null)} />
+
+      <AlertDialog open={reporteAEliminar !== null}
+        onOpenChange={(abierto) => { if (!abierto && !eliminando) setReporteAEliminar(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar el reporte {reporteAEliminar?.numero}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se borrarán el PDF y el XML de Cloudinary. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={eliminando}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={eliminando} onClick={() => void eliminarReporte()}>
+              {eliminando ? 'Eliminando…' : 'Eliminar reporte'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

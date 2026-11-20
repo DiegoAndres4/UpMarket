@@ -30,4 +30,11 @@ public interface AlmacenDocumentosPort {
      * descarga con un enlace firmado de corta caducidad, siempre del lado del servidor.
      */
     byte[] leer(DocumentoAlmacenado documento);
+
+    /**
+     * Borra el archivo del almacén. Es idempotente: si ya no existe, se considera eliminado. Cualquier
+     * otro fallo del proveedor se informa con {@code AlmacenDocumentosException} para no tocar la base
+     * de datos cuando el binario sigue vivo.
+     */
+    void eliminar(DocumentoAlmacenado documento);
 }

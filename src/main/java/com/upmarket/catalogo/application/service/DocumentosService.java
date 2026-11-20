@@ -30,6 +30,7 @@ import com.upmarket.catalogo.domain.exception.DocumentoNoEncontradoException;
 import com.upmarket.catalogo.domain.exception.EstadoInvalidoException;
 import com.upmarket.catalogo.domain.exception.PagoNoEncontradoException;
 import com.upmarket.catalogo.domain.exception.PublicacionNoEncontradaException;
+import com.upmarket.catalogo.domain.exception.ReporteNoEncontradoException;
 import com.upmarket.catalogo.domain.model.Actor;
 import com.upmarket.catalogo.domain.model.DocumentoGenerado;
 import com.upmarket.catalogo.domain.model.EstadoPago;
@@ -246,6 +247,24 @@ public class DocumentosService implements DocumentosUseCase {
         }
         filas.sort(Comparator.comparing(ReporteAdmin::generadoEn).reversed());
         return PaginaAdmin.de(filas, pagina, tamano);
+    }
+
+    @Override
+    public void eliminarReporte(Actor actor, String numero) {
+        acceso.asegurarAdmin(actor, "eliminar reportes");
+        List<DocumentoGenerado> filas = documentos.reportesPorNumero(numero);
+        if (filas.isEmpty()) {
+            throw new ReporteNoEncontradoException(numero);
+        }
+        // Primero el almacén: si falla, las filas quedan y el reporte sigue visible en el historial.
+        for (DocumentoGenerado fila : filas) {
+            if (!fila.almacenado()) {
+                continue;
+            }
+            almacen.eliminar(new DocumentoAlmacenado(fila.proveedor(), fila.referencia(), fila.nombreArchivo(),
+                    tipoContenido(fila.formato()), fila.tamanoBytes()));
+        }
+        documentos.eliminarPorIds(filas.stream().map(DocumentoGenerado::id).toList());
     }
 
     @Override

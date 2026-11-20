@@ -32,6 +32,11 @@ public class CloudinaryDocumentos implements ClienteDocumentosCloudinary {
     }
 
     @Override
+    public Map<?, ?> destruir(String publicId, Map<String, Object> opciones) throws IOException {
+        return cloudinary.uploader().destroy(publicId, opciones);
+    }
+
+    @Override
     public byte[] descargar(String enlace) throws IOException {
         HttpRequest peticion = HttpRequest.newBuilder(URI.create(enlace)).GET().build();
         try {

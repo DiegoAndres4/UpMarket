@@ -2,6 +2,7 @@ package com.upmarket.catalogo.infrastructure.storage;
 
 import com.upmarket.catalogo.application.port.out.AlmacenDocumentosPort;
 import com.upmarket.catalogo.application.port.out.DocumentoAlmacenado;
+import com.upmarket.catalogo.domain.exception.AlmacenDocumentosException;
 import com.upmarket.catalogo.domain.exception.DocumentoNoEncontradoException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -65,6 +66,24 @@ public class AlmacenDocumentosLocal implements AlmacenDocumentosPort {
             return Files.readAllBytes(archivo);
         } catch (IOException e) {
             throw new UncheckedIOException("No se pudo leer el documento", e);
+        }
+    }
+
+    @Override
+    public void eliminar(DocumentoAlmacenado documento) {
+        String referencia = documento.referencia();
+        // Una referencia inválida o un archivo ausente cuentan como ya eliminados.
+        if (referencia == null || !REFERENCIA_VALIDA.matcher(referencia).matches()) {
+            return;
+        }
+        Path archivo = directorio.resolve(referencia).normalize();
+        if (!archivo.startsWith(directorio)) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(archivo);
+        } catch (IOException e) {
+            throw new AlmacenDocumentosException("No se pudo eliminar el documento del disco");
         }
     }
 }

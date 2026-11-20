@@ -4,11 +4,11 @@ import { contenidoDocumento, descargarDocumento } from '../lib/api'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog'
 
-/** Documento que el panel puede mostrar en línea, sin descargarlo. */
+/** Documento que el panel puede mostrar en línea, sin descargarlo. Solo los PDF se previsualizan. */
 export type DocumentoVista = {
   id: number
   numero: string
-  formato: 'PDF' | 'XML'
+  formato: 'PDF'
   nombreArchivo: string
   tipo: string
 }
@@ -17,7 +17,7 @@ type Estado = 'cargando' | 'listo' | 'error'
 
 /**
  * Diálogo de vista previa: trae los bytes con el token en la cabecera, crea un Blob URL y lo revoca
- * al cerrar. El PDF va en un iframe; el XML se muestra indentado y escapado por el navegador.
+ * al cerrar. El PDF va en un iframe; el XML solo se descarga, no se previsualiza.
  */
 export function DocumentoViewer({ documento, onCerrar }: {
   documento: DocumentoVista | null
@@ -25,30 +25,25 @@ export function DocumentoViewer({ documento, onCerrar }: {
 }) {
   const [estado, setEstado] = useState<Estado>('cargando')
   const [url, setUrl] = useState<string | null>(null)
-  const [textoXml, setTextoXml] = useState<string | null>(null)
   const [intento, setIntento] = useState(0)
 
   useEffect(() => {
     if (!documento) {
       setEstado('cargando')
       setUrl(null)
-      setTextoXml(null)
       return
     }
     let vigente = true
     let creada: string | null = null
     setEstado('cargando')
     setUrl(null)
-    setTextoXml(null)
 
     contenidoDocumento(documento)
-      .then(async (blob) => {
+      .then((blob) => {
         const objectUrl = URL.createObjectURL(blob)
         creada = objectUrl
-        const xml = documento.formato === 'XML' ? formatearXml(await blob.text()) : null
         if (!vigente) return
         setUrl(objectUrl)
-        setTextoXml(xml)
         setEstado('listo')
       })
       .catch(() => {
@@ -109,55 +104,16 @@ export function DocumentoViewer({ documento, onCerrar }: {
               </div>
             ) : null}
 
-            {estado === 'listo' && documento.formato === 'PDF' && url ? (
+            {estado === 'listo' && url ? (
               <iframe
                 title={`${documento.numero} · ${documento.tipo}`}
                 src={url}
                 className="h-full w-full border-0 bg-white"
               />
             ) : null}
-
-            {estado === 'listo' && documento.formato === 'XML' ? (
-              <pre className="h-full overflow-auto p-6 text-xs leading-relaxed">
-                <code className="font-mono whitespace-pre">{textoXml ?? ''}</code>
-              </pre>
-            ) : null}
           </div>
         </DialogContent>
       ) : null}
     </Dialog>
   )
-}
-
-/** Indenta el XML a dos espacios sin alterar el contenido ni los atributos. */
-function formatearXml(texto: string): string {
-  const documento = new DOMParser().parseFromString(texto, 'application/xml')
-  if (documento.getElementsByTagName('parsererror').length > 0 || !documento.documentElement) {
-    return texto
-  }
-  const lineas: string[] = []
-  if (texto.trimStart().startsWith('<?xml')) {
-    lineas.push('<?xml version="1.0" encoding="UTF-8"?>')
-  }
-  const serializador = new XMLSerializer()
-  const recorrer = (nodo: Node, nivel: number) => {
-    const sangria = '  '.repeat(nivel)
-    if (nodo.nodeType === Node.ELEMENT_NODE) {
-      const elemento = nodo as Element
-      const hijos = Array.from(elemento.childNodes)
-      const vacio = serializador.serializeToString(elemento.cloneNode(false))
-      if (hijos.length === 0) {
-        lineas.push(`${sangria}${vacio}`)
-        return
-      }
-      lineas.push(`${sangria}${vacio.replace(/\/>$/, '>')}`)
-      hijos.forEach((hijo) => recorrer(hijo, nivel + 1))
-      lineas.push(`${sangria}</${elemento.tagName}>`)
-    } else if (nodo.nodeType === Node.TEXT_NODE || nodo.nodeType === Node.CDATA_SECTION_NODE) {
-      const contenido = serializador.serializeToString(nodo).trim()
-      if (contenido) lineas.push(`${sangria}${contenido}`)
-    }
-  }
-  recorrer(documento.documentElement, 0)
-  return lineas.join('\n')
 }
