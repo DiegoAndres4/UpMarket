@@ -459,3 +459,110 @@ a{text-decoration:underline;text-underline-offset:2px}
   .vendedor-cab .avatar.grande{width:64px;height:64px;font-size:1.6rem}
   .resena__fecha{margin-left:0;width:100%}
 }
+
+/* ---------- landing pública: la cartelera de la sede ---------- */
+body.pantalla-acceso .barra,
+body.pantalla-acceso #pie{display:none}
+body.pantalla-acceso #app{padding-top:clamp(24px,5vw,56px)}
+.acceso__volver{display:inline-block;margin:0 0 22px}
+
+body.pantalla-landing #app{max-width:none;padding:0}
+.cartelera{--cartelera-gap:clamp(20px,2.4vw,30px)}
+.cartelera ::selection{background:var(--text);color:var(--primary)}
+.cartelera :focus-visible{outline:3px solid var(--text);outline-offset:3px}
+.cartelera a{color:inherit}
+.cartelera input{caret-color:var(--accent)}
+.cartelera-ancho{width:100%;max-width:none;padding-inline:max(16px,calc((100% - 1100px)/2 + 16px))}
+
+.cartelera-hero{padding-block:clamp(24px,3.5vw,52px) clamp(36px,4vw,56px)}
+.cartelera-hero h1{margin:0;font-size:clamp(44px,7vw,96px);font-weight:800;letter-spacing:-.03em;line-height:.95;max-width:20ch;color:var(--text)}
+.cartelera-hero__bajada{margin:36px 0 0;max-width:62ch;font-size:clamp(16px,1.6vw,18px);line-height:1.5;color:var(--text)}
+
+.cartelera-buscar{margin:clamp(28px,4vw,44px) 0 0;max-width:760px}
+.cartelera-buscar label{display:block;margin:0 0 8px;font-size:var(--text-md);font-weight:600;color:var(--text)}
+.cartelera-buscar__fila{position:relative;display:flex;gap:10px;align-items:stretch}
+.cartelera-buscar__lupa{position:absolute;left:14px;top:50%;display:flex;transform:translateY(-50%);color:var(--text-muted);pointer-events:none}
+.cartelera-buscar input{flex:1 1 auto;min-width:0;font:inherit;font-size:var(--text-md);min-height:48px;padding:10px 14px 10px 44px;border:2px solid var(--text);border-radius:var(--radius-control);background:var(--bg);color:var(--text)}
+.cartelera-buscar input::placeholder{color:var(--placeholder);opacity:1}
+.cartelera-buscar .btn{flex:0 0 auto;min-height:48px}
+.cartelera-buscar__ayuda{margin:8px 0 0;font-size:var(--text-sm);color:var(--text-muted);line-height:1.5}
+
+.cartelera__chips{display:flex;flex-wrap:wrap;gap:8px;margin:clamp(18px,2.4vw,26px) 0 0;padding:0 0 2px}
+.cartelera .chip{min-height:44px}
+
+.cartelera-tablero{background:var(--primary);padding-block:clamp(40px,4vw,56px) clamp(48px,6vw,88px)}
+.cartelera-tablero__cab{display:flex;align-items:baseline;gap:12px 18px;flex-wrap:wrap;margin:0 0 clamp(20px,2.4vw,28px)}
+.cartelera-tablero h2{margin:0;font-size:clamp(28px,3.6vw,44px);font-weight:800;letter-spacing:-.02em;line-height:1.05;color:var(--text)}
+.cartelera__cuenta{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--text);opacity:.75;font-variant-numeric:tabular-nums}
+
+.cartelera__avisos{list-style:none;margin:0;padding:6px 0 0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--cartelera-gap)}
+.cartelera__aviso{min-width:0}
+
+.cartelera__enlace{position:relative;display:block;height:100%;padding:10px 10px 16px;background:#fff;color:var(--text);text-decoration:none;border-radius:2px;transform:rotate(var(--rot,0deg))}
+.cartelera__chincheta{position:absolute;top:-6px;left:50%;z-index:2;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:var(--accent)}
+.cartelera__foto{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--surface-2)}
+.cartelera__foto--vacia{display:flex;align-items:center;justify-content:center;padding:12px;text-align:center;font-size:var(--text-sm);font-weight:600;line-height:1.3;color:var(--text-muted);background:var(--surface-2)}
+.cartelera__papel{display:block;padding:12px 4px 0}
+.cartelera__precio{display:inline-block;margin:0 0 10px;padding:3px 10px;font-size:1rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.4;color:#fff;background:var(--accent)}
+.cartelera__aviso-titulo{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;font-size:var(--text-md);font-weight:700;line-height:1.3;overflow-wrap:anywhere}
+.cartelera__aviso-meta{display:block;margin:8px 0 0;font-size:var(--text-sm);line-height:1.4;color:var(--text-muted)}
+.cartelera__aviso--hueso .cartelera__foto--vacia{background:var(--surface-2)}
+.cartelera__hueso{display:block;height:12px;background:var(--surface-2)}
+.cartelera__hueso--precio{width:52%;height:24px;margin:0 0 12px;background:var(--border)}
+.cartelera__hueso--titulo{width:92%;margin:0 0 8px}
+.cartelera__hueso--meta{width:60%}
+
+.cartelera__vacio{grid-column:1/-1;padding:clamp(28px,4vw,44px);text-align:center;background:#fff;border-radius:2px}
+.cartelera__vacio p{margin:0 0 16px;font-size:var(--text-md);line-height:1.5;color:var(--text)}
+.cartelera__vacio p:last-child{margin-bottom:0}
+.cartelera-tablero__pie{margin:clamp(22px,3vw,32px) 0 0;font-size:var(--text-md)}
+.cartelera__ver{font-weight:700;text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:2px;min-height:44px;display:inline-flex;align-items:center}
+
+.cartelera-seccion{padding-block:clamp(72px,11.5vw,176px)}
+.cartelera-seccion h2{margin:0 0 clamp(28px,3.4vw,44px);font-size:clamp(28px,3.6vw,44px);font-weight:800;letter-spacing:-.02em;line-height:1.05;color:var(--text);max-width:24ch}
+.cartelera-seccion p{margin:0;font-size:clamp(16px,1.6vw,18px);line-height:1.5;color:var(--text);max-width:66ch}
+.cartelera-pasos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(32px,5vw,72px)}
+.cartelera-pasos h3{margin:0 0 10px;font-size:1.25rem;font-weight:700;line-height:1.2;color:var(--text)}
+.cartelera-motivos{list-style:disc;margin:0;padding:0 0 0 1.15em;display:grid;gap:16px}
+.cartelera-motivos li{padding-left:6px;font-size:clamp(16px,1.6vw,18px);line-height:1.5;color:var(--text);max-width:66ch}
+
+.cartelera-cierre{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:clamp(24px,4vw,56px)}
+.cartelera-cierre__mascota{width:auto;height:clamp(120px,18vw,220px);max-width:100%;object-fit:contain}
+.cartelera-cierre h2{margin:0 0 12px;font-size:clamp(28px,3.6vw,44px);font-weight:800;letter-spacing:-.02em;line-height:1.05}
+.cartelera-cierre__acciones{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:22px 0 0}
+.cartelera-cierre__enlace{font-weight:600;text-decoration:underline;text-underline-offset:3px;min-height:44px;display:inline-flex;align-items:center}
+
+@media(prefers-reduced-motion:no-preference){
+  .cartelera__enlace{transition:transform .16s ease-out,box-shadow .16s ease-out}
+  .cartelera__enlace:hover{transform:rotate(var(--rot,0deg)) translateY(-4px);box-shadow:0 12px 24px rgba(26,26,26,.22)}
+  .cartelera__aviso.cae{animation:cartelera-cae .5s cubic-bezier(.16,1,.3,1) both;animation-delay:calc(var(--i,0)*70ms)}
+  .cartelera__avisos.sale>.cartelera__aviso{opacity:0;transform:translateY(-8px);transition:opacity .12s ease-in,transform .12s ease-in}
+  .cartelera-seccion:not(.entra) .cartelera-ancho{opacity:0}
+  .cartelera-seccion.entra .cartelera-ancho{animation:cartelera-entra .5s ease-out both}
+  .cartelera-seccion.entra h2{animation:cartelera-entra .45s ease-out both}
+  .cartelera-seccion.entra h2~*{animation:cartelera-entra .5s ease-out .1s both}
+}
+@keyframes cartelera-cae{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:none}}
+@keyframes cartelera-entra{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+@media(max-width:1099px){
+  .cartelera__avisos{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:767px){
+  .cartelera__avisos{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cartelera__chips{flex-wrap:nowrap;overflow-x:auto;padding-right:28px;scrollbar-width:thin}
+  .cartelera__chips .chip{flex:0 0 auto}
+  .cartelera-pasos{grid-template-columns:minmax(0,1fr);gap:clamp(28px,6vw,40px)}
+}
+@media(max-width:520px){
+  .cartelera-buscar__fila{flex-wrap:wrap}
+  .cartelera-buscar input{flex:1 1 100%}
+  .cartelera-buscar .btn{width:100%}
+  .cartelera-cierre{grid-template-columns:minmax(0,1fr);text-align:left}
+  .cartelera-cierre__mascota{height:clamp(110px,34vw,160px)}
+  .cartelera__avisos{gap:14px}
+  .cartelera__enlace{padding:8px 8px 12px}
+  .cartelera__precio{font-size:.92rem}
+}
+.acceso ::selection{background:var(--text);color:#fff}
+.acceso input{caret-color:var(--accent)}

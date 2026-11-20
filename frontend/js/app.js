@@ -132,9 +132,15 @@ function pintarNav() {
   const s = leerSesion(); const nav = document.getElementById('nav'); const menu = document.getElementById('menu'); const ruta = location.hash || '#/';
   nav.classList.remove('abierto');
   menu.setAttribute('aria-expanded', 'false');
-  // Sin sesión no hay menú: la salida a ingreso/registro vive en el pie del propio formulario.
-  menu.hidden = !s;
-  if (!s) { nav.replaceChildren(); nav.hidden = true; return; }
+  // Sin sesión solo hay dos salidas: ingresar o crear cuenta (la landing las muestra en la barra).
+  menu.hidden = false;
+  if (!s) {
+    nav.hidden = false;
+    nav.replaceChildren(
+      h('a', { href: '#/login' }, 'Ingresar'),
+      h('a', { class: 'btn', href: '#/registro' }, 'Crear cuenta'));
+    return;
+  }
   nav.hidden = false;
   const enlace = (href, texto, clase) => h('a', { href, class: (ruta === href ? 'activo ' : '') + (clase || '') }, texto);
   const nombre = perfilActual ? perfilActual.nombre : nombreCorto(s.usuario);
@@ -192,7 +198,8 @@ document.querySelector('.salto')?.addEventListener('click', (ev) => {
   document.getElementById('app').focus();
 });
 const rutas = [
-  [/^#\/login$/, vistaLogin], [/^#\/registro$/, vistaRegistro], [/^#\/?$/, vistaCatalogo],
+  [/^#\/login$/, vistaLogin], [/^#\/registro$/, vistaRegistro],
+  [/^#\/?$/, () => (leerSesion() ? vistaCatalogo() : vistaLanding())],
   [/^#\/publicar$/, () => vistaFormulario(null)], [/^#\/mias$/, vistaMias], [/^#\/categorias$/, vistaCategorias],
   [/^#\/perfil$/, vistaPerfil],
   [/^#\/vendedor\/(.+)$/, (m) => vistaVendedor(decodeURIComponent(m[1]))],
@@ -212,12 +219,18 @@ function tituloDe(hash) {
 }
 async function enrutar() {
   const hash = location.hash || '#/';
-  const publica = hash === '#/login' || hash === '#/registro';
+  const raiz = hash === '#/' || hash === '#/?';
+  const sesion = leerSesion();
+  const acceso = hash === '#/login' || hash === '#/registro';
+  const publica = acceso || (raiz && !sesion);
+  document.body.classList.toggle('pantalla-acceso', acceso);
+  document.body.classList.toggle('pantalla-landing', raiz && !sesion);
   pintarNav();
   pintarPie();
   const titulo = tituloDe(hash);
-  document.title = titulo ? titulo + ' · UPMarket' : 'UPMarket · Mercado de estudiantes';
-  if (!publica && !leerSesion()) { location.hash = '#/login'; return; }
+  document.title = raiz && !sesion ? 'UPMarket · La cartelera de la sede'
+    : titulo ? titulo + ' · UPMarket' : 'UPMarket · Mercado de estudiantes';
+  if (!publica && !sesion) { location.hash = '#/login'; return; }
   if (!publica && !perfilActual) await cargarPerfil();
   for (const [patron, vista] of rutas) {
     const m = hash.match(patron);
@@ -249,7 +262,19 @@ async function iniciarSesion(correo, clave) {
   localStorage.setItem(CLAVE_TOKEN, r.token);
   try { perfilActual = await api('GET', '/api/perfil'); }
   catch (e) { localStorage.removeItem(CLAVE_TOKEN); perfilActual = null; throw e; }
-  location.hash = '#/';
+  location.hash = destinoPendiente();
+}
+
+/* S1: desde la landing se recuerda a dónde volver después de ingresar. */
+const CLAVE_VOLVER = 'upmarket.volverA';
+function irAIngreso(destino) {
+  try { sessionStorage.setItem(CLAVE_VOLVER, destino); } catch { /* sin sessionStorage */ }
+  location.hash = '#/login';
+}
+function destinoPendiente() {
+  let destino = null;
+  try { destino = sessionStorage.getItem(CLAVE_VOLVER); sessionStorage.removeItem(CLAVE_VOLVER); } catch { /* sin sessionStorage */ }
+  return destino && destino.startsWith('#/') ? destino : '#/';
 }
 function vistaLogin() {
   const error = h('p', { class: 'error', id: 'error-login', role: 'alert', hidden: true });
@@ -294,6 +319,7 @@ function vistaLogin() {
       catch (e) { fallar(e.message, clave); }
       finally { boton.disabled = false; boton.removeAttribute('aria-busy'); boton.textContent = 'Ingresar'; }
     } },
+      h('a', { class: 'marca acceso__volver', href: '#/', 'aria-label': 'UPMarket, volver al inicio' }, 'UP', h('span', {}, 'Market')),
       h('h1', {}, 'Ingresar a UPMarket'),
       h('p', { class: 'acceso__sub' }, 'Tus publicaciones, tus ventas y tus mensajes.'),
       h('label', { for: 'correo' }, 'Correo o usuario'), correo,
@@ -402,6 +428,7 @@ function vistaRegistro() {
         location.hash = '#/perfil';
       }
     } },
+      h('a', { class: 'marca acceso__volver', href: '#/', 'aria-label': 'UPMarket, volver al inicio' }, 'UP', h('span', {}, 'Market')),
       h('h1', {}, 'Crea tu cuenta'),
       h('p', { class: 'acceso__sub' }, 'Compra y vende artículos con estudiantes de la Universidad de Pamplona.'),
       h('label', { for: 'nombre' }, 'Nombre'), nombre, errNombre,
@@ -413,6 +440,207 @@ function vistaRegistro() {
       error,
       h('div', { class: 'acciones' }, boton),
       h('p', { class: 'acceso__pie' }, '¿Ya tienes cuenta? ', h('a', { href: '#/login' }, 'Ingresa')))));
+}
+
+/* ---------- landing pública (#/ sin sesión): la cartelera de la sede ---------- */
+function vistaLanding() {
+  const sinMovimiento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const estado = { texto: '', categoria: '' };
+  let categorias = [];
+  let turno = 0;
+
+  const entrada = h('input', { id: 'cartelera-texto', type: 'search', maxlength: 80, placeholder: 'Busca un libro, un portátil, unas arepas…', autocomplete: 'off', 'aria-describedby': 'cartelera-ayuda' });
+  const cuenta = h('p', { class: 'cartelera__cuenta', 'aria-live': 'polite' });
+  const tablero = h('ul', { class: 'cartelera__avisos' });
+  const chips = h('div', { class: 'cartelera__chips', role: 'group', 'aria-label': 'Categorías de la cartelera' });
+
+  const lupa = h('span', { class: 'cartelera-buscar__lupa', 'aria-hidden': 'true' });
+  lupa.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" focusable="false"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16.5 16.5 21 21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+
+  const formulario = h('form', { class: 'cartelera-buscar', role: 'search', onsubmit: (ev) => {
+    ev.preventDefault();
+    estado.texto = entrada.value.trim();
+    buscar();
+  } },
+    h('label', { for: 'cartelera-texto' }, 'Buscar en la cartelera'),
+    h('div', { class: 'cartelera-buscar__fila' },
+      lupa, entrada,
+      h('button', { class: 'btn', type: 'submit' }, 'Buscar')),
+    h('p', { class: 'cartelera-buscar__ayuda', id: 'cartelera-ayuda' }, 'Puedes buscar por palabra y filtrar por categoría.'));
+
+  function pintarChips() {
+    const opciones = ['Todo', ...categorias];
+    chips.replaceChildren(...opciones.map((nombre) => {
+      const valor = nombre === 'Todo' ? '' : nombre;
+      const activa = estado.categoria === valor;
+      return h('button', { type: 'button', class: 'chip', 'aria-pressed': String(activa), onclick: () => {
+        estado.categoria = valor;
+        pintarChips();
+        // El repintado reemplaza los botones: devolver el foco al chip elegido.
+        const elegido = Array.from(chips.querySelectorAll('.chip')).find((b) => b.textContent === nombre);
+        if (elegido) elegido.focus();
+        buscar();
+      } }, nombre);
+    }));
+  }
+
+  function avisoItem(a, i) {
+    const rotacion = ((((Number(a.id) % 7) + 7) % 7) - 3) * 0.5;
+    const estadoTexto = a.estadoArticulo === 'NUEVO' ? 'Nuevo' : 'Usado';
+    return h('li', { class: 'cartelera__aviso', style: `--rot:${rotacion}deg;--i:${i}` },
+      h('a', { class: 'cartelera__enlace', href: '#/login', onclick: (ev) => {
+        ev.preventDefault();
+        irAIngreso('#/p/' + a.id);
+      } },
+        h('span', { class: 'cartelera__chincheta', 'aria-hidden': 'true' }),
+        a.fotoUrl
+          ? h('img', { class: 'cartelera__foto', src: urlFoto(a.fotoUrl), alt: a.titulo, width: 480, height: 320, loading: 'lazy', decoding: 'async' })
+          : h('span', { class: 'cartelera__foto cartelera__foto--vacia' }, h('span', {}, a.categoria)),
+        h('span', { class: 'cartelera__papel' },
+          h('span', { class: 'cartelera__precio' }, precio(a.precio)),
+          h('span', { class: 'cartelera__aviso-titulo' }, a.titulo),
+          h('span', { class: 'cartelera__aviso-meta' }, a.categoria + ' · ' + estadoTexto))));
+  }
+
+  function esqueleto() {
+    return h('li', { class: 'cartelera__aviso cartelera__aviso--hueso', 'aria-hidden': 'true' },
+      h('span', { class: 'cartelera__foto cartelera__foto--vacia' }),
+      h('span', { class: 'cartelera__papel' },
+        h('span', { class: 'cartelera__hueso cartelera__hueso--precio' }),
+        h('span', { class: 'cartelera__hueso cartelera__hueso--titulo' }),
+        h('span', { class: 'cartelera__hueso cartelera__hueso--meta' })));
+  }
+
+  function mensajeAvisos(nodo) {
+    tablero.classList.remove('sale');
+    tablero.replaceChildren(nodo);
+  }
+
+  function mensajeVacio() {
+    const filtrando = Boolean(estado.texto || estado.categoria);
+    if (!filtrando) {
+      mensajeAvisos(h('li', { class: 'cartelera__vacio' },
+        h('p', {}, 'La cartelera está vacía por ahora. Sé el primero en publicar.'),
+        h('a', { class: 'btn', href: '#/registro' }, 'Crear cuenta')));
+      return;
+    }
+    const texto = estado.texto
+      ? 'No hay avisos con «' + estado.texto + '»' + (estado.categoria ? ' en ' + estado.categoria : '') + '. Prueba con otra palabra o categoría.'
+      : 'No hay avisos en ' + estado.categoria + '. Prueba con otra palabra o categoría.';
+    mensajeAvisos(h('li', { class: 'cartelera__vacio' }, h('p', {}, texto)));
+  }
+
+  function mensajeError() {
+    mensajeAvisos(h('li', { class: 'cartelera__vacio cartelera__vacio--error' },
+      h('p', {}, 'No pudimos cargar la cartelera.'),
+      h('button', { class: 'btn sec', type: 'button', onclick: buscar }, 'Reintentar')));
+  }
+
+  async function buscar() {
+    const miTurno = ++turno;
+    tablero.setAttribute('aria-busy', 'true');
+    cuenta.textContent = 'Cargando avisos…';
+    if (!tablero.children.length) tablero.replaceChildren(...Array.from({ length: 8 }, esqueleto));
+    const params = new URLSearchParams({ limite: '12' });
+    if (estado.texto) params.set('texto', estado.texto);
+    if (estado.categoria) params.set('categoria', estado.categoria);
+    let avisos;
+    try {
+      avisos = await api('GET', '/api/publico/cartelera?' + params.toString());
+    } catch {
+      if (miTurno !== turno) return;
+      tablero.removeAttribute('aria-busy');
+      cuenta.textContent = '0 avisos';
+      mensajeError();
+      return;
+    }
+    if (miTurno !== turno) return;
+    tablero.removeAttribute('aria-busy');
+    cuenta.textContent = avisos.length + (avisos.length === 1 ? ' aviso' : ' avisos');
+    if (!avisos.length) { mensajeVacio(); return; }
+    const reemplazar = () => {
+      if (miTurno !== turno) return;
+      tablero.classList.remove('sale');
+      const items = avisos.map(avisoItem);
+      tablero.replaceChildren(...items);
+      items.forEach((li) => li.classList.add('cae'));
+    };
+    if (tablero.querySelector('.cartelera__aviso:not(.cartelera__aviso--hueso)') && !sinMovimiento) {
+      tablero.classList.add('sale');
+      setTimeout(reemplazar, 120);
+    } else {
+      reemplazar();
+    }
+  }
+
+  const verTodo = h('a', { class: 'cartelera__ver', href: '#/login', onclick: (ev) => {
+    ev.preventDefault();
+    irAIngreso('#/');
+  } }, 'Ver todo el catálogo');
+
+  const secciones = [];
+  const seccion = (...nodos) => {
+    const s = h('section', { class: 'cartelera-seccion' }, h('div', { class: 'cartelera-ancho' }, ...nodos));
+    secciones.push(s);
+    return s;
+  };
+
+  montar(h('div', { class: 'cartelera' },
+    h('section', { class: 'cartelera-hero' },
+      h('div', { class: 'cartelera-ancho' },
+        h('h1', {}, 'La cartelera de la sede.'),
+        h('p', { class: 'cartelera-hero__bajada' }, 'Compra y vende entre estudiantes de la Universidad de Pamplona, sede Villa del Rosario. Cada aviso queda ordenado por categoría y no se pierde en el chat.'),
+        formulario,
+        chips)),
+    h('section', { class: 'cartelera-tablero', 'aria-labelledby': 'cartelera-titulo' },
+      h('div', { class: 'cartelera-ancho' },
+        h('div', { class: 'cartelera-tablero__cab' },
+          h('h2', { id: 'cartelera-titulo' }, 'Lo que hay en la cartelera'),
+          cuenta),
+        tablero,
+        h('p', { class: 'cartelera-tablero__pie' }, verTodo))),
+    seccion(
+      h('h2', {}, 'Así funciona'),
+      h('div', { class: 'cartelera-pasos' },
+        h('div', {},
+          h('h3', {}, 'Si buscas algo'),
+          h('p', {}, 'Buscar es gratis. Filtra por categoría, precio o estado, abre el aviso y escríbele al vendedor por WhatsApp o correo. La compra la acuerdan entre ustedes.')),
+        h('div', {},
+          h('h3', {}, 'Si vendes algo'),
+          h('p', {}, 'Publicar cuesta $3.000 por aviso (por ahora el pago es simulado). Tu aviso queda visible hasta que lo marques como vendido, y ves cuántas personas lo abrieron.')))),
+    seccion(
+      h('h2', {}, 'Por qué no el grupo de WhatsApp'),
+      h('ul', { class: 'cartelera-motivos' },
+        h('li', {}, 'En el grupo, tu oferta se hunde entre saludos y memes en pocas horas. Aquí se queda hasta que la vendas.'),
+        h('li', {}, 'En el grupo no hay categorías. Aquí buscas por categoría, precio o palabra.'),
+        h('li', {}, 'En el grupo tienes que preguntar si alguien vende algo. Aquí lo buscas tú, cuando quieras.'))),
+    seccion(
+      h('div', { class: 'cartelera-cierre' },
+        h('img', { class: 'cartelera-cierre__mascota', src: 'public/mascota-upmarket.png', alt: '', width: 241, height: 360, loading: 'lazy', 'aria-hidden': 'true' }),
+        h('div', { class: 'cartelera-cierre__texto' },
+          h('h2', {}, '¿Algo que ya no usas?'),
+          h('p', {}, 'Publícalo por $3.000 y deja que lo encuentre quien lo necesita.'),
+          h('div', { class: 'cartelera-cierre__acciones' },
+            h('a', { class: 'btn', href: '#/registro' }, 'Crear cuenta'),
+            h('a', { class: 'cartelera-cierre__enlace', href: '#/login' }, 'Ya tengo cuenta')))))));
+
+  // Aparición una sola vez al entrar en pantalla; sin movimiento, todo queda visible.
+  if (!sinMovimiento && 'IntersectionObserver' in window) {
+    const observador = new IntersectionObserver((entradas) => {
+      for (const e of entradas) {
+        if (e.isIntersecting) { e.target.classList.add('entra'); observador.unobserve(e.target); }
+      }
+    }, { threshold: 0.2 });
+    for (const s of secciones) observador.observe(s);
+  } else {
+    for (const s of secciones) s.classList.add('entra');
+  }
+
+  pintarChips();
+  buscar();
+  api('GET', '/api/publico/categorias')
+    .then((lista) => { categorias = Array.isArray(lista) ? lista : []; if (estado.categoria === '') pintarChips(); })
+    .catch(() => { /* la cartelera sigue funcionando sin chips de categoría */ });
 }
 
 /* ---------- catálogo y búsqueda (HU-10) ---------- */
