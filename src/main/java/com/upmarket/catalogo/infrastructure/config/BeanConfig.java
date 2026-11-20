@@ -3,9 +3,12 @@ package com.upmarket.catalogo.infrastructure.config;
 import com.upmarket.catalogo.application.port.in.CategoriaUseCase;
 import com.upmarket.catalogo.application.port.in.PublicacionUseCase;
 import com.upmarket.catalogo.application.port.in.admin.AdminUseCase;
+import com.upmarket.catalogo.application.port.in.admin.DocumentosUseCase;
 import com.upmarket.catalogo.application.port.out.*;
 import com.upmarket.catalogo.application.service.*;
 import com.upmarket.catalogo.domain.service.PoliticaAcceso;
+import com.upmarket.catalogo.infrastructure.storage.AlmacenDocumentosCloudinary;
+import com.upmarket.catalogo.infrastructure.storage.AlmacenDocumentosLocal;
 import com.upmarket.catalogo.infrastructure.storage.AlmacenFotosCloudinary;
 import com.upmarket.catalogo.infrastructure.storage.AlmacenFotosLocal;
 import java.time.Clock;
@@ -58,6 +61,39 @@ public class BeanConfig {
         }
         throw new IllegalStateException("Proveedor de fotos desconocido: '" + proveedor
                 + "'. Valores válidos: local, cloudinary.");
+    }
+
+    /**
+     * Mismo interruptor que las fotos: con {@code upmarket.fotos.proveedor} se elige dónde viven
+     * también los documentos. {@code @Primary} porque el componente local siempre existe.
+     */
+    @Bean
+    @Primary
+    AlmacenDocumentosPort almacenDocumentosPort(@Value("${upmarket.fotos.proveedor:local}") String proveedor,
+                                                AlmacenDocumentosLocal local,
+                                                ObjectProvider<AlmacenDocumentosCloudinary> cloudinary) {
+        String elegido = proveedor == null ? "local" : proveedor.trim();
+        if (elegido.isEmpty() || "local".equals(elegido)) {
+            return local;
+        }
+        if ("cloudinary".equals(elegido)) {
+            AlmacenDocumentosCloudinary adaptador = cloudinary.getIfAvailable();
+            if (adaptador == null) {
+                throw new IllegalStateException(
+                        "upmarket.fotos.proveedor=cloudinary requiere credenciales de Cloudinary");
+            }
+            return adaptador;
+        }
+        throw new IllegalStateException("Proveedor de almacenamiento desconocido: '" + proveedor
+                + "'. Valores válidos: local, cloudinary.");
+    }
+
+    @Bean
+    DocumentosUseCase documentosUseCase(PagoRepositoryPort pagos, PublicacionRepositoryPort publicaciones,
+                                        PerfilAdminPort perfiles, DocumentoRepositoryPort documentos,
+                                        AlmacenDocumentosPort almacen, GeneradorDocumentosPort generador,
+                                        PoliticaAcceso acceso, Clock reloj) {
+        return new DocumentosService(pagos, publicaciones, perfiles, documentos, almacen, generador, acceso, reloj);
     }
 
     @Bean

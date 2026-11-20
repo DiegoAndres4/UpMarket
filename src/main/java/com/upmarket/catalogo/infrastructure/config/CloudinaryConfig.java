@@ -1,6 +1,8 @@
 package com.upmarket.catalogo.infrastructure.config;
 
 import com.cloudinary.Cloudinary;
+import com.upmarket.catalogo.infrastructure.storage.ClienteDocumentosCloudinary;
+import com.upmarket.catalogo.infrastructure.storage.CloudinaryDocumentos;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,6 +38,12 @@ public class CloudinaryConfig {
         configuracion.put("api_key", clave.trim());
         configuracion.put("api_secret", secreto.trim());
         return new Cloudinary(configuracion);
+    }
+
+    /** Envoltorio mínimo del SDK para los documentos privados (los tests lo sustituyen). */
+    @Bean
+    ClienteDocumentosCloudinary clienteDocumentosCloudinary(Cloudinary cloudinary) {
+        return new CloudinaryDocumentos(cloudinary);
     }
 
     private static boolean vacio(String valor) {

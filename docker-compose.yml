@@ -79,7 +79,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET_BASE64: ${JWT_SECRET_BASE64:?falta JWT_SECRET_BASE64 en .env}
       FOTOS_DIR: /data/fotos
-      # Proveedor de fotos: local (disco del contenedor) o cloudinary. Ver README.
+      # Recibos y reportes generados: siempre privados, servidos solo por el endpoint ADMIN.
+      DOCUMENTOS_DIR: ${DOCUMENTOS_DIR:-/data/documentos}
+      # Proveedor de fotos y documentos: local (disco del contenedor) o cloudinary. Ver README.
       FOTOS_PROVEEDOR: ${FOTOS_PROVEEDOR:-local}
       CLOUDINARY_URL: ${CLOUDINARY_URL:-}
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
@@ -96,6 +98,7 @@ services:
       start_period: 40s
     volumes:
       - fotos-data:/data/fotos
+      - documentos-data:/data/documentos
     mem_limit: 640m
 
   web:
@@ -117,3 +120,4 @@ services:
 volumes:
   mysql-data:
   fotos-data:
+  documentos-data:

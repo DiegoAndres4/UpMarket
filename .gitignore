@@ -8,6 +8,7 @@ build/
 .env
 target/
 fotos/
+documentos/
 
 respaldos/
 

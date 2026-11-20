@@ -24,6 +24,12 @@ public final class PagoRepositoryEnMemoria implements PagoRepositoryPort {
     }
 
     @Override
+    public Optional<Pago> buscarPorId(long id) {
+        Pago pago = filas.get(id);
+        return pago == null ? Optional.empty() : Optional.of(copiar(id, pago));
+    }
+
+    @Override
     public Optional<Pago> buscarPorPublicacion(long publicacionId) {
         return filas.values().stream()
                 .filter(p -> p.getPublicacionId() == publicacionId)

@@ -60,8 +60,12 @@ cors:
 
 upmarket:
   fotos:
-    # Proveedor de almacenamiento de fotos: local (por defecto; dev/tests/CI sin credenciales) o cloudinary.
+    # Proveedor de almacenamiento de fotos y documentos: local (por defecto; dev/tests/CI sin credenciales)
+    # o cloudinary. Un solo interruptor mueve todo el almacenamiento binario.
     proveedor: ${FOTOS_PROVEEDOR:local}
+  documentos:
+    # Documentos generados (recibos y reportes). En Docker/AWS: volumen montado en /data/documentos.
+    directorio: ${DOCUMENTOS_DIR:./documentos}
   publicacion:
     # Tarifa en COP para publicar. El cobro real es simulado; una pasarela real se enchufa detrás de PasarelaPagoPort.
     tarifa: ${UPMARKET_TARIFA_PUBLICACION:3000}

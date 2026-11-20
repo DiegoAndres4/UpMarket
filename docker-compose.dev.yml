@@ -73,7 +73,9 @@ services:
       # Los mismos bytes que JWT_SECRET, en Base64. Si no coinciden, el dominio rechaza todos los tokens.
       JWT_SECRET_BASE64: ZGV2LXNvbG8tbG9jYWwtbm8tdXNhci1lbi1wcm9kdWNjaW9uLXVwbWFya2V0LWNsYXZlLWp3dC0yMDI2MTEwOQ==
       FOTOS_DIR: /data/fotos
-      # Fotos en Cloudinary (opcional). Con local, o sin credenciales, se usa el volumen de fotos.
+      # Recibos y reportes generados: siempre privados, servidos solo por el endpoint ADMIN.
+      DOCUMENTOS_DIR: /data/documentos
+      # Fotos y documentos en Cloudinary (opcional). Con local, o sin credenciales, se usan los volúmenes.
       FOTOS_PROVEEDOR: ${FOTOS_PROVEEDOR:-local}
       CLOUDINARY_URL: ${CLOUDINARY_URL:-}
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
@@ -87,6 +89,7 @@ services:
     volumes:
       - maven-cache:/root/.m2   # las dependencias se descargan una sola vez
       - fotos-data:/data/fotos
+      - documentos-data:/data/documentos
     develop:
       watch:
         - action: sync+restart
@@ -113,5 +116,6 @@ services:
 volumes:
   db-data:
   fotos-data:
+  documentos-data:
   gradle-cache:
   maven-cache:

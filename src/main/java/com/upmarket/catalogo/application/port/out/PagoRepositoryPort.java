@@ -8,6 +8,8 @@ public interface PagoRepositoryPort {
 
     Pago guardar(Pago pago);
 
+    Optional<Pago> buscarPorId(long id);
+
     Optional<Pago> buscarPorPublicacion(long publicacionId);
 
     /** Todos los pagos registrados, para las cifras del panel de administración. */

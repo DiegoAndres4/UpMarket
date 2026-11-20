@@ -21,6 +21,11 @@ public class PagoRepositoryJpaAdapter implements PagoRepositoryPort {
     }
 
     @Override
+    public Optional<Pago> buscarPorId(long id) {
+        return jpa.findById(id).map(PagoJpaEntity::aDominio);
+    }
+
+    @Override
     public Optional<Pago> buscarPorPublicacion(long publicacionId) {
         return jpa.findFirstByPublicacionIdOrderByCreadoEnDesc(publicacionId)
                 .map(PagoJpaEntity::aDominio);
