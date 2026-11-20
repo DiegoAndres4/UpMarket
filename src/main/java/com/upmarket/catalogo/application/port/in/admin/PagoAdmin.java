@@ -15,6 +15,7 @@ public record PagoAdmin(long id, String referencia, BigDecimal monto, EstadoPago
     public record ResumenComprador(String usuario, String nombre) {
     }
 
-    public record ResumenRecibo(boolean existe, String numero, Instant generadoEn) {
+    public record ResumenRecibo(boolean existe, Long documentoId, String nombreArchivo, String numero,
+                                Instant generadoEn) {
     }
 }

@@ -39,6 +39,53 @@ export type UsuarioAuthCore = {
   blocked: boolean
 }
 
+export type DocumentoAdmin = {
+  id: number
+  tipo: 'RECIBO_PAGO' | 'REPORTE_ESTADISTICAS'
+  formato: 'PDF' | 'XML'
+  numero: string
+  nombreArchivo: string
+  tamanoBytes: number
+  generadoEn: string
+  generadoPor: string
+}
+
+export type ReciboResumen = {
+  existe: boolean
+  documentoId: number | null
+  nombreArchivo: string | null
+  numero: string | null
+  generadoEn: string | null
+}
+
+export type PagoAdmin = {
+  id: number
+  referencia: string
+  monto: number
+  estado: EstadoPago
+  creadoEn: string
+  aprobadoEn: string | null
+  publicacion: { id: number; titulo: string } | null
+  comprador: { usuario: string; nombre: string } | null
+  recibo: ReciboResumen
+}
+
+export type ReporteGenerado = {
+  numero: string
+  generadoEn: string
+  generadoPor: string
+  pdf: DocumentoAdmin
+  xml: DocumentoAdmin
+}
+
+export type ReporteAdmin = {
+  numero: string
+  generadoEn: string
+  generadoPor: string
+  pdf: DocumentoAdmin | null
+  xml: DocumentoAdmin | null
+}
+
 export type Estadisticas = {
   totalPublicaciones: number
   publicacionesPorEstado: Record<EstadoPublicacion, number>

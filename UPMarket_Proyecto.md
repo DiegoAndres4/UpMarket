@@ -441,6 +441,7 @@ UpMarket/
 - **Concurrencia:** `UNIQUE (nombre_normalizado)` en categorías (traducido a 409 con el mensaje "La categoría '<nombre>' ya existe") y `@Version` en publicaciones (bloqueo optimista, 409).
 - **Seguridad:** sesión sin estado, CSRF desactivado, `POST /api/categorias` solo para ADMIN, `/api/admin/**` solo para ADMIN, el resto de `/api/categorias/**`, `/api/publicaciones/**` y `/api/perfil/**` para cualquier usuario autenticado, y todo lo demás denegado.
 - **Panel de administración:** `AdminService` calcula las estadísticas con los repositorios existentes (sin duplicar reglas), reutiliza el caso de uso de eliminación para moderar publicaciones y lee perfiles por un puerto propio, de solo lectura. El frontend del panel es una SPA aparte (`frontend-admin/`, React + Vite + shadcn/ui) servida en `/admin/`.
+- **Documentos del panel:** `AlmacenDocumentosPort` sigue el patrón de las fotos. El recibo de pago (PDF) y el reporte de estadísticas (PDF + XML) se guardan **privados** en Cloudinary (`resource_type=raw`, `type=private`) o en el volumen `documentos-data` (`DOCUMENTOS_DIR=/data/documentos`), y solo se descargan por `GET /api/admin/documentos/{id}/descarga` con rol ADMIN: enlace firmado de 10 minutos o streaming local. El número es `REC-000001`/`EST-000001`, la tabla `documento_generado` impide dos recibos para el mismo pago y el XML valida contra `src/main/resources/xsd/estadisticas-1.xsd`. El recibo advierte que el pago es simulado y **no tiene validez fiscal ante la DIAN**; no se inventan NIT ni IVA.
 
 ---
 
@@ -566,6 +567,11 @@ Todas las rutas requieren `Authorization: Bearer <token de AuthCore>` salvo las 
 | `GET /api/admin/publicaciones?texto&categoria&estadoPublicacion&estadoPago&vendedor&pagina&tamano` | — | ADMIN | 200 paginado con todas las publicaciones, incluidas las pendientes de pago · 403 |
 | `DELETE /api/admin/publicaciones/{id}` | — | ADMIN | 204 · 403 · 404 |
 | `GET /api/admin/usuarios?pagina&tamano` | — | ADMIN | 200 paginado con perfiles y su número de publicaciones (solo lectura) · 403 |
+| `GET /api/admin/pagos?pagina&tamano` | — | ADMIN | 200 paginado con referencia, monto, estado, publicación, comprador y si el recibo existe · 403 |
+| `POST /api/admin/pagos/{pagoId}/recibo` | — | ADMIN | 201 recibo PDF nuevo; 200 si ya existe · 404 · 409 pago no aprobado · 403 |
+| `GET /api/admin/documentos/{id}/descarga` | — | ADMIN | 302 a enlace firmado (Cloudinary) o adjunto en streaming (local) · 403 · 404 |
+| `POST /api/admin/reportes/estadisticas` | — | ADMIN | 201 con PDF y XML generados desde una sola foto de las estadísticas · 403 |
+| `GET /api/admin/reportes?pagina&tamano` | — | ADMIN | 200 paginado con número, fecha, autor y descargas PDF/XML · 403 |
 
 **Ejemplo de publicación (`POST /api/publicaciones`):**
 
@@ -640,6 +646,10 @@ Suite actual: **145 pruebas**, todas verdes (`mvn -q verify`).
 | `infrastructure/adapters/in/rest/PerfilRestTest` | Punta a punta (9) | Perfil por defecto, edición, visibilidad pública, borrado de cuenta y subida/borrado de foto propia |
 | `infrastructure/adapters/in/rest/FotoRestTest` | Punta a punta (4) | 401, subida PNG, rechazo por contenido y nombre inválido |
 | `infrastructure/storage/AlmacenFotosCloudinaryTest` | Unitaria (5) | SDK simulado: carpeta, URL segura, rechazo sin llamar al CDN y borrado por id público |
+| `infrastructure/adapters/in/rest/ReciboRestTest` | Punta a punta (6) | Solo ADMIN, pago no aprobado 409, recibo idempotente 201/200, una fila por pago, PDF real con número/monto y escape del HTML |
+| `infrastructure/adapters/in/rest/ReporteRestTest` | Punta a punta (4) | PDF y XML desde una foto, XML válido contra el XSD, totales iguales al tablero e historial agrupado por número |
+| `infrastructure/storage/AlmacenDocumentosLocalTest` | Unitaria (4) | Guarda/lee bajo un nombre generado, extensión XML y rechazo de referencias ajenas |
+| `infrastructure/storage/AlmacenDocumentosCloudinaryTest` | Unitaria (2) | Envoltorio simulado: `raw`/`private`, carpeta y enlace firmado con caducidad |
 | `infrastructure/config/CloudinaryConfigTest` | Unitaria (3) | Falla rápido sin credenciales, construye el cliente con las tres claves y no lo crea con proveedor local |
 | `domain/ResenaTest` | Unitaria (5) | Estrellas 0–5, comentario 3–500, auto-reseña y vendedor obligatorio |
 | `application/ResenaServiceTest` | Unitaria (5) | Crear/listar con promedio y nombre visible, duplicada, auto-reseña y lista vacía |

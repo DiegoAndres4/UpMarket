@@ -8,9 +8,9 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { api } from '../lib/api'
-import { numero, precio } from '../lib/formato'
-import type { Estadisticas } from '../lib/tipos'
+import { api, descargarDocumento } from '../lib/api'
+import { fecha, numero, precio } from '../lib/formato'
+import type { Estadisticas, Pagina, ReporteAdmin, ReporteGenerado } from '../lib/tipos'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
@@ -44,6 +44,14 @@ export default function Dashboard() {
   const [datos, setDatos] = useState<Estadisticas | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [cargando, setCargando] = useState(true)
+  const [reportes, setReportes] = useState<Pagina<ReporteAdmin> | null>(null)
+  const [cargandoReportes, setCargandoReportes] = useState(true)
+  const [errorReportes, setErrorReportes] = useState<string | null>(null)
+  const [generandoReporte, setGenerandoReporte] = useState(false)
+  const [ultimoReporte, setUltimoReporte] = useState<ReporteGenerado | null>(null)
+  const [avisoReporte, setAvisoReporte] = useState<string | null>(null)
+  const [errorAccionReporte, setErrorAccionReporte] = useState<string | null>(null)
+  const [recargaReportes, setRecargaReportes] = useState(0)
 
   const cargar = () => {
     setCargando(true)
@@ -57,6 +65,41 @@ export default function Dashboard() {
   useEffect(() => {
     cargar()
   }, [])
+
+  useEffect(() => {
+    let vigente = true
+    setCargandoReportes(true)
+    setErrorReportes(null)
+    api<Pagina<ReporteAdmin>>('/admin/reportes?pagina=1&tamano=5')
+      .then((resultado) => {
+        if (vigente) setReportes(resultado)
+      })
+      .catch((e: unknown) => {
+        if (vigente) setErrorReportes(e instanceof Error ? e.message : 'No se pudieron cargar los reportes')
+      })
+      .finally(() => {
+        if (vigente) setCargandoReportes(false)
+      })
+    return () => {
+      vigente = false
+    }
+  }, [recargaReportes])
+
+  const generarReporte = async () => {
+    setGenerandoReporte(true)
+    setAvisoReporte(null)
+    setErrorAccionReporte(null)
+    try {
+      const reporte = await api<ReporteGenerado>('/admin/reportes/estadisticas', { method: 'POST' })
+      setUltimoReporte(reporte)
+      setAvisoReporte(`Reporte ${reporte.numero} generado. Ya puedes descargar el PDF y el XML.`)
+      setRecargaReportes((valor) => valor + 1)
+    } catch (e) {
+      setErrorAccionReporte(e instanceof Error ? e.message : 'No se pudo generar el reporte')
+    } finally {
+      setGenerandoReporte(false)
+    }
+  }
 
   if (cargando) {
     return (
@@ -211,6 +254,84 @@ export default function Dashboard() {
               ))}
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Reportes de estadísticas</CardTitle>
+          <CardDescription>
+            Genera un PDF y un XML con las mismas cifras del tablero, guardados de forma privada.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Button onClick={() => void generarReporte()} disabled={generandoReporte}>
+              {generandoReporte ? 'Generando…' : 'Generar reporte (PDF y XML)'}
+            </Button>
+            {ultimoReporte ? (
+              <>
+                <Button variant="outline" onClick={() => void descargarDocumento(ultimoReporte.pdf)}>
+                  Descargar PDF
+                </Button>
+                <Button variant="outline" onClick={() => void descargarDocumento(ultimoReporte.xml)}>
+                  Descargar XML
+                </Button>
+              </>
+            ) : null}
+          </div>
+          {avisoReporte ? <p className="text-sm" role="status">{avisoReporte}</p> : null}
+          {errorAccionReporte ? <p className="text-sm text-destructive" role="alert">{errorAccionReporte}</p> : null}
+
+          <div>
+            <h3 className="mb-2 text-sm font-semibold">Reportes generados</h3>
+            {cargandoReportes ? (
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10" />)}
+              </div>
+            ) : errorReportes ? (
+              <div className="space-y-2">
+                <p className="text-sm text-destructive">{errorReportes}</p>
+                <Button variant="outline" size="sm" onClick={() => setRecargaReportes((valor) => valor + 1)}>
+                  Reintentar
+                </Button>
+              </div>
+            ) : !reportes || reportes.contenido.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">Todavía no hay reportes generados.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Número</TableHead>
+                    <TableHead>Generado por</TableHead>
+                    <TableHead className="text-right">Descargas</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {reportes.contenido.map((reporte) => (
+                    <TableRow key={reporte.numero}>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">{fecha(reporte.generadoEn)}</TableCell>
+                      <TableCell className="font-medium">{reporte.numero}</TableCell>
+                      <TableCell className="max-w-[180px] truncate" title={reporte.generadoPor}>{reporte.generadoPor}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" size="sm" disabled={!reporte.pdf}
+                            onClick={() => reporte.pdf ? void descargarDocumento(reporte.pdf) : undefined}>
+                            PDF
+                          </Button>
+                          <Button variant="outline" size="sm" disabled={!reporte.xml}
+                            onClick={() => reporte.xml ? void descargarDocumento(reporte.xml) : undefined}>
+                            XML
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -132,8 +132,10 @@ public class DocumentosService implements DocumentosUseCase {
                 : new ResumenPublicacion(publicacion.getId(), publicacion.getTitulo());
         ResumenComprador comprador = usuario == null ? null
                 : new ResumenComprador(usuario, perfil == null ? usuario : perfil.nombre());
-        ResumenRecibo resumenRecibo = recibo == null ? new ResumenRecibo(false, null, null)
-                : new ResumenRecibo(true, recibo.numero(), recibo.generadoEn());
+        ResumenRecibo resumenRecibo = recibo == null || !recibo.almacenado()
+                ? new ResumenRecibo(false, null, null, null, null)
+                : new ResumenRecibo(true, recibo.id(), recibo.nombreArchivo(), recibo.numero(),
+                        recibo.generadoEn());
         return new PagoAdmin(pago.getId(), pago.getReferencia(), pago.getMonto(), pago.getEstado(),
                 pago.getCreadoEn(), pago.getAprobadoEn(), resumenPublicacion, comprador, resumenRecibo);
     }

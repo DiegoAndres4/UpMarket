@@ -118,3 +118,23 @@ Authorization: Bearer {{tokenAdmin}}
 ### Panel de administración: eliminar una publicación (204; reutiliza el caso de uso)
 DELETE {{host}}/api/admin/publicaciones/1
 Authorization: Bearer {{tokenAdmin}}
+
+### Panel de administración: pagos con su recibo
+GET {{host}}/api/admin/pagos?pagina=1&tamano=20
+Authorization: Bearer {{tokenAdmin}}
+
+### Panel de administración: generar (201) o recuperar (200) el recibo de un pago aprobado
+POST {{host}}/api/admin/pagos/1/recibo
+Authorization: Bearer {{tokenAdmin}}
+
+### Panel de administración: descargar un documento (302 en Cloudinary, adjunto en local)
+GET {{host}}/api/admin/documentos/1/descarga
+Authorization: Bearer {{tokenAdmin}}
+
+### Panel de administración: generar el reporte de estadísticas (PDF + XML)
+POST {{host}}/api/admin/reportes/estadisticas
+Authorization: Bearer {{tokenAdmin}}
+
+### Panel de administración: historial de reportes
+GET {{host}}/api/admin/reportes?pagina=1&tamano=20
+Authorization: Bearer {{tokenAdmin}}

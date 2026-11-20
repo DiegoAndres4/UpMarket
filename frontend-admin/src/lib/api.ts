@@ -55,6 +55,63 @@ export class ErrorApi extends Error {
   }
 }
 
+export type DocumentoDescargable = {
+  id: number
+  nombreArchivo: string
+}
+
+/**
+ * Descarga un documento del panel con el token en la cabecera, nunca en la URL.
+ * En Cloudinary el backend responde un JSON con un enlace firmado; en local, el archivo.
+ */
+export async function descargarDocumento(documento: DocumentoDescargable): Promise<void> {
+  const sesion = leerSesion()
+  if (!sesion) {
+    salir()
+    throw new ErrorApi('La sesión no es válida', 401)
+  }
+  const respuesta = await fetch(`/api/admin/documentos/${documento.id}/descarga`, {
+    headers: {
+      Authorization: `Bearer ${sesion.token}`,
+      Accept: 'application/json',
+    },
+  })
+  if (respuesta.status === 401) {
+    salir()
+    throw new ErrorApi('La sesión venció; vuelve a iniciar sesión', 401)
+  }
+  if (!respuesta.ok) {
+    const texto = await respuesta.text()
+    let mensaje = 'No se pudo descargar el documento'
+    try {
+      const cuerpo = JSON.parse(texto) as { mensaje?: string; message?: string; error?: string }
+      mensaje = cuerpo.mensaje ?? cuerpo.message ?? cuerpo.error ?? mensaje
+    } catch {
+      // respuesta sin JSON
+    }
+    throw new ErrorApi(mensaje, respuesta.status)
+  }
+
+  const tipo = respuesta.headers.get('content-type') ?? ''
+  const enlace = document.createElement('a')
+  enlace.rel = 'noopener'
+  if (tipo.includes('application/json')) {
+    const cuerpo = (await respuesta.json()) as { enlace?: string }
+    if (!cuerpo.enlace) {
+      throw new ErrorApi('El servidor no devolvió el enlace del documento', 500)
+    }
+    enlace.href = cuerpo.enlace
+    enlace.target = '_blank'
+  } else {
+    const blob = await respuesta.blob()
+    enlace.href = URL.createObjectURL(blob)
+    enlace.download = documento.nombreArchivo
+    const url = enlace.href
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  }
+  enlace.click()
+}
+
 export async function api<T>(ruta: string, init: RequestInit = {}): Promise<T> {
   const sesion = leerSesion()
   if (!sesion) {
