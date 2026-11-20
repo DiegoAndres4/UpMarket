@@ -84,6 +84,7 @@ Desarrollar una plataforma web que permita a los estudiantes **publicar, buscar 
 **Incluido**
 
 - Registro e inicio de sesión (AuthCore).
+- Verificación del correo al registrarse y bloqueo/desbloqueo de cuentas por el administrador (AuthCore).
 - Publicar artículos con título, descripción, precio, estado (nuevo o usado), categoría, hasta 5 fotos y contacto.
 - Categorías iniciales y creación de categorías por el administrador.
 - Búsqueda por palabra clave y filtros combinados (categoría, rango de precio, estado).
@@ -92,7 +93,7 @@ Desarrollar una plataforma web que permita a los estudiantes **publicar, buscar 
 
 **Fuera del alcance**
 
-- Verificación de identidad o registro exclusivo con correo institucional.
+- Verificación de identidad con documentos o registro exclusivo con correo institucional.
 - Moderación de publicaciones por el administrador.
 - Almacenamiento de los archivos de las fotos dentro del backend (solo se guarda su URL).
 
@@ -277,20 +278,26 @@ Auth-Core-UpMarket/
 
 | Caso de uso | Qué hace |
 |---|---|
-| Registrar | Rechaza usernames repetidos (409), guarda la contraseña con BCrypt y asigna el rol `USER`. |
-| Iniciar sesión | Verifica la contraseña y devuelve un JWT. Credenciales inválidas: 401. |
+| Registrar | Rechaza usernames repetidos (409), guarda la contraseña con BCrypt, asigna el rol `USER` y envía un correo de confirmación. La cuenta no puede iniciar sesión hasta confirmarlo. |
+| Iniciar sesión | Verifica la contraseña y devuelve un JWT. Credenciales inválidas: 401; correo sin confirmar: 403 `EMAIL_NO_VERIFICADO`; cuenta bloqueada: 403 `CUENTA_BLOQUEADA`. |
+| Verificar correo | Consume el token del enlace y marca el correo como confirmado (400 `TOKEN_INVALIDO` o `TOKEN_EXPIRADO`). |
+| Reenviar verificación | Envía un enlace nuevo; responde 202 siempre, exista o no la cuenta. |
 | Asignar rol | Solo ADMIN. Agrega un rol a un usuario existente (404 si no existe). |
-| Listar usuarios | Solo ADMIN. Devuelve id, username y roles. |
+| Listar usuarios | Solo ADMIN. Devuelve id, username, roles, si confirmó el correo y si está bloqueado. |
+| Bloquear cuenta | Solo ADMIN. Impide nuevos inicios de sesión; no puede bloquearse a sí mismo ni a otro ADMIN (409). |
 | Admin inicial | Al arrancar, si no existe, crea `admin` con roles `ADMIN` y `USER`. |
 
 ### Endpoints
 
 | Método y ruta | Acceso | Cuerpo | Respuesta |
 |---|---|---|---|
-| `POST /api/auth/register` | Público | `{ "username", "password" }` (password ≥ 6) | 201 `{ id, username }` · 400 · 409 |
-| `POST /api/auth/login` | Público | `{ "username", "password" }` | 200 `{ token }` · 401 |
+| `POST /api/auth/register` | Público | `{ "username", "password" }` (password ≥ 6) | 201 `{ id, username, emailVerified:false }` · 400 · 409 |
+| `POST /api/auth/login` | Público | `{ "username", "password" }` | 200 `{ token }` · 401 · 403 `{ code, message }` (`EMAIL_NO_VERIFICADO` o `CUENTA_BLOQUEADA`) |
+| `POST /api/auth/verify-email` | Público | `{ "token" }` | 200 `{ verified:true }` · 400 `{ code, message }` (`TOKEN_INVALIDO` o `TOKEN_EXPIRADO`) |
+| `POST /api/auth/resend-verification` | Público | `{ "username" }` | 202 |
 | `POST /api/auth/users/{id}/roles` | ADMIN | `{ "role": "ADMIN" \| "USER" }` | 204 · 404 |
-| `GET /api/auth/users` | ADMIN | — | 200 `[ { id, username, roles } ]` |
+| `GET /api/auth/users` | ADMIN | — | 200 `[ { id, username, roles, emailVerified, blocked } ]` |
+| `PATCH /api/auth/users/{id}/blocked` | ADMIN | `{ "blocked": true \| false }` | 200 usuario · 404 · 409 `{ code, message }` (`NO_PUEDES_BLOQUEARTE` o `NO_SE_BLOQUEA_ADMIN`) |
 
 ### Token JWT emitido
 
@@ -468,6 +475,8 @@ echo -n "$JWT_SECRET" | base64 -w0
 ```
 
 Si no coinciden, todas las peticiones a UpMarket responden 401.
+
+**Bloqueo de cuentas:** bloquear una cuenta en AuthCore impide nuevos inicios de sesión, pero **no revoca los JWT ya emitidos**. UpMarket valida la firma localmente y no consulta AuthCore en cada petición, así que una sesión abierta sigue siendo válida hasta que el token vence (1 hora como máximo).
 
 ---
 

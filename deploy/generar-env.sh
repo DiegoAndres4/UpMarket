@@ -19,6 +19,17 @@ CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
 CLOUDINARY_URL=
 FOTOS_PROVEEDOR=local
+# Correo saliente de AuthCore para confirmar cuentas (Gmail: cuenta dedicada con
+# verificación en dos pasos y contraseña de aplicación). Vacío = no envía correos.
+# Nunca ponga credenciales reales aquí.
+MAIL_HOST=
+MAIL_PORT=
+MAIL_USERNAME=
+MAIL_PASSWORD=
+MAIL_FROM=
+# Dirección pública del sitio para los enlaces del correo (https://<dominio> o http://<IP>).
+# Vacío usa http://localhost.
+APP_PUBLIC_URL=
 ENV
 chmod 600 .env
 echo ".env creado. Guárdalo en un lugar seguro: NO se sube a Git."

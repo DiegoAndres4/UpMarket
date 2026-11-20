@@ -75,6 +75,18 @@ En producción Flyway aplica `src/main/resources/db/migration` y Hibernate solo 
 Pruebas manuales: `requests.http` (los tokens los emite AuthCore; no los guarde en el repositorio).
 Al arrancar se crean las categorías iniciales que falten (Tecnología, Libros, Útiles académicos, Alimentos, Servicios, Otros).
 
+### Verificación de correo
+
+AuthCore envía el enlace de confirmación por SMTP. Para Gmail:
+
+1. Cree una cuenta **dedicada** (no use la personal) y active la verificación en dos pasos.
+2. En la cuenta de Google, genere una **contraseña de aplicación** (Seguridad → Contraseñas de aplicaciones) y úsela en `MAIL_PASSWORD`; la contraseña normal no sirve.
+3. Complete en `.env`: `MAIL_HOST=smtp.gmail.com`, `MAIL_PORT=587`, `MAIL_USERNAME=<cuenta>`, `MAIL_PASSWORD=<contraseña de aplicación>`, `MAIL_FROM=<cuenta>` y `APP_PUBLIC_URL=<dirección pública>`.
+
+`APP_PUBLIC_URL` debe ser la dirección real con la que se abre el sitio (`https://<dominio>` con Caddy o `http://<IP>` sin TLS): con ella se arman los enlaces del correo y con otra no funcionan. Una cuenta gratuita de Gmail permite unos **500 correos por día**; suficiente para el proyecto, pero no para un envío masivo.
+
+Mientras la rama de AuthCore con verificación de correo no esté publicada en `main` de GitHub, el compose de producción construirá la versión anterior. Para probar en local, clone esa rama al lado del proyecto y defina en `.env` `AUTHCORE_CONTEXT=../Auth-Core-UpMarket`; el compose construye AuthCore desde esa carpeta.
+
 ### Desarrollo con Docker
 
 ```bash

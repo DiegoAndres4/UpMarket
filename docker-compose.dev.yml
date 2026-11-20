@@ -37,6 +37,13 @@ services:
       SPRING_DATASOURCE_PASSWORD: upmarket-dev
       JWT_SECRET: dev-solo-local-no-usar-en-produccion-upmarket-clave-jwt-20261109
       AUTHCORE_ADMIN_PASSWORD: admin-dev-123
+      # Correo saliente: vacío en local salvo que se configure una cuenta real.
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost}
     ports:
       - "127.0.0.1:8081:8081"
       - "127.0.0.1:5005:5005"   # depurador remoto de AuthCore

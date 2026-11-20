@@ -72,6 +72,27 @@ Si `FOTOS_PROVEEDOR=cloudinary` y faltan credenciales, el servicio falla al arra
 nombra las variables. El plan gratuito de Cloudinary alcanza para el proyecto; revise sus límites de
 transformaciones y ancho de banda. El navegador nunca recibe el secreto: las subidas pasan por el backend.
 
+### Correo y verificación de cuentas
+
+AuthCore manda un enlace de confirmación al registrarse. Para Gmail:
+
+1. Cree una cuenta **dedicada** (no la personal) y active la verificación en dos pasos.
+2. Genere una **contraseña de aplicación** (Seguridad → Contraseñas de aplicaciones) y úsela en `MAIL_PASSWORD`; la contraseña normal de la cuenta no funciona.
+3. Añada al `.env` del servidor (nunca al repositorio):
+   ```bash
+   MAIL_HOST=smtp.gmail.com
+   MAIL_PORT=587
+   MAIL_USERNAME=cuenta-dedicada@gmail.com
+   MAIL_PASSWORD=contraseña-de-aplicación
+   MAIL_FROM=cuenta-dedicada@gmail.com
+   APP_PUBLIC_URL=https://su-dominio.com
+   ```
+4. Recreate el servicio: `docker compose up -d authcore`.
+
+`APP_PUBLIC_URL` debe ser la dirección pública del sitio (`https://<dominio>` con Caddy o `http://<IP>` sin TLS); los enlaces del correo se arman con ella y con otra dirección no funcionan. Una cuenta gratuita de Gmail permite unos **500 correos por día**.
+
+Mientras la rama de AuthCore con verificación de correo no esté publicada en `main` de GitHub, el despliegue usa la versión anterior. Para probar antes, clone esa rama al lado y añada `AUTHCORE_CONTEXT=../Auth-Core-UpMarket` al `.env`.
+
 ### Verificación después del primer arranque
 ```bash
 docker compose ps                                                    # 4 servicios arriba
@@ -140,7 +161,7 @@ Flyway crea el esquema en el primer arranque (`Successfully applied 1 migration`
 - Mantenga el mismo criterio de seguridad: solo nginx publica el 80/443; 8081, 8084 y 3306 no se exponen.
 
 ## 4. Primer uso
-1. **Crear cuenta** (con correo, nombre y contraseña; el celular es opcional) y entrar; publique algo de prueba con foto.
+1. **Crear cuenta** (con correo, nombre y contraseña; el celular es opcional), confirmar el enlace que llega al correo y entrar; publique algo de prueba con foto.
 2. **Cuenta administradora:** AuthCore crea sola el usuario `admin` en el primer arranque, con la contraseña de
    `ADMIN_PASSWORD` en `.env`. No se genera ninguna clave aleatoria: si `ADMIN_PASSWORD` falta, AuthCore
    **no arranca** y el error queda en `docker compose logs authcore`.
@@ -154,9 +175,10 @@ Flyway crea el esquema en el primer arranque (`Successfully applied 1 migration`
    AuthCore. No modifica ese repositorio y es permanente: el bootstrap solo crea el usuario si no existe.
    `ADMIN_PASSWORD` del `.env` queda obsoleto después de este paso; no hace falta cambiarlo, pero tampoco sirve.
 
-> **Roles ADMIN:** nginx no publica la administración de usuarios de AuthCore (`/api/auth/users*` devuelve 404),
-> así que el rol se asigna por SQL con `./deploy/dar-admin.sh correo@dominio`. El usuario debe estar registrado
-> antes y tiene que cerrar sesión y volver a entrar para que el token incluya el rol.
+> **Roles ADMIN:** el panel puede listar y bloquear cuentas de AuthCore (`GET /api/auth/users` y
+> `PATCH /api/auth/users/{id}/blocked`), pero el rol se sigue asignando por SQL con
+> `./deploy/dar-admin.sh correo@dominio`. El usuario debe estar registrado antes y tiene que cerrar
+> sesión y volver a entrar para que el token incluya el rol.
 
 ## 5. Operación
 | Tarea | Comando |
@@ -224,7 +246,7 @@ Verificación: `docker compose -f docker-compose.yml -f docker-compose.https.yml
 ## 8. Endurecimiento y límites conocidos
 
 - **Respaldos automáticos:** `crontab -e` → `15 3 * * * cd ~/UpMarket && ./deploy/respaldo.sh >> respaldos.log 2>&1`. Copie `respaldos/` fuera del servidor (S3) y/o active snapshots diarios del volumen EBS. **Nunca** use `docker compose down -v` en producción: borra la base y las fotos.
-- **Sesiones:** AuthCore no tiene refresh ni revocación; el token dura 1 h (`JWT_EXPIRATION_MS` en `.env`). Una cuenta eliminada se bloquea en el servicio de dominio y sus credenciales se borran en AuthCore (`DELETE /api/auth/users/me`).
+- **Sesiones:** AuthCore no tiene refresh ni revocación; el token dura 1 h (`JWT_EXPIRATION_MS` en `.env`). Una cuenta eliminada se bloquea en el servicio de dominio y sus credenciales se borran en AuthCore (`DELETE /api/auth/users/me`). Bloquear una cuenta impide nuevos inicios de sesión, pero **no revoca el JWT ya emitido**: una sesión abierta sigue activa hasta que vence (1 h).
 - **Healthchecks:** `authcore` y `domain` se consideran sanos cuando `/actuator/health` responde 200 (incluye la consulta a la base). `web` solo arranca cuando ambos están sanos.
 - **Contraseña admin:** `ADMIN_PASSWORD` es obligatoria en el primer arranque; después se cambia con `./deploy/cambiar-admin.sh`.
 - **Algoritmo JWT:** el token es HS512; la clave del dominio es `JWT_SECRET_BASE64` (Base64 de los mismos bytes de `JWT_SECRET`). Si cambia una, regenere la otra con `generar-env.sh`.

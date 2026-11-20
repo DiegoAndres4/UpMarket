@@ -5,6 +5,7 @@
 
 const API = '';           // mismo origen. Para desarrollo local se puede cambiar (ver README).
 const CLAVE_TOKEN = 'upmarket.token';
+const CLAVE_PERFIL_PENDIENTE = 'upmarket.perfilPendiente';
 const SOPORTE_CORREO = '';  // correo de soporte; si está vacío, no se muestra "Contactar soporte" en el pie
 let perfilActual = null;
 
@@ -110,7 +111,12 @@ async function api(metodo, ruta, cuerpo, esFormulario) {
     localStorage.removeItem(CLAVE_TOKEN); perfilActual = null; location.hash = '#/login';
     throw new Error(datos && datos.mensaje && /eliminada/.test(datos.mensaje) ? datos.mensaje : 'Tu sesión venció, ingresa de nuevo');
   }
-  if (!r.ok) { const err = new Error(mensajeDeError(r.status, datos, ruta)); err.estado = r.status; throw err; }
+  if (!r.ok) {
+    const err = new Error(mensajeDeError(r.status, datos, ruta));
+    err.estado = r.status;
+    err.codigo = datos && datos.code;
+    throw err;
+  }
   return datos;
 }
 function mensajeDeError(estado, d, ruta) {
@@ -199,6 +205,7 @@ document.querySelector('.salto')?.addEventListener('click', (ev) => {
 });
 const rutas = [
   [/^#\/login$/, vistaLogin], [/^#\/registro$/, vistaRegistro],
+  [/^#\/verificar(?:\?.*)?$/, vistaVerificar],
   [/^#\/?$/, () => (leerSesion() ? vistaCatalogo() : vistaLanding())],
   [/^#\/publicar$/, () => vistaFormulario(null)], [/^#\/mias$/, vistaMias], [/^#\/categorias$/, vistaCategorias],
   [/^#\/perfil$/, vistaPerfil],
@@ -209,8 +216,10 @@ const rutas = [
 const TITULOS = {
   '#/': 'Catálogo', '#/login': 'Ingresar', '#/registro': 'Crear cuenta', '#/publicar': 'Publicar',
   '#/mias': 'Mis publicaciones', '#/categorias': 'Categorías', '#/perfil': 'Mi perfil',
+  '#/verificar': 'Confirmar correo',
 };
 function tituloDe(hash) {
+  if (/^#\/verificar/.test(hash)) return 'Confirmar correo';
   if (/^#\/pagar\//.test(hash)) return 'Pagar publicación';
   if (/^#\/p\//.test(hash)) return 'Detalle de publicación';
   if (/^#\/editar\//.test(hash)) return 'Editar publicación';
@@ -221,8 +230,9 @@ async function enrutar() {
   const hash = location.hash || '#/';
   const raiz = hash === '#/' || hash === '#/?';
   const sesion = leerSesion();
-  const acceso = hash === '#/login' || hash === '#/registro';
+  const acceso = hash === '#/login' || hash === '#/registro' || /^#\/verificar(?:\?|$)/.test(hash);
   const publica = acceso || (raiz && !sesion);
+  limpiarTemporizadores();
   document.body.classList.toggle('pantalla-acceso', acceso);
   document.body.classList.toggle('pantalla-landing', raiz && !sesion);
   pintarNav();
@@ -250,6 +260,152 @@ async function enrutar() {
 window.addEventListener('hashchange', enrutar);
 window.addEventListener('load', enrutar);
 
+/* ---------- pantallas de acceso compartidas (ingreso, registro, verificación) ---------- */
+let temporizadoresVista = [];
+function registrarTemporizador(id) { temporizadoresVista.push(id); return id; }
+function limpiarTemporizadores() {
+  for (const id of temporizadoresVista) clearInterval(id);
+  temporizadoresVista = [];
+}
+function panelMarca() {
+  return h('aside', { class: 'acceso__marca', 'aria-label': 'UPMarket' },
+    h('p', { class: 'acceso__logo' }, 'UP', h('span', {}, 'Market')),
+    h('ul', { class: 'acceso__lista' },
+      h('li', {}, 'Publica lo que quieres vender'),
+      h('li', {}, 'Encuentra artículos de otros estudiantes'),
+      h('li', {}, 'Contacta al vendedor directamente')),
+    h('img', { class: 'acceso__mascota', src: 'public/mascota-upmarket.png', alt: '', width: 241, height: 360, 'aria-hidden': 'true' }),
+    h('div', {},
+      h('p', { class: 'acceso__lema' }, 'Compra, vende e intercambia entre estudiantes de la Universidad de Pamplona.'),
+      h('p', { class: 'acceso__lugar' }, 'Villa del Rosario · Norte de Santander')));
+}
+function volverInicio() {
+  return h('a', { class: 'marca acceso__volver', href: '#/', 'aria-label': 'UPMarket, volver al inicio' }, 'UP', h('span', {}, 'Market'));
+}
+function panelAcceso(...hijos) {
+  return h('div', { class: 'acceso' }, panelMarca(), h('div', { class: 'acceso__form' }, volverInicio(), ...hijos));
+}
+
+/* Botón «Reenviar correo» con cuenta atrás de 60 s para no saturar el envío. */
+function crearReenviar(correo) {
+  const boton = h('button', { class: 'btn sec', type: 'button' }, 'Reenviar correo');
+  const estado = h('p', { class: 'acceso__pie', role: 'status', 'aria-live': 'polite', hidden: true });
+  let restante = 0;
+  let temporizador = null;
+  const pintar = () => {
+    if (restante > 0) { boton.disabled = true; boton.textContent = 'Reenviar en ' + restante + ' s'; }
+    else { boton.disabled = false; boton.textContent = 'Reenviar correo'; }
+  };
+  const esperar = () => {
+    clearInterval(temporizador);
+    restante = 60;
+    pintar();
+    temporizador = registrarTemporizador(setInterval(() => {
+      restante -= 1;
+      if (restante <= 0) { clearInterval(temporizador); temporizador = null; restante = 0; }
+      pintar();
+    }, 1000));
+  };
+  boton.addEventListener('click', async () => {
+    if (boton.disabled) return;
+    boton.disabled = true;
+    boton.textContent = 'Enviando…';
+    try {
+      await api('POST', '/api/auth/resend-verification', { username: correo });
+      estado.textContent = 'Te enviamos otro enlace a ' + correo + '.';
+      estado.hidden = false;
+      esperar();
+    } catch {
+      estado.textContent = 'No pudimos reenviar el correo. Intenta de nuevo.';
+      estado.hidden = false;
+      pintar();
+    }
+  });
+  return { boton, estado, esperar };
+}
+
+/* Tras registrarse no se inicia sesión: primero hay que confirmar el correo. */
+function vistaCorreoEnviado(correo) {
+  const reenviar = crearReenviar(correo);
+  montar(panelAcceso(
+    h('h1', {}, 'Revisa tu correo'),
+    h('p', { class: 'acceso__sub' }, 'Te enviamos un enlace a ' + correo + ' para confirmar tu cuenta. El enlace vence en 24 horas.'),
+    h('div', { class: 'acciones' }, reenviar.boton),
+    reenviar.estado,
+    h('p', { class: 'acceso__pie' }, h('a', { href: '#/login' }, 'Ir a ingresar'))));
+  reenviar.esperar();
+}
+
+/* #/verificar?token=…: confirma el correo y limpia el token de la dirección. */
+function vistaVerificar() {
+  const hash = location.hash || '';
+  const indice = hash.indexOf('?');
+  const parametros = new URLSearchParams(indice >= 0 ? hash.slice(indice + 1) : '');
+  const token = parametros.get('token') || '';
+  // Nunca se registra el token y se quita de la barra de direcciones antes de usarlo.
+  try { history.replaceState(null, '', location.pathname + location.search + '#/verificar'); } catch { /* sin history */ }
+
+  const mostrar = (...hijos) => montar(panelAcceso(...hijos));
+  const irAIngresar = () => h('p', { class: 'acceso__pie' }, h('a', { href: '#/login' }, 'Ir a ingresar'));
+
+  if (!token) {
+    mostrar(h('h1', {}, 'Este enlace no es válido o ya se usó.'), irAIngresar());
+    return;
+  }
+
+  mostrar(h('h1', {}, 'Confirmando tu correo…'), h('p', { class: 'acceso__sub' }, 'Espera un momento.'));
+
+  const enlaceNuevo = () => {
+    const correo = h('input', { id: 'correo-verificar', type: 'email', inputmode: 'email', autocapitalize: 'none', spellcheck: 'false', required: true, autocomplete: 'username', maxlength: 120, placeholder: 'tucorreo@ejemplo.com' });
+    const error = h('p', { class: 'error', id: 'error-verificar', role: 'alert', hidden: true });
+    correo.setAttribute('aria-describedby', 'error-verificar');
+    const estado = h('p', { class: 'acceso__pie', role: 'status', 'aria-live': 'polite', hidden: true });
+    const boton = h('button', { class: 'btn', type: 'submit' }, 'Enviar un enlace nuevo');
+    return h('form', { novalidate: true, onsubmit: async (ev) => {
+      ev.preventDefault();
+      error.hidden = true;
+      const c = correo.value.trim().toLowerCase();
+      if (!esCorreo(c)) {
+        error.textContent = 'Escribe un correo válido.';
+        error.hidden = false; correo.focus();
+        return;
+      }
+      boton.disabled = true; boton.textContent = 'Enviando…';
+      try {
+        await api('POST', '/api/auth/resend-verification', { username: c });
+        estado.textContent = 'Te enviamos un enlace nuevo a ' + c + '.';
+        estado.hidden = false;
+        correo.value = '';
+      } catch {
+        error.textContent = 'No pudimos enviar el enlace. Intenta de nuevo.';
+        error.hidden = false;
+      }
+      boton.disabled = false; boton.textContent = 'Enviar un enlace nuevo';
+    } },
+      h('label', { for: 'correo-verificar' }, 'Correo'),
+      correo,
+      error,
+      h('div', { class: 'acciones' }, boton),
+      estado);
+  };
+
+  api('POST', '/api/auth/verify-email', { token })
+    .then(() => {
+      mostrar(
+        h('h1', {}, '¡Correo confirmado!'),
+        h('div', { class: 'acciones' }, h('button', { class: 'btn', type: 'button', onclick: () => { location.hash = '#/login'; } }, 'Ingresar')));
+    })
+    .catch((e) => {
+      if (e && e.codigo === 'TOKEN_EXPIRADO') {
+        mostrar(h('h1', {}, 'El enlace venció.'), enlaceNuevo(), irAIngresar());
+      } else if (e && e.codigo === 'TOKEN_INVALIDO') {
+        mostrar(h('h1', {}, 'Este enlace no es válido o ya se usó.'), irAIngresar());
+      } else {
+        mostrar(h('h1', {}, 'No pudimos confirmar tu correo.'), h('p', { class: 'acceso__sub' }, 'Revisa tu conexión e intenta de nuevo.'), irAIngresar());
+      }
+    });
+}
+
 /* ---------- ingreso y registro (AuthCore: el nombre de usuario ES el correo) ----------
    Excepción: el administrador inicial se crea con el usuario `admin`, sin correo. */
 const esUsuarioLogin = (valor) => !/\s/.test(valor) && (!valor.includes('@') || esCorreo(valor));
@@ -262,7 +418,19 @@ async function iniciarSesion(correo, clave) {
   localStorage.setItem(CLAVE_TOKEN, r.token);
   try { perfilActual = await api('GET', '/api/perfil'); }
   catch (e) { localStorage.removeItem(CLAVE_TOKEN); perfilActual = null; throw e; }
+  await aplicarPerfilPendiente(correo);
   location.hash = destinoPendiente();
+}
+
+/* El registro ya no crea sesión: el perfil que se escribió allí se aplica en el primer ingreso. */
+async function aplicarPerfilPendiente(usuario) {
+  let pendiente = null;
+  try { pendiente = JSON.parse(localStorage.getItem(CLAVE_PERFIL_PENDIENTE) || 'null'); } catch { pendiente = null; }
+  if (!pendiente || pendiente.usuario !== usuario) return;
+  try {
+    perfilActual = await api('PUT', '/api/perfil', { nombre: pendiente.nombre, telefono: pendiente.telefono, fotoUrl: null });
+  } catch { /* si falla, se completa desde Mi perfil */ }
+  try { localStorage.removeItem(CLAVE_PERFIL_PENDIENTE); } catch { /* sin localStorage */ }
 }
 
 /* S1: desde la landing se recuerda a dónde volver después de ingresar. */
@@ -278,6 +446,7 @@ function destinoPendiente() {
 }
 function vistaLogin() {
   const error = h('p', { class: 'error', id: 'error-login', role: 'alert', hidden: true });
+  const ayuda = h('div', { class: 'acciones', hidden: true });
   const correo = h('input', { id: 'correo', type: 'text', inputmode: 'email', autocapitalize: 'none', spellcheck: 'false', required: true, autocomplete: 'username', maxlength: 120, placeholder: 'tucorreo@ejemplo.com o admin', 'aria-describedby': 'error-login' });
   const [lblClave, clave] = campoClave('clave', 'Contraseña', null, 'current-password');
   clave.setAttribute('aria-describedby', 'error-login');
@@ -295,16 +464,7 @@ function vistaLogin() {
     if (campo) campo.focus();
   };
   montar(h('div', { class: 'acceso' },
-    h('aside', { class: 'acceso__marca', 'aria-label': 'UPMarket' },
-      h('p', { class: 'acceso__logo' }, 'UP', h('span', {}, 'Market')),
-      h('ul', { class: 'acceso__lista' },
-        h('li', {}, 'Publica lo que quieres vender'),
-        h('li', {}, 'Encuentra artículos de otros estudiantes'),
-        h('li', {}, 'Contacta al vendedor directamente')),
-      h('img', { class: 'acceso__mascota', src: 'public/mascota-upmarket.png', alt: '', width: 241, height: 360, 'aria-hidden': 'true' }),
-      h('div', {},
-        h('p', { class: 'acceso__lema' }, 'Compra, vende e intercambia entre estudiantes de la Universidad de Pamplona.'),
-        h('p', { class: 'acceso__lugar' }, 'Villa del Rosario · Norte de Santander'))),
+    panelMarca(),
     h('form', { class: 'acceso__form', novalidate: true, onsubmit: async (ev) => {
       ev.preventDefault();
       const c = correo.value.trim().toLowerCase();
@@ -314,9 +474,23 @@ function vistaLogin() {
         : clave.value.length < 6 ? 'La contraseña debe tener al menos 6 caracteres' : null;
       if (problema) { fallar(problema, !c || !esUsuarioLogin(c) ? correo : clave); return; }
       error.hidden = true;
+      ayuda.hidden = true;
+      ayuda.replaceChildren();
+      limpiarTemporizadores();
       boton.disabled = true; boton.setAttribute('aria-busy', 'true'); boton.textContent = 'Ingresando…';
       try { await iniciarSesion(c, clave.value); }
-      catch (e) { fallar(e.message, clave); }
+      catch (e) {
+        if (e.estado === 403 && e.codigo === 'EMAIL_NO_VERIFICADO') {
+          fallar('Tu correo aún no está confirmado.', clave);
+          const reenviar = crearReenviar(c);
+          ayuda.replaceChildren(reenviar.boton, reenviar.estado);
+          ayuda.hidden = false;
+        } else if (e.estado === 403 && e.codigo === 'CUENTA_BLOQUEADA') {
+          fallar('Tu cuenta está bloqueada. Escríbenos si crees que es un error.', clave);
+        } else {
+          fallar(e.message, clave);
+        }
+      }
       finally { boton.disabled = false; boton.removeAttribute('aria-busy'); boton.textContent = 'Ingresar'; }
     } },
       h('a', { class: 'marca acceso__volver', href: '#/', 'aria-label': 'UPMarket, volver al inicio' }, 'UP', h('span', {}, 'Market')),
@@ -326,6 +500,7 @@ function vistaLogin() {
       lblClave, clave,
       h('div', { class: 'ver-clave' }, ver),
       error,
+      ayuda,
       h('div', { class: 'acciones' }, boton),
       h('p', { class: 'acceso__pie' }, '¿No tienes cuenta? ', h('a', { href: '#/registro' }, 'Crea tu cuenta')))));
   if (window.matchMedia('(pointer:fine)').matches) correo.focus();
@@ -374,16 +549,7 @@ function vistaRegistro() {
   };
 
   montar(h('div', { class: 'acceso' },
-    h('aside', { class: 'acceso__marca', 'aria-label': 'UPMarket' },
-      h('p', { class: 'acceso__logo' }, 'UP', h('span', {}, 'Market')),
-      h('ul', { class: 'acceso__lista' },
-        h('li', {}, 'Publica lo que quieres vender'),
-        h('li', {}, 'Encuentra artículos de otros estudiantes'),
-        h('li', {}, 'Contacta al vendedor directamente')),
-      h('img', { class: 'acceso__mascota', src: 'public/mascota-upmarket.png', alt: '', width: 241, height: 360, 'aria-hidden': 'true' }),
-      h('div', {},
-        h('p', { class: 'acceso__lema' }, 'Compra, vende e intercambia entre estudiantes de la Universidad de Pamplona.'),
-        h('p', { class: 'acceso__lugar' }, 'Villa del Rosario · Norte de Santander'))),
+    panelMarca(),
     h('form', { class: 'acceso__form', novalidate: true, onsubmit: async (ev) => {
       ev.preventDefault();
       error.hidden = true;
@@ -413,20 +579,13 @@ function vistaRegistro() {
         boton.disabled = false; boton.removeAttribute('aria-busy'); boton.textContent = 'Crear cuenta';
         return;
       }
-      try { await iniciarSesion(c, clave.value); }
-      catch {
-        aviso('Tu cuenta se creó. Ingresa con tu correo y contraseña.', true);
-        location.hash = '#/login';
-        return;
-      }
+      // Sin sesión todavía no se puede crear el perfil: se guarda hasta el primer ingreso.
       try {
-        perfilActual = await api('PUT', '/api/perfil', { nombre: nombre.value.trim(), telefono: telParaApi(tel.value), fotoUrl: null });
-        pintarNav();
-        aviso('Cuenta creada. ¡Bienvenido!');
-      } catch {
-        aviso('Cuenta creada. Completa tu perfil.', true);
-        location.hash = '#/perfil';
-      }
+        localStorage.setItem(CLAVE_PERFIL_PENDIENTE, JSON.stringify({
+          usuario: c, nombre: nombre.value.trim(), telefono: telParaApi(tel.value),
+        }));
+      } catch { /* sin localStorage: el perfil se completa después */ }
+      vistaCorreoEnviado(c);
     } },
       h('a', { class: 'marca acceso__volver', href: '#/', 'aria-label': 'UPMarket, volver al inicio' }, 'UP', h('span', {}, 'Market')),
       h('h1', {}, 'Crea tu cuenta'),
