@@ -44,11 +44,11 @@ services:
       # Obligatoria: AuthCore ya no genera claves aleatorias.
       AUTHCORE_ADMIN_PASSWORD: ${ADMIN_PASSWORD:?falta ADMIN_PASSWORD en .env}
       # Correo saliente para verificar cuentas (Gmail: cuenta dedicada + contraseña de aplicación).
-      MAIL_HOST: ${MAIL_HOST:-}
-      MAIL_PORT: ${MAIL_PORT:-}
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
-      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_FROM: ${MAIL_FROM:-${MAIL_USERNAME:-}}
       # Dirección pública del sitio: con ella se arman los enlaces de confirmación.
       APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost}
       # Flyway aplica db/migration y Hibernate solo valida el esquema.
