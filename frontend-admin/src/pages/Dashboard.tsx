@@ -3,9 +3,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -20,18 +17,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Skeleton } from '../components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 
-const COLORES = ['#2563eb', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#64748b']
+/* Paleta de la marca: ámbar para la serie principal, rojo para el énfasis, tinta y arena para ejes. */
+const AMBAR = '#F5B700'
+const TINTA = '#1A1A1A'
+const GRIS_EJE = '#4A4A4A'
+const ARENA = '#E5E0D5'
 
-function Cifra({ titulo, valor, detalle }: { titulo: string; valor: string; detalle?: string }) {
+function Cifra({ titulo, valor, detalle, nota }: { titulo: string; valor: string; detalle?: string; nota?: string }) {
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardDescription>{titulo}</CardDescription>
-        <CardTitle className="text-2xl">{valor}</CardTitle>
+        <CardTitle className="text-3xl font-extrabold tabular-nums tracking-tight text-foreground">{valor}</CardTitle>
       </CardHeader>
-      {detalle ? (
-        <CardContent>
-          <p className="text-xs text-muted-foreground">{detalle}</p>
+      {detalle || nota ? (
+        <CardContent className="space-y-1">
+          {detalle ? <p className="text-xs text-muted-foreground tabular-nums">{detalle}</p> : null}
+          {nota ? <p className="text-xs leading-relaxed text-muted-foreground">{nota}</p> : null}
         </CardContent>
       ) : null}
     </Card>
@@ -90,7 +92,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <header>
-        <h2 className="text-2xl font-bold">Tablero</h2>
+        <h2 className="text-2xl font-extrabold tracking-tight">Tablero</h2>
         <p className="text-sm text-muted-foreground">Estado general de la comunidad en tiempo real.</p>
       </header>
 
@@ -98,10 +100,12 @@ export default function Dashboard() {
         <Cifra titulo="Publicaciones" valor={numero(datos.totalPublicaciones)}
           detalle={`${numero(datos.publicacionesPorEstado.DISPONIBLE)} disponibles · ${numero(datos.publicacionesPorEstado.VENDIDA)} vendidas`} />
         <Cifra titulo="Vistas acumuladas" valor={numero(datos.vistasTotales)} />
-        <Cifra titulo="Perfiles" valor={numero(datos.totalPerfiles)} detalle={`${numero(datos.totalResenas)} reseñas`} />
+        <Cifra titulo="Perfiles de usuario" valor={numero(datos.totalPerfiles)} detalle={`${numero(datos.totalResenas)} reseñas`} />
         <Cifra titulo="Pagos aprobados" valor={numero(datos.pagosAprobados)}
-          detalle={`${numero(pagos.PENDIENTE)} pendientes · ${numero(pagos.RECHAZADO)} rechazados`} />
-        <Cifra titulo="Ingresos simulados" valor={precio(datos.ingresosAprobados)} detalle="Suma de pagos aprobados" />
+          detalle={`${numero(pagos.PENDIENTE)} pendientes · ${numero(pagos.RECHAZADO)} rechazados`}
+          nota="Las publicaciones de demostración se activaron sin registro de pago." />
+        <Cifra titulo="Ingresos simulados" valor={precio(datos.ingresosAprobados)}
+          nota="Suma de pagos aprobados en la app. El pago aún es simulado." />
         <Cifra titulo="Publicaciones por categoría" valor={String(categorias.length)} detalle="Categorías con publicaciones" />
       </section>
 
@@ -114,18 +118,27 @@ export default function Dashboard() {
           <CardContent>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={datos.publicacionesPorDia}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="fecha" tickFormatter={(fecha: string) => fecha.slice(5)} fontSize={12} />
-                <YAxis allowDecimals={false} fontSize={12} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ARENA} vertical={false} />
+                <XAxis
+                  dataKey="fecha"
+                  tickFormatter={(fecha: string) => fecha.slice(5)}
+                  fontSize={12}
+                  stroke={ARENA}
+                  tick={{ fill: GRIS_EJE }}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  fontSize={12}
+                  stroke={ARENA}
+                  tick={{ fill: GRIS_EJE }}
+                />
                 <Tooltip
-                  contentStyle={{
-                    background: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: 8,
-                  }}
+                  contentStyle={{ background: '#FFFFFF', border: `1px solid ${ARENA}`, borderRadius: 8 }}
+                  labelStyle={{ color: TINTA }}
+                  itemStyle={{ color: TINTA }}
                   labelFormatter={(fecha) => `Fecha: ${fecha}`}
                 />
-                <Bar dataKey="total" name="Publicaciones" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="total" name="Publicaciones" fill={AMBAR} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -141,30 +154,32 @@ export default function Dashboard() {
               <p className="py-10 text-center text-sm text-muted-foreground">Todavía no hay publicaciones.</p>
             ) : (
               <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie data={categorias} dataKey="total" nameKey="nombre" innerRadius={55} outerRadius={95} paddingAngle={2}>
-                    {categorias.map((categoria, indice) => (
-                      <Cell key={categoria.nombre} fill={COLORES[indice % COLORES.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      background: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: 8,
-                    }}
+                <BarChart data={categorias} layout="vertical" margin={{ left: 8, right: 16 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={ARENA} horizontal={false} />
+                  <XAxis
+                    type="number"
+                    allowDecimals={false}
+                    fontSize={12}
+                    stroke={ARENA}
+                    tick={{ fill: GRIS_EJE }}
                   />
-                </PieChart>
+                  <YAxis
+                    type="category"
+                    dataKey="nombre"
+                    width={110}
+                    fontSize={12}
+                    stroke={ARENA}
+                    tick={{ fill: GRIS_EJE }}
+                  />
+                  <Tooltip
+                    contentStyle={{ background: '#FFFFFF', border: `1px solid ${ARENA}`, borderRadius: 8 }}
+                    labelStyle={{ color: TINTA }}
+                    itemStyle={{ color: TINTA }}
+                  />
+                  <Bar dataKey="total" name="Publicaciones" fill={AMBAR} radius={[0, 4, 4, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             )}
-            <div className="mt-2 flex flex-wrap gap-2">
-              {categorias.map((categoria, indice) => (
-                <span key={categoria.nombre} className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <span className="h-2 w-2 rounded-full" style={{ background: COLORES[indice % COLORES.length] }} />
-                  {categoria.nombre} ({categoria.total})
-                </span>
-              ))}
-            </div>
           </CardContent>
         </Card>
       </div>
@@ -186,7 +201,7 @@ export default function Dashboard() {
               {datos.topPublicaciones.map((publicacion, indice) => (
                 <TableRow key={publicacion.id}>
                   <TableCell>
-                    <span className="mr-2 text-muted-foreground">#{indice + 1}</span>
+                    <span className="mr-2 text-muted-foreground tabular-nums">#{indice + 1}</span>
                     {publicacion.titulo}
                   </TableCell>
                   <TableCell className="text-right">

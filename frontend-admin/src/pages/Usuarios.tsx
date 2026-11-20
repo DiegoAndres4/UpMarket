@@ -42,16 +42,16 @@ export default function Usuarios() {
   return (
     <div className="space-y-6">
       <header>
-        <h2 className="text-2xl font-bold">Usuarios</h2>
+        <h2 className="text-2xl font-extrabold tracking-tight">Usuarios</h2>
         <p className="text-sm text-muted-foreground">Perfiles de la comunidad y cuántas publicaciones tienen.</p>
       </header>
 
-      <Card className="border-amber-300/60 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/20">
+      <Card className="bg-muted">
         <CardHeader className="flex-row gap-3 space-y-0">
-          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
           <div>
-            <CardTitle className="text-amber-900 dark:text-amber-200">Solo lectura por ahora</CardTitle>
-            <CardDescription className="text-amber-800/80 dark:text-amber-200/70">
+            <CardTitle>Solo lectura por ahora</CardTitle>
+            <CardDescription>
               El bloqueo de cuentas vive en AuthCore y todavía no está expuesto. Cuando lo esté, se habilitará aquí.
             </CardDescription>
           </div>

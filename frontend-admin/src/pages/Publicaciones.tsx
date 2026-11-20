@@ -34,12 +34,12 @@ type Filtros = {
 const VACIOS: Filtros = { texto: '', categoria: '', estadoPublicacion: '', estadoPago: '', vendedor: '' }
 
 function Estado({ estado }: { estado: EstadoPublicacion }) {
-  return <Badge variant={estado === 'DISPONIBLE' ? 'exito' : 'secondary'}>{estado === 'DISPONIBLE' ? 'Disponible' : 'Vendida'}</Badge>
+  return <Badge variant={estado === 'DISPONIBLE' ? 'exito' : 'tinta'}>{estado === 'DISPONIBLE' ? 'Disponible' : 'Vendido'}</Badge>
 }
 
 function Pago({ estado }: { estado: EstadoPago }) {
   if (estado === 'APROBADO') return <Badge variant="exito">Aprobado</Badge>
-  if (estado === 'PENDIENTE') return <Badge variant="alerta">Pendiente</Badge>
+  if (estado === 'PENDIENTE') return <Badge variant="alerta">Pendiente de pago</Badge>
   return <Badge variant="destructive">Rechazado</Badge>
 }
 
@@ -116,7 +116,7 @@ export default function Publicaciones() {
   return (
     <div className="space-y-6">
       <header>
-        <h2 className="text-2xl font-bold">Publicaciones</h2>
+        <h2 className="text-2xl font-extrabold tracking-tight">Publicaciones</h2>
         <p className="text-sm text-muted-foreground">
           Todas las publicaciones, incluidas las pendientes de pago y las vendidas.
         </p>
@@ -224,7 +224,7 @@ export default function Publicaciones() {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         {publicacion.fotoUrl ? (
-                          <img src={publicacion.fotoUrl} alt="" className="h-10 w-10 rounded-md border object-cover" />
+                          <img src={publicacion.fotoUrl} alt="" className="h-10 w-10 rounded-md border border-border object-cover" />
                         ) : (
                           <div className="h-10 w-10 rounded-md border bg-muted" />
                         )}

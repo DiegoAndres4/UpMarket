@@ -2,6 +2,10 @@ import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../../lib/utils'
 
+/*
+ * Insignias de estado con la paleta de la marca: ámbar con tinta para lo disponible,
+ * tinta con blanco para lo vendido y rojo con blanco para lo pendiente de pago.
+ */
 const variantes = cva(
   'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors',
   {
@@ -11,8 +15,9 @@ const variantes = cva(
         secondary: 'border-transparent bg-secondary text-secondary-foreground',
         destructive: 'border-transparent bg-destructive text-destructive-foreground',
         outline: 'text-foreground',
-        exito: 'border-transparent bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
-        alerta: 'border-transparent bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+        exito: 'border-transparent bg-primary text-primary-foreground',
+        alerta: 'border-transparent bg-destructive text-destructive-foreground',
+        tinta: 'border-transparent bg-foreground text-background',
       },
     },
     defaultVariants: { variant: 'default' },

@@ -14,10 +14,12 @@ export function Layout({ usuario, onSalir }: { usuario: string; onSalir: () => v
     <div className="min-h-screen bg-background">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 md:flex-row md:px-6">
         <aside className="md:w-60 md:shrink-0">
-          <div className="mb-6 flex items-center justify-between md:block">
+          <div className="mb-6 flex items-start justify-between gap-3 md:block">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">UpMarket</p>
-              <h1 className="text-xl font-bold">Administración</h1>
+              <h1 className="text-[1.4rem] font-extrabold leading-none tracking-[-0.02em]">
+                UP<span className="text-brand">Market</span>
+              </h1>
+              <p className="mt-1.5 text-sm text-muted-foreground">Administración</p>
             </div>
             <Button variant="ghost" size="sm" className="md:hidden" onClick={onSalir}>
               <LogOut className="h-4 w-4" /> Salir
@@ -32,8 +34,10 @@ export function Layout({ usuario, onSalir }: { usuario: string; onSalir: () => v
                 end={fin}
                 className={({ isActive }) =>
                   cn(
-                    'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                    isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                    'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
+                    isActive
+                      ? 'bg-secondary font-semibold text-secondary-foreground'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                   )
                 }
               >
@@ -43,10 +47,10 @@ export function Layout({ usuario, onSalir }: { usuario: string; onSalir: () => v
             ))}
           </nav>
 
-          <div className="mt-6 hidden space-y-2 border-t pt-4 md:block">
+          <div className="mt-6 space-y-2 border-t pt-4">
             <a
               href="/"
-              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               <ExternalLink className="h-4 w-4" /> Volver al sitio
             </a>
