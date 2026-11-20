@@ -1,7 +1,7 @@
 package com.upmarket.catalogo.infrastructure.storage;
 
+import com.upmarket.catalogo.application.port.out.AlmacenFotosPort;
 import com.upmarket.catalogo.domain.exception.FotoNoEncontradaException;
-import com.upmarket.catalogo.domain.exception.ValorInvalidoException;
 import com.upmarket.catalogo.domain.model.Foto;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -20,12 +20,12 @@ import org.springframework.stereotype.Component;
  * solo JPG o PNG, hasta 5 MB. Los nombres los genera el servidor (UUID), así que no hay rutas controladas por el usuario.
  */
 @Component
-public class AlmacenFotosLocal {
+public class AlmacenFotosLocal implements AlmacenFotosPort {
 
     private static final Pattern NOMBRE_VALIDO =
             Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|png)");
 
-    public record Guardada(String nombre, String tipo, long tamanoBytes) { }
+    private static final String PREFIJO_PUBLICO = "/api/fotos/";
 
     private final Path directorio;
 
@@ -38,28 +38,16 @@ public class AlmacenFotosLocal {
         }
     }
 
-    public Guardada guardar(byte[] contenido) {
-        if (contenido == null || contenido.length == 0 || contenido.length > Foto.MAXIMO_BYTES) {
-            throw new ValorInvalidoException(Foto.mensajeDeLimites());
-        }
-        String tipo;
-        String extension;
-        if (esPng(contenido)) {
-            tipo = "image/png";
-            extension = "png";
-        } else if (esJpeg(contenido)) {
-            tipo = "image/jpeg";
-            extension = "jpg";
-        } else {
-            throw new ValorInvalidoException(Foto.mensajeDeLimites());
-        }
-        String nombre = UUID.randomUUID() + "." + extension;
+    @Override
+    public Foto guardar(byte[] contenido, String carpeta) {
+        String tipo = FotosValidadas.tipoDeContenido(contenido);
+        String nombre = UUID.randomUUID() + "." + FotosValidadas.extensionDe(tipo);
         try {
             Files.write(directorio.resolve(nombre), contenido);
         } catch (IOException e) {
             throw new UncheckedIOException("No se pudo guardar la foto", e);
         }
-        return new Guardada(nombre, tipo, contenido.length);
+        return new Foto(PREFIJO_PUBLICO + nombre, tipo, contenido.length);
     }
 
     public Resource leer(String nombre) {
@@ -73,8 +61,14 @@ public class AlmacenFotosLocal {
         return new FileSystemResource(archivo);
     }
 
-    /** Borra un archivo propio (nombre validado: no se puede salir del directorio). Si no existe, no hace nada. */
-    public void borrar(String nombre) {
+    /**
+     * Borra un archivo propio a partir de su nombre o de la URL con la que se sirve
+     * ({@code /api/fotos/<nombre>}). Si el valor no es un nombre local válido (por ejemplo una
+     * URL de Cloudinary), no hace nada.
+     */
+    @Override
+    public void borrar(String url) {
+        String nombre = nombreLocal(url);
         if (nombre == null || !NOMBRE_VALIDO.matcher(nombre).matches()) {
             return;
         }
@@ -86,14 +80,15 @@ public class AlmacenFotosLocal {
     }
 
     public static String tipoDe(String nombre) {
-        return nombre.endsWith(".png") ? "image/png" : "image/jpeg";
+        return nombre.endsWith(".png") ? FotosValidadas.PNG : FotosValidadas.JPEG;
     }
 
-    private static boolean esPng(byte[] b) {
-        return b.length > 8 && (b[0] & 0xFF) == 0x89 && b[1] == 'P' && b[2] == 'N' && b[3] == 'G';
-    }
-
-    private static boolean esJpeg(byte[] b) {
-        return b.length > 3 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8 && (b[2] & 0xFF) == 0xFF;
+    private static String nombreLocal(String valor) {
+        if (valor == null) {
+            return null;
+        }
+        String limpio = valor.trim();
+        int marca = limpio.indexOf(PREFIJO_PUBLICO);
+        return marca >= 0 ? limpio.substring(marca + PREFIJO_PUBLICO.length()) : limpio;
     }
 }

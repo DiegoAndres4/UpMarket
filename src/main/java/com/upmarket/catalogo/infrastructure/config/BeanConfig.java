@@ -4,12 +4,16 @@ import com.upmarket.catalogo.application.port.in.CategoriaUseCase;
 import com.upmarket.catalogo.application.port.out.*;
 import com.upmarket.catalogo.application.service.*;
 import com.upmarket.catalogo.domain.service.PoliticaAcceso;
+import com.upmarket.catalogo.infrastructure.storage.AlmacenFotosCloudinary;
+import com.upmarket.catalogo.infrastructure.storage.AlmacenFotosLocal;
 import java.time.Clock;
 import java.time.ZoneId;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 /**
  * Raíz de composición. El dominio y la aplicación no llevan anotaciones de Spring (DIP):
@@ -26,6 +30,32 @@ public class BeanConfig {
     @Bean
     PoliticaAcceso politicaAcceso() {
         return new PoliticaAcceso();
+    }
+
+    /**
+     * Elige el proveedor de fotos con {@code upmarket.fotos.proveedor} (local por defecto, para que
+     * dev/tests/CI funcionen sin credenciales). Es {@code @Primary} porque el componente local también
+     * implementa el puerto.
+     */
+    @Bean
+    @Primary
+    AlmacenFotosPort almacenFotosPort(@Value("${upmarket.fotos.proveedor:local}") String proveedor,
+                                      AlmacenFotosLocal local,
+                                      ObjectProvider<AlmacenFotosCloudinary> cloudinary) {
+        String elegido = proveedor == null ? "local" : proveedor.trim();
+        if (elegido.isEmpty() || "local".equals(elegido)) {
+            return local;
+        }
+        if ("cloudinary".equals(elegido)) {
+            AlmacenFotosCloudinary adaptador = cloudinary.getIfAvailable();
+            if (adaptador == null) {
+                throw new IllegalStateException(
+                        "upmarket.fotos.proveedor=cloudinary requiere credenciales de Cloudinary");
+            }
+            return adaptador;
+        }
+        throw new IllegalStateException("Proveedor de fotos desconocido: '" + proveedor
+                + "'. Valores válidos: local, cloudinary.");
     }
 
     @Bean

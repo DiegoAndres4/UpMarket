@@ -1,6 +1,7 @@
 package com.upmarket.catalogo.infrastructure.config;
 
 import com.upmarket.catalogo.application.port.in.CategoriaUseCase;
+import com.upmarket.catalogo.application.port.out.AlmacenFotosPort;
 import com.upmarket.catalogo.application.port.out.CategoriaRepositoryPort;
 import com.upmarket.catalogo.application.port.out.FiltroPublicacion;
 import com.upmarket.catalogo.application.port.out.PublicacionRepositoryPort;
@@ -12,7 +13,6 @@ import com.upmarket.catalogo.domain.model.Publicacion;
 import com.upmarket.catalogo.domain.model.Texto;
 import com.upmarket.catalogo.infrastructure.perfil.Perfil;
 import com.upmarket.catalogo.infrastructure.perfil.PerfilRepository;
-import com.upmarket.catalogo.infrastructure.storage.AlmacenFotosLocal;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
@@ -99,12 +99,12 @@ public class DatosDemoSeeder implements ApplicationRunner {
     private final CategoriaRepositoryPort categoriaRepository;
     private final PublicacionRepositoryPort publicaciones;
     private final PerfilRepository perfiles;
-    private final AlmacenFotosLocal almacen;
+    private final AlmacenFotosPort almacen;
     private final Clock reloj;
 
     public DatosDemoSeeder(CategoriaUseCase categorias, CategoriaRepositoryPort categoriaRepository,
                            PublicacionRepositoryPort publicaciones, PerfilRepository perfiles,
-                           AlmacenFotosLocal almacen, Clock reloj) {
+                           AlmacenFotosPort almacen, Clock reloj) {
         this.categorias = categorias;
         this.categoriaRepository = categoriaRepository;
         this.publicaciones = publicaciones;
@@ -180,8 +180,7 @@ public class DatosDemoSeeder implements ApplicationRunner {
     private List<Foto> foto(String categoria) {
         try {
             byte[] contenido = png(colorDe(categoria));
-            AlmacenFotosLocal.Guardada guardada = almacen.guardar(contenido);
-            return List.of(new Foto("/api/fotos/" + guardada.nombre(), guardada.tipo(), guardada.tamanoBytes()));
+            return List.of(almacen.guardar(contenido, AlmacenFotosPort.CARPETA_PUBLICACIONES));
         } catch (IOException | RuntimeException e) {
             log.warn("No se pudo generar la foto de ejemplo para {}: {}", categoria, e.getMessage());
             return new ArrayList<>();

@@ -46,11 +46,22 @@ fotos:
   # Dónde se guardan las imágenes subidas. En Docker/AWS: volumen montado en /data/fotos (FOTOS_DIR).
   directorio: ${FOTOS_DIR:./fotos}
 
+cloudinary:
+  # Credenciales SOLO por variables de entorno; nunca se escriben aquí. Si proveedor=cloudinary y
+  # faltan (ni CLOUDINARY_URL ni las tres anteriores), la aplicación falla rápido al arrancar.
+  url: ${CLOUDINARY_URL:}
+  cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+  api-key: ${CLOUDINARY_API_KEY:}
+  api-secret: ${CLOUDINARY_API_SECRET:}
+
 cors:
   # Solo para desarrollo con el frontend en otro puerto (ej. http://localhost:5500). Vacío = sin CORS.
   origenes: ${CORS_ORIGENES:}
 
 upmarket:
+  fotos:
+    # Proveedor de almacenamiento de fotos: local (por defecto; dev/tests/CI sin credenciales) o cloudinary.
+    proveedor: ${FOTOS_PROVEEDOR:local}
   publicacion:
     # Tarifa en COP para publicar. El cobro real es simulado; una pasarela real se enchufa detrás de PasarelaPagoPort.
     tarifa: ${UPMARKET_TARIFA_PUBLICACION:3000}
