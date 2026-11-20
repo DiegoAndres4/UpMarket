@@ -5,6 +5,7 @@
 
 const API = '';           // mismo origen. Para desarrollo local se puede cambiar (ver README).
 const CLAVE_TOKEN = 'upmarket.token';
+const SOPORTE_CORREO = '';  // correo de soporte; si está vacío, no se muestra "Contactar soporte" en el pie
 let perfilActual = null;
 
 /* ---------- utilidades ---------- */
@@ -145,6 +146,43 @@ function pintarNav() {
       avatar(perfilActual && perfilActual.fotoUrl, nombre, ''), 'Mi perfil'),
     h('button', { onclick: cerrarSesion }, 'Salir')].filter(Boolean));
 }
+
+/* ---------- pie de página ----------
+   Se repinta junto con la nav en cada cambio de ruta o de sesión (ver enrutar). */
+function pintarPie() {
+  const pie = document.getElementById('pie');
+  if (!pie) return;
+  const s = leerSesion();
+  const anio = new Date().getFullYear();
+  const enlace = (href, texto) => h('li', {}, h('a', { href }, texto));
+  const mercado = [
+    enlace('#/', 'Buscar'),
+    enlace('#/publicar', 'Publicar'),
+    s ? enlace('#/mias', 'Mis publicaciones') : null,
+    s && s.esAdmin ? enlace('/admin/', 'Panel de administración') : null,
+  ].filter(Boolean);
+  const ayuda = [
+    h('li', {}, h('span', { class: 'pie__dato' }, 'Publicar cuesta $3.000 (pago simulado)')),
+    SOPORTE_CORREO ? h('li', {}, h('a', { href: 'mailto:' + SOPORTE_CORREO }, 'Contactar soporte')) : null,
+  ].filter(Boolean);
+  pie.replaceChildren(
+    h('div', { class: 'pie__interior' },
+      h('div', { class: 'pie__destacado' },
+        h('a', { class: 'marca pie__marca', href: '#/' }, 'UP', h('span', {}, 'Market')),
+        h('p', { class: 'pie__lema' }, 'El mercado de los estudiantes de la Universidad de Pamplona, sede Villa del Rosario.'),
+        h('a', { class: 'btn pie__accion', href: s ? '#/publicar' : '#/registro' }, s ? 'Publicar un artículo' : 'Crear cuenta')),
+      h('nav', { class: 'pie__nav', 'aria-label': 'Pie de página' },
+        h('div', { class: 'pie__grupo' },
+          h('h2', { class: 'pie__grupo-titulo' }, 'Mercado'),
+          h('ul', { class: 'pie__lista' }, mercado)),
+        h('div', { class: 'pie__grupo' },
+          h('h2', { class: 'pie__grupo-titulo' }, 'Ayuda'),
+          h('ul', { class: 'pie__lista' }, ayuda))),
+      h('div', { class: 'pie__credito' },
+        h('img', { src: 'public/escudo-128.png', alt: 'Escudo de la Universidad de Pamplona', width: 128, height: 167, loading: 'lazy', decoding: 'async' }),
+        h('span', {}, 'Proyecto Integrador · Universidad de Pamplona · ' + anio)),
+      h('img', { class: 'pie__mascota', src: 'public/mascota-upmarket.png', alt: '', width: 241, height: 360, 'aria-hidden': 'true' })));
+}
 document.getElementById('menu').addEventListener('click', () => {
   const nav = document.getElementById('nav'); const abierto = nav.classList.toggle('abierto');
   document.getElementById('menu').setAttribute('aria-expanded', String(abierto));
@@ -176,6 +214,7 @@ async function enrutar() {
   const hash = location.hash || '#/';
   const publica = hash === '#/login' || hash === '#/registro';
   pintarNav();
+  pintarPie();
   const titulo = tituloDe(hash);
   document.title = titulo ? titulo + ' · UPMarket' : 'UPMarket · Mercado de estudiantes';
   if (!publica && !leerSesion()) { location.hash = '#/login'; return; }
