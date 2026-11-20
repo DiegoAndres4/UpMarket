@@ -518,19 +518,45 @@ body.pantalla-landing #app{max-width:none;padding:0}
 .cartelera-tablero__pie{margin:clamp(22px,3vw,32px) 0 0;font-size:var(--text-md)}
 .cartelera__ver{font-weight:700;text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:2px;min-height:44px;display:inline-flex;align-items:center}
 
-.cartelera-seccion{padding-block:clamp(72px,11.5vw,176px)}
+/* Cada sección baja es un campo de color a todo el ancho, con el contenido en la rejilla de 1100px. */
+.cartelera-seccion{padding-block:clamp(64px,8vw,120px)}
 .cartelera-seccion h2{margin:0 0 clamp(28px,3.4vw,44px);font-size:clamp(28px,3.6vw,44px);font-weight:800;letter-spacing:-.02em;line-height:1.05;color:var(--text);max-width:24ch}
 .cartelera-seccion p{margin:0;font-size:clamp(16px,1.6vw,18px);line-height:1.5;color:var(--text);max-width:66ch}
-.cartelera-pasos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(32px,5vw,72px)}
-.cartelera-pasos h3{margin:0 0 10px;font-size:1.25rem;font-weight:700;line-height:1.2;color:var(--text)}
-.cartelera-motivos{list-style:disc;margin:0;padding:0 0 0 1.15em;display:grid;gap:16px}
-.cartelera-motivos li{padding-left:6px;font-size:clamp(16px,1.6vw,18px);line-height:1.5;color:var(--text);max-width:66ch}
 
+/* "Así funciona": corcho con dos avisos de papel clavados, como en el tablero. */
+.cartelera-como{background:var(--surface-2)}
+.cartelera-rol{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(24px,4vw,56px);align-items:start}
+.cartelera-rol__aviso{position:relative;background:#fff;border-radius:2px;padding:clamp(30px,3.6vw,46px) clamp(24px,3.4vw,48px) clamp(32px,4vw,48px);transform:rotate(var(--rot,0deg))}
+.cartelera-rol__aviso:nth-child(odd){--rot:-.7deg}
+.cartelera-rol__aviso:nth-child(even){--rot:.8deg}
+.cartelera-rol__chincheta{position:absolute;top:-7px;left:50%;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--accent)}
+.cartelera-rol__tab{display:inline-block;margin:0 0 clamp(18px,2.4vw,26px);padding:4px 12px;font-size:1rem;font-weight:800;line-height:1.4;font-variant-numeric:tabular-nums;color:#fff;background:var(--accent)}
+.cartelera-rol__tab--gratis{color:var(--text);background:var(--primary)}
+.cartelera-rol h3{margin:0 0 12px;font-size:clamp(24px,2.2vw,28px);font-weight:800;letter-spacing:-.01em;line-height:1.15;color:var(--text)}
+.cartelera-rol p{font-size:clamp(16px,1.4vw,18px);line-height:1.5;color:var(--text);max-width:48ch}
+
+/* "Por qué no el grupo de WhatsApp": campo oscuro, cada frase en dos columnas. */
+.cartelera-porque{background:var(--text)}
+.cartelera-porque h2{color:#fff;max-width:28ch}
+.cartelera-motivos{list-style:none;margin:0;padding:0;display:grid;gap:clamp(32px,4vw,40px)}
+.cartelera-motivos__fila{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(12px,3vw,56px);align-items:baseline}
+.cartelera-motivos__grupo{font-size:clamp(16px,1.4vw,18px);line-height:1.5;color:rgba(255,255,255,.72)}
+.cartelera-motivos__aqui{font-size:clamp(22px,1.9vw,26px);font-weight:700;line-height:1.25;letter-spacing:-.01em;color:var(--primary)}
+.cartelera-porque :focus-visible{outline-color:var(--primary)}
+
+/* Cierre: campo rojo, mascota grande desbordando el borde superior. */
+.cartelera-final{background:var(--accent)}
 .cartelera-cierre{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:clamp(24px,4vw,56px)}
-.cartelera-cierre__mascota{width:auto;height:clamp(120px,18vw,220px);max-width:100%;object-fit:contain}
-.cartelera-cierre h2{margin:0 0 12px;font-size:clamp(28px,3.6vw,44px);font-weight:800;letter-spacing:-.02em;line-height:1.05}
+.cartelera-cierre__mascota{width:auto;height:clamp(180px,24vw,320px);max-width:100%;object-fit:contain;margin-top:clamp(-180px,-16vw,-72px)}
+.cartelera-cierre h2{margin:0 0 12px;font-size:clamp(28px,3.6vw,44px);font-weight:800;letter-spacing:-.02em;line-height:1.05;color:#fff;max-width:22ch}
+.cartelera-cierre p{font-size:clamp(16px,1.6vw,18px);line-height:1.5;color:#fff;max-width:56ch}
 .cartelera-cierre__acciones{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:22px 0 0}
-.cartelera-cierre__enlace{font-weight:600;text-decoration:underline;text-underline-offset:3px;min-height:44px;display:inline-flex;align-items:center}
+.cartelera-final .btn{background:#fff;border-color:#fff;color:var(--text)}
+.cartelera-final .btn:hover{background:var(--surface);border-color:var(--surface)}
+.cartelera-cierre__enlace{font-weight:600;color:#fff;text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:2px;min-height:44px;display:inline-flex;align-items:center}
+.cartelera-final :focus-visible{outline-color:#fff}
+/* El rojo cierra contra el pie de página color crema: sin franja blanca en medio. */
+body.pantalla-landing .pie{margin-top:0}
 
 @media(prefers-reduced-motion:no-preference){
   .cartelera__enlace{transition:transform .16s ease-out,box-shadow .16s ease-out}
@@ -552,14 +578,15 @@ body.pantalla-landing #app{max-width:none;padding:0}
   .cartelera__avisos{grid-template-columns:repeat(2,minmax(0,1fr))}
   .cartelera__chips{flex-wrap:nowrap;overflow-x:auto;padding-right:28px;scrollbar-width:thin}
   .cartelera__chips .chip{flex:0 0 auto}
-  .cartelera-pasos{grid-template-columns:minmax(0,1fr);gap:clamp(28px,6vw,40px)}
+  .cartelera-rol{grid-template-columns:minmax(0,1fr);gap:clamp(28px,6vw,40px)}
+  .cartelera-motivos__fila{grid-template-columns:minmax(0,1fr);gap:8px;align-items:start}
 }
 @media(max-width:520px){
   .cartelera-buscar__fila{flex-wrap:wrap}
   .cartelera-buscar input{flex:1 1 100%}
   .cartelera-buscar .btn{width:100%}
   .cartelera-cierre{grid-template-columns:minmax(0,1fr);text-align:left}
-  .cartelera-cierre__mascota{height:clamp(110px,34vw,160px)}
+  .cartelera-cierre__mascota{height:clamp(160px,48vw,220px);margin-top:clamp(-120px,-22vw,-56px)}
   .cartelera__avisos{gap:14px}
   .cartelera__enlace{padding:8px 8px 12px}
   .cartelera__precio{font-size:.92rem}

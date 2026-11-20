@@ -579,10 +579,18 @@ function vistaLanding() {
   } }, 'Ver todo el catálogo');
 
   const secciones = [];
-  const seccion = (...nodos) => {
-    const s = h('section', { class: 'cartelera-seccion' }, h('div', { class: 'cartelera-ancho' }, ...nodos));
+  const seccion = (clase, ...nodos) => {
+    const s = h('section', { class: 'cartelera-seccion' + (clase ? ' ' + clase : '') }, h('div', { class: 'cartelera-ancho' }, ...nodos));
     secciones.push(s);
     return s;
+  };
+
+  // Cada frase se parte exactamente en "Aquí": el texto no cambia, solo se reparte en dos columnas.
+  const filaMotivo = (frase) => {
+    const corte = frase.indexOf('Aquí');
+    return h('li', { class: 'cartelera-motivos__fila' },
+      h('span', { class: 'cartelera-motivos__grupo' }, frase.slice(0, corte)),
+      h('span', { class: 'cartelera-motivos__aqui' }, frase.slice(corte)));
   };
 
   const raizLanding = h('div', { class: 'cartelera' },
@@ -599,22 +607,26 @@ function vistaLanding() {
           cuenta),
         tablero,
         h('p', { class: 'cartelera-tablero__pie' }, verTodo))),
-    seccion(
+    seccion('cartelera-como',
       h('h2', {}, 'Así funciona'),
-      h('div', { class: 'cartelera-pasos' },
-        h('div', {},
+      h('div', { class: 'cartelera-rol' },
+        h('article', { class: 'cartelera-rol__aviso' },
+          h('span', { class: 'cartelera-rol__chincheta', 'aria-hidden': 'true' }),
+          h('span', { class: 'cartelera-rol__tab cartelera-rol__tab--gratis' }, 'Gratis'),
           h('h3', {}, 'Si buscas algo'),
           h('p', {}, 'Buscar es gratis. Filtra por categoría, precio o estado, abre el aviso y escríbele al vendedor por WhatsApp o correo. La compra la acuerdan entre ustedes.')),
-        h('div', {},
+        h('article', { class: 'cartelera-rol__aviso' },
+          h('span', { class: 'cartelera-rol__chincheta', 'aria-hidden': 'true' }),
+          h('span', { class: 'cartelera-rol__tab' }, '$3.000'),
           h('h3', {}, 'Si vendes algo'),
           h('p', {}, 'Publicar cuesta $3.000 por aviso (por ahora el pago es simulado). Tu aviso queda visible hasta que lo marques como vendido, y ves cuántas personas lo abrieron.')))),
-    seccion(
+    seccion('cartelera-porque',
       h('h2', {}, 'Por qué no el grupo de WhatsApp'),
       h('ul', { class: 'cartelera-motivos' },
-        h('li', {}, 'En el grupo, tu oferta se hunde entre saludos y memes en pocas horas. Aquí se queda hasta que la vendas.'),
-        h('li', {}, 'En el grupo no hay categorías. Aquí buscas por categoría, precio o palabra.'),
-        h('li', {}, 'En el grupo tienes que preguntar si alguien vende algo. Aquí lo buscas tú, cuando quieras.'))),
-    seccion(
+        filaMotivo('En el grupo, tu oferta se hunde entre saludos y memes en pocas horas. Aquí se queda hasta que la vendas.'),
+        filaMotivo('En el grupo no hay categorías. Aquí buscas por categoría, precio o palabra.'),
+        filaMotivo('En el grupo tienes que preguntar si alguien vende algo. Aquí lo buscas tú, cuando quieras.'))),
+    seccion('cartelera-final',
       h('div', { class: 'cartelera-cierre' },
         h('img', { class: 'cartelera-cierre__mascota', src: 'public/mascota-upmarket.png', alt: '', width: 241, height: 360, loading: 'lazy', 'aria-hidden': 'true' }),
         h('div', { class: 'cartelera-cierre__texto' },
