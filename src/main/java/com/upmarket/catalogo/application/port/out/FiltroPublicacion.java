@@ -1,6 +1,7 @@
 package com.upmarket.catalogo.application.port.out;
 
 import com.upmarket.catalogo.domain.model.EstadoArticulo;
+import com.upmarket.catalogo.domain.model.EstadoPago;
 import com.upmarket.catalogo.domain.model.EstadoPublicacion;
 import java.math.BigDecimal;
 
@@ -11,5 +12,6 @@ public record FiltroPublicacion(
         BigDecimal precioMax,
         EstadoArticulo estadoArticulo,
         EstadoPublicacion estado,
-        String vendedor) {
+        String vendedor,
+        EstadoPago estadoPago) {
 }

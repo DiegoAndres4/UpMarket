@@ -15,5 +15,8 @@ public interface PublicacionRepositoryPort {
 
     List<Publicacion> buscar(FiltroPublicacion filtro);
 
+    /** Incremento atómico del contador de vistas; no debe ser leer-modificar-escribir. */
+    void incrementarVistas(long id);
+
     Map<String, Long> contarDisponiblesPorCategoria();
 }

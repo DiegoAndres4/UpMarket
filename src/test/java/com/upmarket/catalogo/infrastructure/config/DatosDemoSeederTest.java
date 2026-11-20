@@ -70,6 +70,6 @@ class DatosDemoSeederTest {
     }
 
     private static FiltroPublicacion filtro() {
-        return new FiltroPublicacion(null, null, null, null, null, null, null);
+        return new FiltroPublicacion(null, null, null, null, null, null, null, null);
     }
 }

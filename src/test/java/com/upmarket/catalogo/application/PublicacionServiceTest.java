@@ -79,8 +79,7 @@ class PublicacionServiceTest {
         e.pasar(Duration.ofMinutes(5));
         e.publicar("jose", "Cálculo de Stewart", "Libro de cálculo, séptima edición", "80000", "Libros");
         e.pasar(Duration.ofMinutes(5));
-        e.publicacionService.publicar(Datos.estudiante("ana"),
-                e.comando("Portátil Lenovo", "Core i5, 8 GB, ideal para programar", "900000", "nuevo", "Tecnología"));
+        e.publicar("ana", "Portátil Lenovo", "Core i5, 8 GB, ideal para programar", "900000", "nuevo", "Tecnología");
     }
 
     @Test
@@ -141,12 +140,12 @@ class PublicacionServiceTest {
     @DisplayName("Detalle sin contacto; contacto en acción aparte; inexistente 404")
     void detalleYContacto() {
         Publicacion p = e.publicar("maria", "Calculadora", "Casio fx-991 casi nueva", "50000", "Tecnología");
-        assertEquals("Calculadora", e.publicacionService.detalle(p.getId()).getTitulo());
-        Contacto c = e.publicacionService.contacto(p.getId());
+        assertEquals("Calculadora", e.publicacionService.detalle(Datos.estudiante("maria"), p.getId()).getTitulo());
+        Contacto c = e.publicacionService.contacto(Datos.estudiante("maria"), p.getId());
         assertEquals("3001234567", c.whatsapp());
         assertEquals("maria@correo.com", c.correo());
-        assertThrows(PublicacionNoEncontradaException.class, () -> e.publicacionService.detalle(999));
-        assertThrows(PublicacionNoEncontradaException.class, () -> e.publicacionService.contacto(999));
+        assertThrows(PublicacionNoEncontradaException.class, () -> e.publicacionService.detalle(Datos.estudiante("maria"), 999));
+        assertThrows(PublicacionNoEncontradaException.class, () -> e.publicacionService.contacto(Datos.estudiante("maria"), 999));
     }
 
     @Test
@@ -154,8 +153,8 @@ class PublicacionServiceTest {
     void vendidaSinContacto() {
         Publicacion p = e.publicar("maria", "Calculadora", "Casio fx-991 casi nueva", "50000", "Tecnología");
         e.publicacionService.marcarVendida(Datos.estudiante("maria"), p.getId());
-        assertEquals(EstadoPublicacion.VENDIDA, e.publicacionService.detalle(p.getId()).getEstado());
-        assertThrows(EstadoInvalidoException.class, () -> e.publicacionService.contacto(p.getId()));
+        assertEquals(EstadoPublicacion.VENDIDA, e.publicacionService.detalle(Datos.estudiante("maria"), p.getId()).getEstado());
+        assertThrows(EstadoInvalidoException.class, () -> e.publicacionService.contacto(Datos.estudiante("maria"), p.getId()));
     }
 
     // ---- HU-12 ----
@@ -183,7 +182,7 @@ class PublicacionServiceTest {
                 new EditarPublicacionCommand(999, "Calculadora", "Descripción nueva", "45000", "usado", "Tecnología")));
         assertThrows(ValorInvalidoException.class, () -> e.publicacionService.editar(Datos.estudiante("maria"),
                 new EditarPublicacionCommand(p.getId(), "Calculadora", "Descripción nueva", "0", "usado", "Tecnología")));
-        assertEquals("Casio fx-991 casi nueva", e.publicacionService.detalle(p.getId()).getDescripcion());
+        assertEquals("Casio fx-991 casi nueva", e.publicacionService.detalle(Datos.estudiante("maria"), p.getId()).getDescripcion());
         e.publicacionService.marcarVendida(Datos.estudiante("maria"), p.getId());
         assertThrows(EstadoInvalidoException.class, () -> e.publicacionService.editar(Datos.estudiante("maria"), cmd));
     }
@@ -207,12 +206,63 @@ class PublicacionServiceTest {
         Publicacion p = e.publicar("maria", "Calculadora", "Casio fx-991 casi nueva", "50000", "Tecnología");
         assertThrows(AccesoDenegadoException.class, () -> e.publicacionService.eliminar(Datos.estudiante("jose"), p.getId()));
         e.publicacionService.eliminar(e.admin(), p.getId());
-        assertThrows(PublicacionNoEncontradaException.class, () -> e.publicacionService.detalle(p.getId()));
+        assertThrows(PublicacionNoEncontradaException.class, () -> e.publicacionService.detalle(e.admin(), p.getId()));
 
         Publicacion propia = e.publicar("maria", "Cálculo", "Séptima edición", "80000", "Libros");
         e.publicacionService.eliminar(Datos.estudiante("maria"), propia.getId());
         assertEquals(0, e.publicacionService.buscar(BuscarQuery.sinFiltros()).size());
         assertThrows(PublicacionNoEncontradaException.class, () -> e.publicacionService.eliminar(Datos.estudiante("maria"), propia.getId()));
+    }
+
+    @Test
+    @DisplayName("Una publicación pendiente de pago no aparece en el catálogo, pero su autor la ve en las suyas")
+    void publicacionPendienteNoEsPublica() {
+        Publicacion p = e.publicarPendiente("maria", "Calculadora", "Casio fx-991 casi nueva", "50000", "Tecnología");
+
+        assertEquals(EstadoPago.PENDIENTE, p.getEstadoPago());
+        assertEquals(0, e.publicacionService.buscar(BuscarQuery.sinFiltros()).size());
+        assertEquals(1, e.publicacionService.mias(Datos.estudiante("maria")).size());
+        assertThrows(PublicacionNoEncontradaException.class,
+                () -> e.publicacionService.detalle(Datos.estudiante("jose"), p.getId()));
+        assertEquals("Calculadora", e.publicacionService.detalle(Datos.estudiante("maria"), p.getId()).getTitulo());
+    }
+
+    @Test
+    @DisplayName("Solo el autor paga y el pago aprobado activa la publicación")
+    void soloElAutorPagaYActivaLaPublicacion() {
+        Publicacion p = e.publicarPendiente("maria", "Calculadora", "Casio fx-991 casi nueva", "50000", "Tecnología");
+
+        assertThrows(AccesoDenegadoException.class, () -> e.pagar("jose", p.getId()));
+        assertThrows(AccesoDenegadoException.class, () -> e.pagoService.pagar(e.admin(), p.getId()));
+
+        Pago pago = e.pagar("maria", p.getId());
+        assertEquals(EstadoPago.APROBADO, pago.getEstado());
+        assertEquals(new BigDecimal("3000.00"), pago.getMonto());
+        assertTrue(pago.getReferencia().startsWith("SIM-"));
+        assertEquals(EstadoPago.APROBADO, e.publicacionService.detalle(Datos.estudiante("maria"), p.getId()).getEstadoPago());
+        assertEquals(1, e.publicacionService.buscar(BuscarQuery.sinFiltros()).size());
+    }
+
+    @Test
+    @DisplayName("No se puede cobrar dos veces la misma publicación")
+    void noSePuedePagarDosVeces() {
+        Publicacion p = e.publicarPendiente("maria", "Calculadora", "Casio fx-991 casi nueva", "50000", "Tecnología");
+        e.pagar("maria", p.getId());
+
+        EstadoInvalidoException error = assertThrows(EstadoInvalidoException.class, () -> e.pagar("maria", p.getId()));
+        assertTrue(error.getMessage().contains("ya está pagada"));
+    }
+
+    @Test
+    @DisplayName("Ver el detalle suma una vista salvo para el autor; el administrador también suma")
+    void detalleSumaVistasSalvoAlAutor() {
+        Publicacion p = e.publicar("maria", "Calculadora", "Casio fx-991 casi nueva", "50000", "Tecnología");
+
+        assertEquals(1, e.publicacionService.detalle(Datos.estudiante("jose"), p.getId()).getVistas());
+        assertEquals(2, e.publicacionService.detalle(Datos.estudiante("jose"), p.getId()).getVistas());
+        assertEquals(2, e.publicacionService.detalle(Datos.estudiante("maria"), p.getId()).getVistas());
+        assertEquals(3, e.publicacionService.detalle(e.admin(), p.getId()).getVistas());
+        assertEquals(3, e.publicacionService.mias(Datos.estudiante("maria")).get(0).getVistas());
     }
 
     @Test

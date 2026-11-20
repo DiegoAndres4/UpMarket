@@ -61,22 +61,29 @@ public class PublicacionService implements PublicacionUseCase {
                 : categorias.buscarPorClave(Categoria.claveDe(q.categoria())).map(Categoria::getNombre).orElse(null);
         if (!vacio(q.categoria()) && categoria == null) return List.of();          // categoría desconocida: nada que mostrar
         return publicaciones.buscar(new FiltroPublicacion(texto, categoria, min, max, estado,
-                EstadoPublicacion.DISPONIBLE, null));
+                EstadoPublicacion.DISPONIBLE, null, EstadoPago.APROBADO));
     }
 
     @Override
-    public Publicacion detalle(long id) {
-        return cargar(id);
+    public Publicacion detalle(Actor actor, long id) {
+        return transaccion.ejecutar(() -> {
+            Publicacion p = cargarVisible(actor, id);
+            if (!acceso.esAutor(p, actor)) {
+                publicaciones.incrementarVistas(id);
+                p = cargar(id);
+            }
+            return p;
+        });
     }
 
     @Override
-    public Contacto contacto(long id) {
-        return cargar(id).contactoDisponible();
+    public Contacto contacto(Actor actor, long id) {
+        return cargarVisible(actor, id).contactoDisponible();
     }
 
     @Override
     public List<Publicacion> mias(Actor actor) {
-        return publicaciones.buscar(new FiltroPublicacion(null, null, null, null, null, null, actor.username()));
+        return publicaciones.buscar(new FiltroPublicacion(null, null, null, null, null, null, actor.username(), null));
     }
 
     @Override
@@ -115,6 +122,15 @@ public class PublicacionService implements PublicacionUseCase {
 
     private Publicacion cargar(long id) {
         return publicaciones.buscarPorId(id).orElseThrow(() -> new PublicacionNoEncontradaException(id));
+    }
+
+    /** Una publicación sin pago aprobado solo existe para su autor y para el administrador. */
+    private Publicacion cargarVisible(Actor actor, long id) {
+        Publicacion p = cargar(id);
+        if (!p.estaPagada() && !acceso.esAutor(p, actor) && !actor.esAdmin()) {
+            throw new PublicacionNoEncontradaException(id);
+        }
+        return p;
     }
 
     private Categoria cargarCategoria(String nombre) {

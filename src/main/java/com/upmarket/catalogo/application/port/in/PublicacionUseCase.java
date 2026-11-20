@@ -13,10 +13,10 @@ public interface PublicacionUseCase {
 
     List<Publicacion> buscar(BuscarQuery consulta);
 
-    Publicacion detalle(long id);
+    Publicacion detalle(Actor actor, long id);
 
     /** «Contactar al vendedor»: entrega el contacto de una publicación disponible. */
-    Contacto contacto(long id);
+    Contacto contacto(Actor actor, long id);
 
     /** Todas las del usuario, vendidas incluidas, de la más reciente a la más antigua. */
     List<Publicacion> mias(Actor actor);

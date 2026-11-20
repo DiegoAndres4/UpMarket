@@ -155,6 +155,7 @@ const rutas = [
   [/^#\/publicar$/, () => vistaFormulario(null)], [/^#\/mias$/, vistaMias], [/^#\/categorias$/, vistaCategorias],
   [/^#\/perfil$/, vistaPerfil],
   [/^#\/vendedor\/(.+)$/, (m) => vistaVendedor(decodeURIComponent(m[1]))],
+  [/^#\/pagar\/(\d+)$/, (m) => vistaPago(m[1])],
   [/^#\/p\/(\d+)$/, (m) => vistaDetalle(m[1])], [/^#\/editar\/(\d+)$/, (m) => vistaFormulario(m[1])],
 ];
 const TITULOS = {
@@ -162,6 +163,7 @@ const TITULOS = {
   '#/mias': 'Mis publicaciones', '#/categorias': 'Categorías', '#/perfil': 'Mi perfil',
 };
 function tituloDe(hash) {
+  if (/^#\/pagar\//.test(hash)) return 'Pagar publicación';
   if (/^#\/p\//.test(hash)) return 'Detalle de publicación';
   if (/^#\/editar\//.test(hash)) return 'Editar publicación';
   if (/^#\/vendedor\//.test(hash)) return 'Vendedor';
@@ -512,6 +514,26 @@ async function vistaCatalogo() {
   await buscar();
 }
 
+/* ---------- pago de publicación (modelo de negocio) ---------- */
+async function vistaPago(id) {
+  const p = await api('GET', '/api/publicaciones/' + id);
+  document.title = 'Pagar publicación · UPMarket';
+  if (p.estadoPago === 'APROBADO') { location.hash = '#/p/' + id; return; }
+  montar(
+    h('a', { class: 'volver', href: '#/mias' }, '← Volver a mis publicaciones'),
+    h('h1', {}, 'Pagar publicación'),
+    h('div', { class: 'panel' },
+      h('p', {}, 'Publicar cuesta $3.000 (pago simulado).'),
+      h('p', { class: 'detalle-precio' }, precio(3000)),
+      h('p', { class: 'sub' }, '«' + p.titulo + '» quedará visible en el catálogo apenas se apruebe el pago.'),
+      h('button', { class: 'btn', type: 'button', onclick: (ev) => {
+        const boton = ev.currentTarget;
+        boton.disabled = true;
+        accion(() => api('POST', `/api/publicaciones/${id}/pago`), 'Pago aprobado', () => { location.hash = '#/p/' + id; })
+          .finally(() => { if (boton.isConnected) boton.disabled = false; });
+      } }, 'Pagar')));
+}
+
 /* ---------- detalle y contacto (HU-11) ---------- */
 async function vistaDetalle(id) {
   const p = await api('GET', '/api/publicaciones/' + id);
@@ -622,6 +644,13 @@ async function vistaDetalle(id) {
     h('p', {}, 'El vendedor ya no recibe consultas por este artículo.'));
 
   /* El autor gestiona (editar, vender, borrar); el ADMIN solo modera: puede borrar lo ajeno. */
+  const pagoPendiente = esMia && p.estadoPago === 'PENDIENTE'
+    ? h('div', { class: 'estado-vendido', role: 'status' },
+        h('strong', {}, 'Pendiente de pago'),
+        h('p', {}, 'Publicar cuesta $3.000 (pago simulado).'),
+        h('button', { class: 'btn', type: 'button', onclick: () => accion(() => api('POST', `/api/publicaciones/${id}/pago`), 'Pago aprobado', () => vistaDetalle(id)) }, 'Pagar'))
+    : null;
+
   const acciones = (esMia || esAdmin) ? h('div', { class: 'acciones' },
     esMia && disponible ? h('a', { class: 'btn', href: '#/editar/' + id }, 'Editar') : null,
     esMia && disponible ? h('button', { class: 'btn sec', onclick: () => accion(() => api('POST', `/api/publicaciones/${id}/sold`), 'Marcada como vendida', () => vistaDetalle(id)) }, 'Marcar como vendido') : null,
@@ -639,6 +668,7 @@ async function vistaDetalle(id) {
         h('div', { class: 'etiquetas' },
           h('span', { class: 'etiqueta' + (p.estadoArticulo === 'USADO' ? ' usado' : '') }, p.estadoArticulo === 'USADO' ? 'Usado' : 'Nuevo'),
           h('span', { class: 'etiqueta cat' }, p.categoria),
+          p.vistas != null ? h('span', { class: 'etiqueta' }, '👁 ' + p.vistas + ' vistas') : null,
           disponible ? null : h('span', { class: 'etiqueta vendida' }, 'Vendido'))),
       h('div', { class: 'detalle-precio' + (disponible ? '' : ' vendido') }, precio(p.precio))),
     h('div', { class: 'detalle' },
@@ -650,7 +680,7 @@ async function vistaDetalle(id) {
         h('div', { class: 'vendedor' }, avatarVendedor,
           h('div', {}, h('strong', {}, nombreVendedor), resumenVendedor,
             h('div', { class: 'meta' }, 'Publicado el ' + fecha(p.publicadaEn)))),
-        btnContacto, zonaContacto, zonaResena, estadoVendido, acciones)));
+        btnContacto, zonaContacto, zonaResena, estadoVendido, pagoPendiente, acciones)));
 }
 
 /* ---------- reseñas del vendedor ---------- */
@@ -960,7 +990,7 @@ async function vistaFormulario(id) {
       else {
         const nueva = await api('POST', '/api/publicaciones', { ...base, fotos,
           whatsapp: usarTel.checked ? telParaApi(tel.value) : null, correo: usarMail.checked ? mail.value.trim() : null });
-        aviso('¡Publicación creada!'); location.hash = '#/p/' + nueva.id;
+        aviso('¡Publicación creada!'); location.hash = '#/pagar/' + nueva.id;
       }
     } catch (e) { mostrar(e.message); }
     finally { boton.disabled = false; boton.removeAttribute('aria-busy'); boton.textContent = etiquetaBoton; }
@@ -1022,8 +1052,12 @@ function filaMia(p) {
           [p.categoria, p.estadoArticulo === 'USADO' ? 'Usado' : 'Nuevo', cuando].join(' · ')))),
     h('div', { class: 'mias-fila__cifras' },
       h('span', { class: 'mias-fila__precio' }, precio(p.precio)),
-      h('span', { class: 'etiqueta' + (vendida ? ' vendida' : '') }, vendida ? 'Vendida' : 'Disponible')),
+      h('span', { class: 'etiqueta' + (vendida ? ' vendida' : '') }, vendida ? 'Vendida' : 'Disponible'),
+      p.vistas != null ? h('span', { class: 'etiqueta' }, '👁 ' + p.vistas + ' vistas') : null,
+      p.estadoPago === 'PENDIENTE' ? h('span', { class: 'etiqueta' }, 'Pendiente de pago') : null),
     h('div', { class: 'mias-fila__acciones' },
+      p.estadoPago === 'PENDIENTE' ? h('button', { class: 'btn-mini', type: 'button', 'aria-label': 'Pagar ' + p.titulo,
+        onclick: () => accion(() => api('POST', `/api/publicaciones/${p.id}/pago`), 'Pago aprobado', () => vistaMias(true)) }, 'Pagar') : null,
       h('button', { class: 'btn-mini', type: 'button', 'aria-label': 'Editar ' + p.titulo, onclick: () => { location.hash = '#/editar/' + p.id; } }, 'Editar'),
       vendida ? null : h('button', { class: 'btn-mini', type: 'button', 'aria-label': 'Marcar como vendida ' + p.titulo,
         onclick: (ev) => { const boton = ev.currentTarget; boton.disabled = true;

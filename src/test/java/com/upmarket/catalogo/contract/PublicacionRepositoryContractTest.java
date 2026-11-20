@@ -17,14 +17,16 @@ public abstract class PublicacionRepositoryContractTest {
     protected abstract PublicacionRepositoryPort repo();
 
     private Publicacion guardar(String vendedor, String titulo, String descripcion, String precio, String categoria, long minutos) {
-        return repo().guardar(Publicacion.publicar(titulo, descripcion, precio, EstadoArticulo.USADO, Datos.categoria(categoria),
-                List.of(Datos.foto("a"), Datos.foto("b")), Datos.contacto(), vendedor, Datos.AHORA.plus(Duration.ofMinutes(minutos))));
+        Publicacion p = Publicacion.publicar(titulo, descripcion, precio, EstadoArticulo.USADO, Datos.categoria(categoria),
+                List.of(Datos.foto("a"), Datos.foto("b")), Datos.contacto(), vendedor, Datos.AHORA.plus(Duration.ofMinutes(minutos)));
+        p.activarPago();
+        return repo().guardar(p);
     }
 
     private static FiltroPublicacion filtro(String texto, String categoria, String min, String max, EstadoArticulo ea,
                                             EstadoPublicacion estado, String vendedor) {
         return new FiltroPublicacion(texto, categoria, min == null ? null : new BigDecimal(min), max == null ? null : new BigDecimal(max),
-                ea, estado, vendedor);
+                ea, estado, vendedor, null);
     }
 
     @Test
@@ -41,11 +43,21 @@ public abstract class PublicacionRepositoryContractTest {
         assertEquals(Datos.AHORA, r.getPublicadaEn());
         assertEquals(EstadoPublicacion.DISPONIBLE, r.getEstado());
         assertNull(r.getVendidaEn());
+        assertEquals(EstadoPago.PENDIENTE, r.getEstadoPago());
+        assertEquals(0L, r.getVistas());
         assertEquals("3001234567", r.getContacto().whatsapp());
         assertEquals("maria@correo.com", r.getContacto().correo());
         assertEquals(1, r.getFotos().size());
         assertEquals("image/jpeg", r.getFotos().get(0).tipo());
         assertEquals(200_000, r.getFotos().get(0).tamanoBytes());
+    }
+
+    @Test
+    void incrementaLasVistasDeFormaPersistente() {
+        Publicacion g = guardar("maria", "Calculadora", "Casio fx-991", "50000", "Tecnología", 0);
+        repo().incrementarVistas(g.getId());
+        repo().incrementarVistas(g.getId());
+        assertEquals(2L, repo().buscarPorId(g.getId()).orElseThrow().getVistas());
     }
 
     @Test

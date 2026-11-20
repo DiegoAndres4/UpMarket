@@ -66,6 +66,10 @@ Content-Type: application/json
 
 { "titulo": "Calculadora científica Casio", "descripcion": "Con funda y manual", "precio": "45000", "estado": "USADO", "categoria": "Tecnología" }
 
+### Modelo de negocio: pagar la publicación (solo el autor; 409 si ya está pagada)
+POST {{host}}/api/publicaciones/1/pago
+Authorization: Bearer {{tokenVendedor}}
+
 ### HU-12: marcar como vendido (sale de las búsquedas)
 POST {{host}}/api/publicaciones/1/sold
 Authorization: Bearer {{tokenVendedor}}

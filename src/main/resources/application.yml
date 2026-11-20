@@ -51,5 +51,8 @@ cors:
   origenes: ${CORS_ORIGENES:}
 
 upmarket:
+  publicacion:
+    # Tarifa en COP para publicar. El cobro real es simulado; una pasarela real se enchufa detrás de PasarelaPagoPort.
+    tarifa: ${UPMARKET_TARIFA_PUBLICACION:3000}
   seed:
     enabled: ${UPMARKET_SEED_ENABLED:false}

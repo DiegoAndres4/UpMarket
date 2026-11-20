@@ -162,6 +162,7 @@ public class DatosDemoSeeder implements ApplicationRunner {
             Publicacion publicacion = Publicacion.publicar(semilla.titulo(), semilla.descripcion(),
                     semilla.precio(), semilla.estadoArticulo(), categoria(semilla.categoria()),
                     foto(semilla.categoria()), contacto, semilla.vendedor(), publicadaEn);
+            publicacion.activarPago();
             if (semilla.vendida()) {
                 publicacion.marcarVendida(publicadaEn.plus(Duration.ofHours(2)));
             }
@@ -188,7 +189,7 @@ public class DatosDemoSeeder implements ApplicationRunner {
     }
 
     private static FiltroPublicacion filtroDe(String vendedor) {
-        return new FiltroPublicacion(null, null, null, null, null, null, vendedor);
+        return new FiltroPublicacion(null, null, null, null, null, null, vendedor, null);
     }
 
     private static int colorDe(String categoria) {

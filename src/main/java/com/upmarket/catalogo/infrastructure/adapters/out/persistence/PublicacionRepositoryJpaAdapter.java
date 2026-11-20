@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 public class PublicacionRepositoryJpaAdapter implements PublicacionRepositoryPort {
@@ -41,7 +42,13 @@ public class PublicacionRepositoryJpaAdapter implements PublicacionRepositoryPor
     public List<Publicacion> buscar(FiltroPublicacion f) {
         String patron = f.texto() == null ? null : "%" + escaparLike(f.texto()) + "%";
         return jpa.buscar(patron, f.categoria(), f.precioMin(), f.precioMax(), f.estadoArticulo(), f.estado(),
-                f.vendedor()).stream().map(PublicacionJpaEntity::aDominio).toList();
+                f.vendedor(), f.estadoPago()).stream().map(PublicacionJpaEntity::aDominio).toList();
+    }
+
+    @Override
+    @Transactional
+    public void incrementarVistas(long id) {
+        jpa.incrementarVistas(id);
     }
 
     @Override

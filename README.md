@@ -31,9 +31,9 @@ Paquete base: `com.upmarket.catalogo` · Java 17 · Spring Boot 3.5.6 · Maven �
 |---|---|
 | Frontend | Probado de punta a punta en navegador (Playwright) contra un servidor simulado: registro, publicar con foto, detalle, contacto, vender, buscar |
 | Subida de fotos (`/api/fotos`), CORS opcional, perfil prod | Compilados y cubiertos por `mvn verify` (REST de punta a punta) |
-| Dominio + aplicación | Compilado y probado: incluidas en las **96 pruebas** de `mvn verify` |
+| Dominio + aplicación | Compilado y probado: incluidas en las **128 pruebas** de `mvn verify` |
 | Infraestructura (Spring, JPA, REST, seguridad) | Compilada y ejecutada: `mvn verify` en verde |
-| Pruebas Spring (contrato JPA, unicidad de categoría, REST de punta a punta, arquitectura, JWT) | **96 pruebas, 0 fallos, 0 omitidas** con `mvn verify` |
+| Pruebas Spring (contrato JPA, unicidad de categoría, REST de punta a punta, arquitectura, JWT) | **128 pruebas, 0 fallos, 0 omitidas** con `mvn verify` |
 
 ## Arquitectura (hexagonal)
 
@@ -58,6 +58,7 @@ Los repositorios tienen una prueba de contrato (`contract/`) que se ejecuta cont
 | HU-11 | Ver el detalle y contactar al vendedor | `PublicacionService.detalle/contacto`, `GET /api/publicaciones/{id}` y `/contacto` |
 | HU-12 | Editar, marcar como vendido, eliminar y ver mis publicaciones | `PublicacionService`, `PUT/DELETE /api/publicaciones/{id}`, `POST .../sold`, `GET .../mias` |
 | HU-13 | Reseñar al vendedor con comentario y 0–5 estrellas | `ResenaService`, `Resena`, `POST/GET /api/perfil/{usuario}/resenas` |
+| Modelo de negocio | Publicar cuesta 3.000 COP (pago simulado) y el vendedor ve las visitas de su publicación | `PagoService`, `Pago`, `PasarelaPagoPort`, `POST /api/publicaciones/{id}/pago` |
 
 ## Ejecutar
 
@@ -110,7 +111,8 @@ El entorno de desarrollo siembra datos de demostración al arrancar el dominio: 
 | `POST /api/publicaciones` | autenticado | 201 · 400 (lista todos los faltantes) · 404 (categoría) |
 | `GET /api/publicaciones?texto&categoria&precioMin&precioMax&estado` | autenticado | 200 (solo disponibles, más recientes primero) · 400 |
 | `GET /api/publicaciones/mias` | autenticado | 200 (todas las propias, vendidas incluidas) |
-| `GET /api/publicaciones/{id}` | autenticado | 200 (sin contacto) · 404 |
+| `POST /api/publicaciones/{id}/pago` | solo el autor | 200 con estado y referencia del pago simulado · 403 · 404 · 409 (ya pagada) |
+| `GET /api/publicaciones/{id}` | autenticado | 200 (sin contacto; `vistas` solo para el autor o ADMIN) · 404 (también si está pendiente de pago y no es el autor) |
 | `GET /api/publicaciones/{id}/contacto` | autenticado | 200 · 404 · 409 (ya vendida) |
 | `PUT /api/publicaciones/{id}` | solo el autor | 200 · 400 · 403 · 404 · 409 (vendida) |
 | `POST /api/publicaciones/{id}/sold` | solo el autor | 200 · 403 · 404 · 409 (ya vendida) |
@@ -126,7 +128,8 @@ El entorno de desarrollo siembra datos de demostración al arrancar el dominio: 
 ## Reglas de negocio clave
 
 - Roles: **USER = estudiante**, **ADMIN = administrador**. Solo el ADMIN crea categorías. Editar y vender son **solo del autor**; **eliminar** lo permite el autor o un **ADMIN**, que modera el catálogo (puede borrar publicaciones ajenas, pero no editarlas ni marcarlas como vendidas).
-- El vendedor sale del token, nunca del cuerpo. La publicación nace `DISPONIBLE`; al venderla pasa a `VENDIDA` (ya no se edita ni se contacta).
+- El vendedor sale del token, nunca del cuerpo. La publicación nace `DISPONIBLE` pero `PENDIENTE` de pago: no aparece en búsquedas ni en el detalle de otras personas hasta que el autor paga la tarifa de 3.000 COP. El pago es simulado (`SIM-…`), solo lo puede hacer el autor y no se puede cobrar dos veces. Al venderla pasa a `VENDIDA` (ya no se edita ni se contacta).
+- Vistas: cada `GET /api/publicaciones/{id}` de una persona distinta del autor suma una vista de forma atómica (`vistas = vistas + 1`). El contador solo se devuelve al autor y al ADMIN, en el detalle y en «Mis publicaciones».
 - Precio: número mayor que cero, hasta 999 999 999.99, dos decimales; llega como texto y lo valida el dominio. Título 3–100 y descripción 5–2000 caracteres.
 - Fotos: hasta 5 por publicación, JPG o PNG, máximo 5 MB. El archivo se sube primero a `POST /api/fotos` (se valida por su **contenido**, no por el nombre ni el `Content-Type`) y la `url` que devuelve se envía en `fotos` al publicar. Se guardan en disco (`FOTOS_DIR`; en Docker, el volumen `fotos-data`). Con más usuarios convendría pasarlas a S3 detrás de un puerto de salida.
 - Contacto: celular colombiano y/o correo (al menos uno). Celular válido = 10 dígitos que empiezan por 3, con 57 o +57 opcional; el vendedor elige qué medios publica.

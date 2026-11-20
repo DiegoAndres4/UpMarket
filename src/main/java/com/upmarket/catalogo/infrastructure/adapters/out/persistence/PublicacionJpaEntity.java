@@ -2,6 +2,7 @@ package com.upmarket.catalogo.infrastructure.adapters.out.persistence;
 
 import com.upmarket.catalogo.domain.model.Contacto;
 import com.upmarket.catalogo.domain.model.EstadoArticulo;
+import com.upmarket.catalogo.domain.model.EstadoPago;
 import com.upmarket.catalogo.domain.model.EstadoPublicacion;
 import com.upmarket.catalogo.domain.model.Foto;
 import com.upmarket.catalogo.domain.model.Publicacion;
@@ -78,6 +79,13 @@ public class PublicacionJpaEntity {
     @Column(name = "vendida_en")
     private Instant vendidaEn;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estado_pago", nullable = false, length = 20)
+    private EstadoPago estadoPago;
+
+    @Column(nullable = false)
+    private long vistas;
+
     protected PublicacionJpaEntity() {
     }
 
@@ -98,11 +106,13 @@ public class PublicacionJpaEntity {
         this.publicadaEn = p.getPublicadaEn();
         this.estado = p.getEstado();
         this.vendidaEn = p.getVendidaEn();
+        this.estadoPago = p.getEstadoPago();
+        this.vistas = p.getVistas();
     }
 
     public Publicacion aDominio() {
         List<Foto> listaFotos = fotos.stream().map(FotoEmbeddable::aDominio).toList();
         return Publicacion.reconstruir(id, titulo, descripcion, precio, estadoArticulo, categoria, listaFotos,
-                Contacto.rehidratar(whatsapp, correo), vendedor, publicadaEn, estado, vendidaEn);
+                Contacto.rehidratar(whatsapp, correo), vendedor, publicadaEn, estado, vendidaEn, estadoPago, vistas);
     }
 }

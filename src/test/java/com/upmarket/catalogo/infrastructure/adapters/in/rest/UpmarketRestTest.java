@@ -75,8 +75,16 @@ class UpmarketRestTest {
                 + "\"whatsapp\":\"3001234567\",\"correo\":\"vendedor@correo.com\"}";
     }
 
-    /** Publica como {@code quien} y devuelve el id. */
+    /** Publica como {@code quien}, paga la tarifa y devuelve el id. */
     private long publicar(String quien, String titulo, String precio, String categoria) throws Exception {
+        long id = publicarPendiente(quien, titulo, precio, categoria);
+        mvc.perform(con(post("/api/publicaciones/" + id + "/pago"), estudiante(quien), null))
+                .andExpect(status().isOk());
+        return id;
+    }
+
+    /** Publica como {@code quien} sin pagar: queda pendiente y oculta del catálogo. */
+    private long publicarPendiente(String quien, String titulo, String precio, String categoria) throws Exception {
         String cuerpo = mvc.perform(con(post("/api/publicaciones"), estudiante(quien), json(titulo, precio, categoria)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         return ((Number) JsonPath.read(cuerpo, "$.id")).longValue();
@@ -114,6 +122,8 @@ class UpmarketRestTest {
                 .andExpect(jsonPath("$.vendedor").value("maria"))
                 .andExpect(jsonPath("$.categoria").value("Tecnología"))
                 .andExpect(jsonPath("$.estadoPublicacion").value("DISPONIBLE"))
+                .andExpect(jsonPath("$.estadoPago").value("PENDIENTE"))
+                .andExpect(jsonPath("$.vistas").doesNotExist())
                 .andExpect(jsonPath("$.contacto").doesNotExist());
         mvc.perform(con(post("/api/publicaciones"), estudiante("maria"), "{\"whatsapp\":\"3001234567\"}"))
                 .andExpect(status().isBadRequest())
@@ -182,6 +192,45 @@ class UpmarketRestTest {
         mvc.perform(con(delete("/api/publicaciones/" + id), estudiante("maria"), null)).andExpect(status().isNoContent());
         mvc.perform(con(get("/api/publicaciones/" + id), estudiante("maria"), null)).andExpect(status().isNotFound());
         mvc.perform(con(delete("/api/publicaciones/" + id), estudiante("maria"), null)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("Pago simulado: oculta hasta pagar, solo el autor paga, sin doble cobro, y las vistas solo las ve el autor")
+    void pagoYVistas() throws Exception {
+        String persona = unico("pagadora");
+        String marca = unico("monetizada");
+        long id = publicarPendiente(persona, "Bicicleta " + marca, "300000", "Otros");
+
+        mvc.perform(con(get("/api/publicaciones?texto=" + marca), estudiante("jose"), null))
+                .andExpect(jsonPath("$", hasSize(0)));
+        mvc.perform(con(get("/api/publicaciones/" + id), estudiante("jose"), null)).andExpect(status().isNotFound());
+        mvc.perform(con(get("/api/publicaciones/" + id), estudiante(persona), null)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.estadoPago").value("PENDIENTE"))
+                .andExpect(jsonPath("$.vistas").value(0));
+        mvc.perform(con(get("/api/publicaciones/mias"), estudiante(persona), null))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].vistas").value(0));
+
+        mvc.perform(con(post("/api/publicaciones/" + id + "/pago"), estudiante("jose"), null))
+                .andExpect(status().isForbidden());
+        mvc.perform(con(post("/api/publicaciones/" + id + "/pago"), estudiante(persona), null))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("APROBADO"))
+                .andExpect(jsonPath("$.monto").value(3000.0))
+                .andExpect(jsonPath("$.referencia").value(startsWith("SIM-")));
+        mvc.perform(con(post("/api/publicaciones/" + id + "/pago"), estudiante(persona), null))
+                .andExpect(status().isConflict());
+
+        mvc.perform(con(get("/api/publicaciones?texto=" + marca), estudiante("jose"), null))
+                .andExpect(jsonPath("$", hasSize(1)));
+        mvc.perform(con(get("/api/publicaciones/" + id), estudiante("jose"), null)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.estadoPago").value("APROBADO"))
+                .andExpect(jsonPath("$.vistas").doesNotExist());
+        mvc.perform(con(get("/api/publicaciones/" + id), estudiante("jose"), null)).andExpect(status().isOk());
+        mvc.perform(con(get("/api/publicaciones/" + id), estudiante(persona), null)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.vistas").value(2));
+        mvc.perform(con(get("/api/publicaciones/" + id + "/contacto"), estudiante("jose"), null))
+                .andExpect(status().isOk());
     }
 
     @Test

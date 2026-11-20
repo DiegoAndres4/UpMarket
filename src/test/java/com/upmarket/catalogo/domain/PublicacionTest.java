@@ -28,6 +28,19 @@ class PublicacionTest {
         assertEquals(1, p.getFotos().size());
         assertNull(p.getId());
         assertNull(p.getVendidaEn());
+        assertEquals(EstadoPago.PENDIENTE, p.getEstadoPago());
+        assertEquals(0L, p.getVistas());
+    }
+
+    @Test
+    @DisplayName("Pagar activa la publicación y no se puede cobrar dos veces")
+    void pago() {
+        Publicacion p = Datos.publicacion();
+        p.activarPago();
+        assertEquals(EstadoPago.APROBADO, p.getEstadoPago());
+        assertTrue(p.estaPagada());
+        EstadoInvalidoException error = assertThrows(EstadoInvalidoException.class, p::activarPago);
+        assertTrue(error.getMessage().contains("ya está pagada"));
     }
 
     @Test

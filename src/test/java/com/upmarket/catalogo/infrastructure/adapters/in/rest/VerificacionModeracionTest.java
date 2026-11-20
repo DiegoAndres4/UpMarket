@@ -57,7 +57,10 @@ class VerificacionModeracionTest {
     private long publicar(String quien, String titulo) throws Exception {
         MvcResult r = mvc.perform(con(post("/api/publicaciones"), user(quien), json(titulo)))
                 .andExpect(status().isCreated()).andReturn();
-        return ((Number) JsonPath.read(r.getResponse().getContentAsString(), "$.id")).longValue();
+        long id = ((Number) JsonPath.read(r.getResponse().getContentAsString(), "$.id")).longValue();
+        mvc.perform(con(post("/api/publicaciones/" + id + "/pago"), user(quien), null))
+                .andExpect(status().isOk());
+        return id;
     }
     private String detalle(long id, String quien) throws Exception {
         return mvc.perform(con(get("/api/publicaciones/" + id), user(quien), null))

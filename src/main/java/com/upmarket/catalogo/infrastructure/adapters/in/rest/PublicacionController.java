@@ -1,5 +1,6 @@
 package com.upmarket.catalogo.infrastructure.adapters.in.rest;
 
+import com.upmarket.catalogo.application.port.in.PagoUseCase;
 import com.upmarket.catalogo.application.port.in.PublicacionUseCase;
 import com.upmarket.catalogo.application.port.in.command.*;
 import com.upmarket.catalogo.infrastructure.adapters.in.rest.dto.*;
@@ -14,9 +15,11 @@ import org.springframework.web.bind.annotation.*;
 public class PublicacionController {
 
     private final PublicacionUseCase publicaciones;
+    private final PagoUseCase pagos;
 
-    public PublicacionController(PublicacionUseCase publicaciones) {
+    public PublicacionController(PublicacionUseCase publicaciones, PagoUseCase pagos) {
         this.publicaciones = publicaciones;
+        this.pagos = pagos;
     }
 
     @PostMapping
@@ -47,17 +50,28 @@ public class PublicacionController {
 
     @GetMapping("/mias")
     public List<PublicacionResponse> mias() {
-        return publicaciones.mias(ActorActual.obtener()).stream().map(PublicacionResponse::de).toList();
+        return publicaciones.mias(ActorActual.obtener()).stream()
+                .map(p -> PublicacionResponse.de(p, p.getVistas()))
+                .toList();
     }
 
     @GetMapping("/{id}")
     public PublicacionResponse detalle(@PathVariable long id) {
-        return PublicacionResponse.de(publicaciones.detalle(id));
+        var actor = ActorActual.obtener();
+        var p = publicaciones.detalle(actor, id);
+        boolean puedeVerVistas = actor.esAdmin() || actor.username().equals(p.getVendedor());
+        return puedeVerVistas ? PublicacionResponse.de(p, p.getVistas()) : PublicacionResponse.de(p);
     }
 
     @GetMapping("/{id}/contacto")
     public ContactoResponse contacto(@PathVariable long id) {
-        return ContactoResponse.de(publicaciones.contacto(id));
+        return ContactoResponse.de(publicaciones.contacto(ActorActual.obtener(), id));
+    }
+
+    /** Cobro simulado de la tarifa de publicación. Solo el autor puede pagar su propia publicación. */
+    @PostMapping("/{id}/pago")
+    public PagoResponse pagar(@PathVariable long id) {
+        return PagoResponse.de(pagos.pagar(ActorActual.obtener(), id));
     }
 
     @PutMapping("/{id}")

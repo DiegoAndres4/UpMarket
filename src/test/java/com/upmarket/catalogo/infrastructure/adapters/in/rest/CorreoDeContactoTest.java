@@ -54,6 +54,8 @@ class CorreoDeContactoTest {
                         .contentType(MediaType.APPLICATION_JSON).content(cuerpo))
                 .andExpect(status().isCreated()).andReturn();
         int id = JsonPath.read(r.getResponse().getContentAsString(), "$.id");
+        mvc.perform(post("/api/publicaciones/" + id + "/pago").header("Authorization", token("duena@correo.com", "USER")))
+                .andExpect(status().isOk());
         mvc.perform(get("/api/publicaciones/" + id + "/contacto").header("Authorization", token("comprador@correo.com", "USER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.correo").value("duena@correo.com"))

@@ -41,6 +41,14 @@ public class BeanConfig {
     }
 
     @Bean
+    PagoService pagoService(PagoRepositoryPort pagos, PublicacionRepositoryPort publicaciones,
+                            PasarelaPagoPort pasarela, TransaccionPort transaccion, Clock reloj,
+                            PoliticaAcceso acceso,
+                            @Value("${upmarket.publicacion.tarifa:3000}") long tarifa) {
+        return new PagoService(pagos, publicaciones, pasarela, transaccion, reloj, acceso, tarifa);
+    }
+
+    @Bean
     ResenaService resenaService(ResenaRepositoryPort resenas, TransaccionPort transaccion, Clock reloj,
                                 PerfilPublicoPort perfiles) {
         return new ResenaService(resenas, transaccion, reloj, perfiles);

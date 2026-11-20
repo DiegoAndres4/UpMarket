@@ -31,7 +31,15 @@
 
 UPMarket es una **plataforma web de compraventa entre estudiantes** de la Universidad de Pamplona. Permite que un estudiante **publique** un artículo (producto, emprendimiento o artículo usado) y que otro lo **encuentre** por categoría, palabra clave o filtros, para luego **contactar** al vendedor y acordar la compra fuera de la plataforma.
 
-UPMarket no procesa pagos ni envíos: centraliza y ordena las ofertas que hoy se pierden en los grupos de WhatsApp.
+UPMarket financia su operación con un cobro simulado por publicación y ofrece a los vendedores estadísticas de visitas. La compra y el envío se siguen acordando fuera de la plataforma.
+
+### Modelo de negocio
+
+- **Tarifa por publicación:** publicar cuesta **3.000 COP** (configurable con `upmarket.publicacion.tarifa`). El cobro es **simulado** en esta versión: `PasarelaPagoSimulada` aprueba siempre y devuelve una referencia `SIM-…`.
+- **Publicación activa solo al pagar:** una publicación nueva nace en estado `PENDIENTE_PAGO` y no aparece en el catálogo ni en el detalle público hasta que el pago se aprueba. El autor sí la ve en «Mis publicaciones».
+- **Sin cobros retroactivos:** las publicaciones que ya existían se marcan como pagadas en la migración `V3`.
+- **Pasarela real futura:** Wompi, Mercado Pago u otra se conecta detrás de `PasarelaPagoPort` sin cambiar el dominio ni los casos de uso.
+- **Estadísticas para vendedores:** cada visita al detalle suma una vista de forma atómica en la base de datos. El contador solo lo ven el autor y el administrador.
 
 | Dato | Valor |
 |---|---|
@@ -84,7 +92,6 @@ Desarrollar una plataforma web que permita a los estudiantes **publicar, buscar 
 
 **Fuera del alcance**
 
-- Pasarela de pagos (la compra se acuerda entre las partes; puede quedar como trabajo futuro).
 - Verificación de identidad o registro exclusivo con correo institucional.
 - Moderación de publicaciones por el administrador.
 - Almacenamiento de los archivos de las fotos dentro del backend (solo se guarda su URL).
@@ -577,7 +584,9 @@ Ver la tabla de la [sección 7](#endpoints).
 - **Roles:** `USER` es cualquier estudiante y `ADMIN` administra las categorías. Solo el ADMIN crea categorías.
 - **Autoría:** editar y vender son solo del autor. **Eliminar** lo permite el autor o un `ADMIN`, que modera el catálogo: puede borrar publicaciones ajenas indebidas, pero no editarlas ni marcarlas como vendidas.
 - **Vendedor:** sale del token, nunca del cuerpo de la petición.
-- **Ciclo de vida:** la publicación nace `DISPONIBLE` y pasa a `VENDIDA` una sola vez. Vendida ya no se edita ni se contacta y sale de las búsquedas, pero sigue en "mis publicaciones".
+- **Ciclo de vida:** la publicación nace `DISPONIBLE` con el pago `PENDIENTE` y pasa a `VENDIDA` una sola vez. Mientras el pago no se apruebe no aparece en búsquedas ni en el detalle de otras personas. Vendida ya no se edita ni se contacta y sale de las búsquedas, pero sigue en "mis publicaciones".
+- **Pago de publicación:** solo el autor puede pagar; cuesta 3.000 COP y el cobro es simulado. Un segundo pago responde 409. Al aprobarse, la publicación queda visible para el catálogo.
+- **Vistas:** cada consulta de detalle de una persona distinta del autor suma una vista de forma atómica. El contador solo lo ven el autor y el ADMIN.
 - **Eliminar:** borrado físico y definitivo.
 - **Textos:** título de 3 a 100 caracteres y descripción de 5 a 2000.
 - **Precio:** número mayor que 0 y hasta 999 999 999.99; llega como texto y lo valida el dominio.
@@ -599,7 +608,8 @@ Ver la tabla de la [sección 7](#endpoints).
 |---|---|---|
 | `domain/PublicacionTest` | Unitaria (9) | Publicar, textos, precio, fotos, contacto, editar, vender, búsqueda, categoría |
 | `domain/PoliticaAccesoTest` | Unitaria (3) | Permisos de ADMIN y de autor; mapeo de roles del `Actor` |
-| `application/PublicacionServiceTest` | Unitaria (16) | HU-8, 10, 11 y 12 con repositorios en memoria |
+| `application/PublicacionServiceTest` | Unitaria (20) | HU-8, 10, 11 y 12 con repositorios en memoria, visibilidad por pago y contador de vistas |
+| `domain/PublicacionTest` | Unitaria | Incluye pago pendiente, activación del pago y rechazo del doble cobro |
 | `application/CategoriaServiceTest` | Unitaria (4) | Iniciales, conteo, creación y permisos (HU-9) |
 | `contract/*RepositoryContractTest` | Contrato | Mismo comportamiento del repositorio en memoria y del JPA |
 | `infrastructure/adapters/out/persistence/*JpaContractTest` | Integración JPA | Contrato contra H2, restricción única de categoría y bloqueo optimista |
