@@ -3,8 +3,11 @@ package com.upmarket.catalogo.infrastructure.adapters.in.rest;
 import com.upmarket.catalogo.application.port.in.PublicacionUseCase;
 import com.upmarket.catalogo.infrastructure.perfil.Perfil;
 import com.upmarket.catalogo.infrastructure.perfil.PerfilService;
+import java.io.IOException;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 /** Perfil del usuario autenticado: ver, editar (nombre, celular, foto) y eliminar la cuenta. */
 @RestController
@@ -41,6 +44,17 @@ public class PerfilController {
     public PerfilResponse editar(@RequestBody PerfilRequest r) {
         return PerfilResponse.de(
                 perfiles.actualizar(ActorActual.obtener().username(), r.nombre(), r.telefono(), r.fotoUrl()));
+    }
+
+    @PostMapping(value = "/foto", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public PerfilResponse subirFoto(@RequestParam("archivo") MultipartFile archivo) throws IOException {
+        return PerfilResponse.de(perfiles.actualizarFoto(ActorActual.obtener().username(), archivo.getBytes()));
+    }
+
+    @DeleteMapping("/foto")
+    public ResponseEntity<Void> eliminarFoto() {
+        perfiles.eliminarFoto(ActorActual.obtener().username());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/publico")

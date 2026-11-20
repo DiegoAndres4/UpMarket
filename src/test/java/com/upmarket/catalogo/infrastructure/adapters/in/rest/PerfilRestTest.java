@@ -1,11 +1,15 @@
 package com.upmarket.catalogo.infrastructure.adapters.in.rest;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.jayway.jsonpath.JsonPath;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -20,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -33,6 +38,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class PerfilRestTest {
 
     private static final String SECRETO = "Lu7e1SCfczRWZpilqgAQVZqNiJopaxOzxiu9UaLENKGTeGeBtIyfpBegmsIKQS3D6pmEiahNszQXjzxmhjabaw==";
+    private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0};
 
     @Autowired
     private MockMvc mvc;
@@ -96,6 +102,62 @@ class PerfilRestTest {
         org.mockito.Mockito.verify(credenciales).eliminarCuenta(t);
         mvc.perform(get("/api/perfil").header("Authorization", t)).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/categorias").header("Authorization", t)).andExpect(status().isUnauthorized());
+    }
+
+    private String subirFoto(String bearer) throws Exception {
+        var r = mvc.perform(multipart("/api/perfil/foto")
+                        .file(new MockMultipartFile("archivo", "yo.png", "image/png", PNG))
+                        .header("Authorization", bearer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fotoUrl", startsWith("/api/fotos/")))
+                .andReturn();
+        return JsonPath.read(r.getResponse().getContentAsString(), "$.fotoUrl");
+    }
+
+    @Test
+    @DisplayName("Subir la foto de perfil la guarda en el propio perfil")
+    void subirFotoDePerfil() throws Exception {
+        String t = "Bearer " + token("foto@correo.com");
+        String url = subirFoto(t);
+        mvc.perform(get("/api/perfil").header("Authorization", t))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fotoUrl").value(url));
+    }
+
+    @Test
+    @DisplayName("Cada usuario cambia solo su propia foto de perfil")
+    void cadaUsuarioCambiaSuFoto() throws Exception {
+        String a = "Bearer " + token("ana.foto@correo.com");
+        String b = "Bearer " + token("beto.foto@correo.com");
+        String urlA = subirFoto(a);
+        String urlB = subirFoto(b);
+        assertThat(urlA).isNotEqualTo(urlB);
+        mvc.perform(get("/api/perfil").header("Authorization", a))
+                .andExpect(jsonPath("$.fotoUrl").value(urlA));
+        mvc.perform(get("/api/perfil").header("Authorization", b))
+                .andExpect(jsonPath("$.fotoUrl").value(urlB));
+    }
+
+    @Test
+    @DisplayName("Una foto de perfil que no es JPG ni PNG se rechaza (400)")
+    void rechazaFotoDePerfilInvalida() throws Exception {
+        String t = "Bearer " + token("invalida@correo.com");
+        mvc.perform(multipart("/api/perfil/foto")
+                        .file(new MockMultipartFile("archivo", "yo.png", "image/png", "no soy una imagen".getBytes()))
+                        .header("Authorization", t))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/perfil").header("Authorization", t))
+                .andExpect(jsonPath("$.fotoUrl").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("Quitar la foto de perfil la borra del perfil (204)")
+    void eliminarFotoDePerfil() throws Exception {
+        String t = "Bearer " + token("sinfoto@correo.com");
+        subirFoto(t);
+        mvc.perform(delete("/api/perfil/foto").header("Authorization", t)).andExpect(status().isNoContent());
+        mvc.perform(get("/api/perfil").header("Authorization", t))
+                .andExpect(jsonPath("$.fotoUrl").doesNotExist());
     }
 
     @Test

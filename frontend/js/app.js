@@ -61,10 +61,12 @@ function campoCelular(id, inicial) {
 const esCorreo = (c) => c.length <= 120 && EMAIL_RE.test(c);
 const nombreCorto = (usuario) => String(usuario || '').split('@')[0];
 function enlaceWhatsApp(t) { return 'https://wa.me/57' + soloDigitos(t); }
+/* Las fotos nuevas pueden venir como URL absoluta (Cloudinary) o como nombre local (/api/fotos/...). */
+const urlFoto = (url) => (/^https?:\/\//.test(String(url || '')) ? url : API + url);
 function avatar(url, nombre, clase, alt) {
   const inicial = (String(nombre || '?').trim()[0] || '?').toUpperCase();
   const etiqueta = alt || '';
-  return url ? h('img', { class: 'avatar ' + (clase || ''), src: API + url, alt: etiqueta })
+  return url ? h('img', { class: 'avatar ' + (clase || ''), src: urlFoto(url), alt: etiqueta })
              : h('span', etiqueta
                  ? { class: 'avatar ' + (clase || ''), role: 'img', 'aria-label': etiqueta }
                  : { class: 'avatar ' + (clase || ''), 'aria-hidden': 'true' }, inicial);
@@ -376,7 +378,7 @@ function vistaRegistro() {
 /* ---------- catálogo y búsqueda (HU-10) ---------- */
 function tarjeta(p) {
   const foto = p.fotos && p.fotos[0]
-    ? h('img', { class: 'foto', src: API + p.fotos[0].url, alt: '', loading: 'lazy', decoding: 'async' })
+    ? h('img', { class: 'foto', src: urlFoto(p.fotos[0].url), alt: '', loading: 'lazy', decoding: 'async' })
     : h('div', { class: 'foto' }, 'Sin foto');
   return h('a', { class: 'tarjeta item', href: '#/p/' + p.id }, foto,
     h('div', { class: 'cuerpo' },
@@ -589,11 +591,11 @@ async function vistaDetalle(id) {
     type: 'button', class: 'mini', 'aria-pressed': String(i === 0),
     'aria-label': 'Ver foto ' + (i + 1) + ' de ' + total,
     onclick: () => mostrarFoto(i),
-  }, h('img', { src: API + f.url, alt: '', loading: 'lazy', decoding: 'async' })));
+  }, h('img', { src: urlFoto(f.url), alt: '', loading: 'lazy', decoding: 'async' })));
 
   function mostrarFoto(i) {
     actual = i;
-    grande.src = API + p.fotos[i].url;
+    grande.src = urlFoto(p.fotos[i].url);
     grande.alt = 'Foto ' + (i + 1) + ' de ' + total + ' de ' + p.titulo;
     minis.forEach((b, j) => b.setAttribute('aria-pressed', String(j === i)));
     contador.textContent = (i + 1) + ' / ' + total;
@@ -844,7 +846,7 @@ async function vistaFormulario(id) {
     }
   }
   function pintarPrevias() {
-    previas.replaceChildren(...fotos.map((f, i) => h('figure', {}, h('img', { src: API + f.url, alt: 'Foto ' + (i + 1) }),
+    previas.replaceChildren(...fotos.map((f, i) => h('figure', {}, h('img', { src: urlFoto(f.url), alt: 'Foto ' + (i + 1) }),
       h('button', { type: 'button', 'aria-label': 'Quitar foto ' + (i + 1), onclick: () => { fotos.splice(i, 1); pintarPrevias(); } }, iconoQuitar()))));
     if (cuenta) {
       cuenta.replaceChildren(h('strong', {}, fotos.length + ' de 5'), fotos.length === 1 ? ' · foto agregada' : ' · fotos agregadas');
@@ -913,7 +915,7 @@ async function vistaFormulario(id) {
     pvDesc.classList.toggle('texto-vacio', !d);
     const foto = fotos[0] || (actual && actual.fotos && actual.fotos[0]);
     pvFoto.replaceChildren(foto
-      ? h('img', { src: API + foto.url, alt: t ? 'Portada de ' + t : 'Foto de portada', loading: 'lazy' })
+      ? h('img', { src: urlFoto(foto.url), alt: t ? 'Portada de ' + t : 'Foto de portada', loading: 'lazy' })
       : 'Sin fotos todavía');
     if (actual) { pvContacto.hidden = true; return; }
     const medios = [];
@@ -1038,7 +1040,7 @@ let filtroMias = 'todas';
 function filaMia(p) {
   const vendida = p.estadoPublicacion === 'VENDIDA';
   const foto = p.fotos && p.fotos[0]
-    ? h('img', { class: 'mias-fila__foto', src: API + p.fotos[0].url, alt: '', loading: 'lazy' })
+    ? h('img', { class: 'mias-fila__foto', src: urlFoto(p.fotos[0].url), alt: '', loading: 'lazy' })
     : h('div', { class: 'mias-fila__foto mias-fila__foto--vacia' }, 'Sin foto');
   const cuando = vendida && p.vendidaEn
     ? 'Vendida el ' + fecha(p.vendidaEn)
@@ -1179,7 +1181,10 @@ async function vistaPerfil() {
     if (!a) return;
     if (a.size > 5 * 1024 * 1024) { aviso('La foto pesa más de 5 MB', true); return; }
     const fd = new FormData(); fd.append('archivo', a);
-    try { const r = await api('POST', '/api/fotos', fd, true); fotoUrl = r.url; pintarFoto(); aviso('Foto lista: pulsa Guardar cambios'); }
+    try {
+      const r = await api('POST', '/api/perfil/foto', fd, true);
+      fotoUrl = r.fotoUrl; perfilActual = r; pintarFoto(); pintarNav(); aviso('Foto de perfil actualizada');
+    }
     catch (e) { aviso(e.message, true); }
   } });
 
@@ -1227,8 +1232,11 @@ async function vistaPerfil() {
           h('div', { class: 'perfil-cab' }, foto,
             h('div', { class: 'acciones', style: 'margin:0' },
               h('button', { class: 'btn sec', type: 'button', onclick: () => subir.click() }, 'Cambiar foto'),
-              h('button', { class: 'btn sec', type: 'button', onclick: () => { fotoUrl = null; pintarFoto(); } }, 'Quitar foto'), subir)),
-          h('p', { class: 'ayuda' }, 'JPG o PNG, hasta 5 MB. La foto se aplica al guardar.'),
+              h('button', { class: 'btn sec', type: 'button', onclick: async () => {
+                try { perfilActual = await api('DELETE', '/api/perfil/foto'); fotoUrl = perfilActual.fotoUrl; pintarFoto(); pintarNav(); aviso('Foto de perfil eliminada'); }
+                catch (e) { aviso(e.message, true); }
+              } }, 'Quitar foto'), subir)),
+          h('p', { class: 'ayuda' }, 'JPG o PNG, hasta 5 MB. La foto se aplica de inmediato.'),
           h('label', { for: 'pn' }, 'Nombre'), nombre,
           h('label', { for: 'pc' }, 'Correo'),
           h('input', { id: 'pc', value: s.usuario, readonly: true, 'aria-readonly': 'true', 'aria-describedby': 'ayuda-correo' }),

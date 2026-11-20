@@ -1,6 +1,7 @@
 package com.upmarket.catalogo.infrastructure.perfil;
 
 import com.upmarket.catalogo.application.port.in.PublicacionUseCase;
+import com.upmarket.catalogo.application.port.out.AlmacenFotosPort;
 import com.upmarket.catalogo.domain.exception.ValorInvalidoException;
 import com.upmarket.catalogo.domain.model.Actor;
 import com.upmarket.catalogo.domain.model.Foto;
@@ -15,14 +16,18 @@ import org.springframework.transaction.annotation.Transactional;
 public class PerfilService {
 
     private static final Pattern FOTO = Pattern.compile("/api/fotos/([0-9a-f-]{36}\\.(?:jpg|png))");
+    private static final int MAXIMO_URL = 500;
 
     private final PerfilRepository perfiles;
-    private final AlmacenFotosLocal fotos;
+    private final AlmacenFotosPort almacen;
+    private final AlmacenFotosLocal fotosLocal;
     private final CredencialesPort credenciales;
 
-    public PerfilService(PerfilRepository perfiles, AlmacenFotosLocal fotos, CredencialesPort credenciales) {
+    public PerfilService(PerfilRepository perfiles, AlmacenFotosPort almacen, AlmacenFotosLocal fotosLocal,
+                         CredencialesPort credenciales) {
         this.perfiles = perfiles;
-        this.fotos = fotos;
+        this.almacen = almacen;
+        this.fotosLocal = fotosLocal;
         this.credenciales = credenciales;
     }
 
@@ -48,7 +53,7 @@ public class PerfilService {
             throw new ValorInvalidoException(TelefonoColombia.MENSAJE);
         }
         String foto = fotoUrl == null || fotoUrl.isBlank() ? null : fotoUrl.trim();
-        if (foto != null && !FOTO.matcher(foto).matches()) {
+        if (foto != null && !esFotoValida(foto)) {
             throw new ValorInvalidoException(Foto.mensajeDeLimites());
         }
         Perfil p = obtener(usuario);
@@ -56,6 +61,29 @@ public class PerfilService {
             borrarArchivo(p.getFotoUrl());
         }
         p.actualizar(n, tel, foto);
+        return perfiles.save(p);
+    }
+
+    /** Sube la foto de perfil por el proveedor configurado y la guarda en el perfil del usuario autenticado. */
+    @Transactional
+    public Perfil actualizarFoto(String usuario, byte[] contenido) {
+        Foto nueva = almacen.guardar(contenido, AlmacenFotosPort.CARPETA_PERFILES);
+        Perfil p = obtener(usuario);
+        if (p.getFotoUrl() != null && !p.getFotoUrl().equals(nueva.url())) {
+            borrarArchivo(p.getFotoUrl());
+        }
+        p.actualizar(p.getNombre(), p.getTelefono(), nueva.url());
+        return perfiles.save(p);
+    }
+
+    /** Quita la foto de perfil y borra el archivo subido (si sigue existiendo). */
+    @Transactional
+    public Perfil eliminarFoto(String usuario) {
+        Perfil p = obtener(usuario);
+        if (p.getFotoUrl() != null) {
+            borrarArchivo(p.getFotoUrl());
+        }
+        p.actualizar(p.getNombre(), p.getTelefono(), null);
         return perfiles.save(p);
     }
 
@@ -84,11 +112,14 @@ public class PerfilService {
         perfiles.save(p);
     }
 
+    private static boolean esFotoValida(String foto) {
+        return foto.length() <= MAXIMO_URL && (FOTO.matcher(foto).matches() || foto.startsWith("https://"));
+    }
+
+    /** Borra tanto los nombres locales heredados (/api/fotos/...) como las URLs absolutas del proveedor actual. */
     private void borrarArchivo(String url) {
-        var m = FOTO.matcher(url == null ? "" : url);
-        if (m.matches()) {
-            fotos.borrar(m.group(1));
-        }
+        fotosLocal.borrar(url);
+        almacen.borrar(url);
     }
 
     static String nombrePorDefecto(String usuario) {
