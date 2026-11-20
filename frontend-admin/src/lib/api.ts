@@ -49,7 +49,7 @@ export function salir(): void {
 
 /** Error con el mensaje que ya redactó el backend. */
 export class ErrorApi extends Error {
-  constructor(mensaje: string, readonly estado: number) {
+  constructor(mensaje: string, readonly estado: number, readonly codigo?: string) {
     super(mensaje)
     this.name = 'ErrorApi'
   }
@@ -83,9 +83,9 @@ export async function api<T>(ruta: string, init: RequestInit = {}): Promise<T> {
     }
   }
   if (!respuesta.ok) {
-    const cuerpo = datos as { mensaje?: string; error?: string } | null
-    const mensaje = cuerpo?.mensaje ?? cuerpo?.error ?? 'No se pudo completar la acción'
-    throw new ErrorApi(mensaje, respuesta.status)
+    const cuerpo = datos as { mensaje?: string; error?: string; message?: string; code?: string } | null
+    const mensaje = cuerpo?.mensaje ?? cuerpo?.message ?? cuerpo?.error ?? 'No se pudo completar la acción'
+    throw new ErrorApi(mensaje, respuesta.status, cuerpo?.code)
   }
   return datos as T
 }

@@ -30,6 +30,15 @@ export type UsuarioAdmin = {
   publicaciones: number
 }
 
+/** Cuenta tal como la devuelve AuthCore (el username es el correo). */
+export type UsuarioAuthCore = {
+  id: number
+  username: string
+  roles: string[]
+  emailVerified: boolean
+  blocked: boolean
+}
+
 export type Estadisticas = {
   totalPublicaciones: number
   publicacionesPorEstado: Record<EstadoPublicacion, number>
