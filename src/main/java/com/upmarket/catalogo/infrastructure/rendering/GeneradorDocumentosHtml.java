@@ -365,19 +365,21 @@ public class GeneradorDocumentosHtml implements GeneradorDocumentosPort {
                 .kpis { width: 100%%; border-collapse: collapse; margin-top: 6mm; }
                 .kpis td { padding: 0 2mm 2mm 0; vertical-align: top; }
                 .kpis td.cifra { width: 33.33%%; background: #FAF7F0; border: 0.5pt solid #E5E0D5;
-                                 padding: 3.5mm; }
+                                 padding: 3.5mm; page-break-inside: avoid; }
                 .kpi-titulo { font-size: 8.5pt; color: #4A4A4A; }
                 .kpi-valor { font-size: 16pt; letter-spacing: -0.02em; margin-top: 1mm; }
                 .kpi-detalle { font-size: 8.5pt; color: #4A4A4A; margin-top: 1mm; }
                 .kpi-nota { font-size: 7.5pt; color: #4A4A4A; margin-top: 1.5mm; }
                 .seccion { font-size: 12pt; margin: 7mm 0 3mm; }
-                .barra { width: 100%%; border-collapse: collapse; margin-bottom: 1.4mm; }
+                .barra { width: 100%%; border-collapse: collapse; margin-bottom: 1.4mm;
+                         page-break-inside: avoid; }
                 .barra td { padding: 0; vertical-align: middle; }
                 .barra .etq { width: 46mm; font-size: 8pt; padding-right: 3mm; }
                 .barra .pista { background: #F2EDE3; height: 4mm; }
                 .barra .relleno { background: #F5B700; height: 4mm; }
                 .barra .val { width: 12mm; text-align: right; font-size: 8pt; padding-left: 2mm; }
-                .grafico-dias { width: 100%%; border-collapse: collapse; margin-top: 2mm; }
+                .grafico-dias { width: 100%%; border-collapse: collapse; margin-top: 2mm;
+                                page-break-inside: avoid; }
                 .grafico-dias .eje { width: 13mm; vertical-align: bottom; padding-right: 2mm;
                                      text-align: right; font-size: 7.5pt; color: #4A4A4A; }
                 .grafico-dias .eje .maximo { font-size: 11pt; color: #1A1A1A; }
@@ -395,7 +397,8 @@ public class GeneradorDocumentosHtml implements GeneradorDocumentosPort {
                 table.datos th { background: #F2EDE3; text-align: left; padding: 2.6mm 2.5mm; font-size: 8.5pt; }
                 table.datos td { padding: 2.6mm 2.5mm; border-bottom: 0.4pt solid #E5E0D5; font-size: 8.5pt; }
                 .derecha { text-align: right; }
-                .notas { margin-top: 7mm; background: #FAF7F0; padding: 4mm 5mm; font-size: 8.5pt; color: #4A4A4A; }
+                .notas { margin-top: 7mm; background: #FAF7F0; padding: 4mm 5mm; font-size: 8.5pt;
+                         color: #4A4A4A; page-break-inside: avoid; }
                 .notas div { margin-bottom: 1mm; }
                 """.formatted(familia, familiaNegrita);
     }

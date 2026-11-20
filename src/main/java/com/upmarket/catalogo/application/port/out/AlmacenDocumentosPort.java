@@ -25,6 +25,9 @@ public interface AlmacenDocumentosPort {
      */
     URI enlaceDescarga(DocumentoAlmacenado documento, Duration validez);
 
-    /** Lee el contenido de un documento local. Los proveedores remotos no lo implementan. */
+    /**
+     * Lee el contenido del documento. El almacenamiento local lo abre del disco; el remoto lo
+     * descarga con un enlace firmado de corta caducidad, siempre del lado del servidor.
+     */
     byte[] leer(DocumentoAlmacenado documento);
 }

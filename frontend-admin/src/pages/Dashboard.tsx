@@ -8,9 +8,11 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { Download, Eye } from 'lucide-react'
 import { api, descargarDocumento } from '../lib/api'
 import { fecha, numero, precio } from '../lib/formato'
-import type { Estadisticas, Pagina, ReporteAdmin, ReporteGenerado } from '../lib/tipos'
+import type { DocumentoAdmin, Estadisticas, Pagina, ReporteAdmin, ReporteGenerado } from '../lib/tipos'
+import { DocumentoViewer, type DocumentoVista } from '../components/DocumentoViewer'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
@@ -52,6 +54,7 @@ export default function Dashboard() {
   const [avisoReporte, setAvisoReporte] = useState<string | null>(null)
   const [errorAccionReporte, setErrorAccionReporte] = useState<string | null>(null)
   const [recargaReportes, setRecargaReportes] = useState(0)
+  const [vista, setVista] = useState<DocumentoVista | null>(null)
 
   const cargar = () => {
     setCargando(true)
@@ -99,6 +102,16 @@ export default function Dashboard() {
     } finally {
       setGenerandoReporte(false)
     }
+  }
+
+  const ver = (documento: DocumentoAdmin, numeroReporte: string) => {
+    setVista({
+      id: documento.id,
+      numero: numeroReporte,
+      formato: documento.formato,
+      nombreArchivo: documento.nombreArchivo,
+      tipo: 'Reporte de estadísticas',
+    })
   }
 
   if (cargando) {
@@ -271,11 +284,17 @@ export default function Dashboard() {
             </Button>
             {ultimoReporte ? (
               <>
+                <Button variant="outline" onClick={() => ver(ultimoReporte.pdf, ultimoReporte.numero)}>
+                  <Eye className="h-4 w-4" /> Ver PDF
+                </Button>
                 <Button variant="outline" onClick={() => void descargarDocumento(ultimoReporte.pdf)}>
-                  Descargar PDF
+                  <Download className="h-4 w-4" /> Descargar PDF
+                </Button>
+                <Button variant="outline" onClick={() => ver(ultimoReporte.xml, ultimoReporte.numero)}>
+                  <Eye className="h-4 w-4" /> Ver XML
                 </Button>
                 <Button variant="outline" onClick={() => void descargarDocumento(ultimoReporte.xml)}>
-                  Descargar XML
+                  <Download className="h-4 w-4" /> Descargar XML
                 </Button>
               </>
             ) : null}
@@ -305,7 +324,7 @@ export default function Dashboard() {
                     <TableHead>Fecha</TableHead>
                     <TableHead>Número</TableHead>
                     <TableHead>Generado por</TableHead>
-                    <TableHead className="text-right">Descargas</TableHead>
+                    <TableHead className="text-right">Ver / descargar</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -315,15 +334,27 @@ export default function Dashboard() {
                       <TableCell className="font-medium">{reporte.numero}</TableCell>
                       <TableCell className="max-w-[180px] truncate" title={reporte.generadoPor}>{reporte.generadoPor}</TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="outline" size="sm" disabled={!reporte.pdf}
-                            onClick={() => reporte.pdf ? void descargarDocumento(reporte.pdf) : undefined}>
-                            PDF
-                          </Button>
-                          <Button variant="outline" size="sm" disabled={!reporte.xml}
-                            onClick={() => reporte.xml ? void descargarDocumento(reporte.xml) : undefined}>
-                            XML
-                          </Button>
+                        <div className="flex flex-col items-end gap-2">
+                          <div className="flex justify-end gap-2">
+                            <Button variant="outline" size="sm" disabled={!reporte.pdf}
+                              onClick={() => reporte.pdf ? ver(reporte.pdf, reporte.numero) : undefined}>
+                              <Eye className="h-4 w-4" /> Ver PDF
+                            </Button>
+                            <Button variant="outline" size="sm" disabled={!reporte.pdf}
+                              onClick={() => reporte.pdf ? void descargarDocumento(reporte.pdf) : undefined}>
+                              Descargar PDF
+                            </Button>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <Button variant="outline" size="sm" disabled={!reporte.xml}
+                              onClick={() => reporte.xml ? ver(reporte.xml, reporte.numero) : undefined}>
+                              <Eye className="h-4 w-4" /> Ver XML
+                            </Button>
+                            <Button variant="outline" size="sm" disabled={!reporte.xml}
+                              onClick={() => reporte.xml ? void descargarDocumento(reporte.xml) : undefined}>
+                              Descargar XML
+                            </Button>
+                          </div>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -334,6 +365,8 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
+
+      <DocumentoViewer documento={vista} onCerrar={() => setVista(null)} />
     </div>
   )
 }

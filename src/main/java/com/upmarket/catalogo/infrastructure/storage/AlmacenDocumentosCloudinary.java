@@ -69,6 +69,12 @@ public class AlmacenDocumentosCloudinary implements AlmacenDocumentosPort {
 
     @Override
     public byte[] leer(DocumentoAlmacenado documento) {
-        throw new UnsupportedOperationException("Los documentos de Cloudinary se descargan por su enlace firmado");
+        // Para verlo en línea el backend trae el archivo por un enlace firmado recién creado.
+        URI enlace = enlaceDescarga(documento, Duration.ofMinutes(10));
+        try {
+            return cliente.descargar(enlace.toString());
+        } catch (IOException e) {
+            throw new IllegalStateException("No se pudo leer el documento de Cloudinary", e);
+        }
     }
 }

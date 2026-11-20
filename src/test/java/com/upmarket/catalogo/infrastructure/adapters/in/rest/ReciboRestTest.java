@@ -2,6 +2,7 @@ package com.upmarket.catalogo.infrastructure.adapters.in.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -126,6 +127,7 @@ class ReciboRestTest {
         mvc.perform(con(get("/api/admin/pagos"), usuario, null)).andExpect(status().isForbidden());
         mvc.perform(con(post("/api/admin/pagos/1/recibo"), usuario, null)).andExpect(status().isForbidden());
         mvc.perform(con(get("/api/admin/documentos/1/descarga"), usuario, null)).andExpect(status().isForbidden());
+        mvc.perform(con(get("/api/admin/documentos/1/contenido"), usuario, null)).andExpect(status().isForbidden());
         mvc.perform(con(get("/api/admin/pagos"), admin(), null)).andExpect(status().isOk());
     }
 
@@ -199,6 +201,26 @@ class ReciboRestTest {
             String texto = new PDFTextStripper().getText(documento);
             assertThat(texto).contains("alert(1)").contains("<script>");
         }
+    }
+
+    @Test
+    @DisplayName("Ver en línea: PDF inline sin caché para el ADMIN; un id desconocido da 404")
+    void verReciboEnLinea() throws Exception {
+        long publicacion = publicarPendiente("nora.recibo", "Lámpara de prueba");
+        long pago = pagar("nora.recibo", publicacion);
+        String cuerpo = recibo(admin(), pago).getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(cuerpo, "$.id")).longValue();
+
+        MvcResult vista = mvc.perform(con(get("/api/admin/documentos/" + id + "/contenido"), admin(), null))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(header().string("Content-Disposition", startsWith("inline")))
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andReturn();
+        assertThat(new String(vista.getResponse().getContentAsByteArray(), 0, 4)).isEqualTo("%PDF");
+
+        mvc.perform(con(get("/api/admin/documentos/999999/contenido"), admin(), null))
+                .andExpect(status().isNotFound());
     }
 
     @Test

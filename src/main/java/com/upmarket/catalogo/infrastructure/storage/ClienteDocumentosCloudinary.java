@@ -13,4 +13,7 @@ public interface ClienteDocumentosCloudinary {
     Map<?, ?> subir(byte[] contenido, Map<String, Object> opciones) throws IOException;
 
     String enlacePrivado(String publicId, String formato, Map<String, Object> opciones) throws Exception;
+
+    /** Descarga el contenido de un enlace firmado, del lado del servidor. */
+    byte[] descargar(String enlace) throws IOException;
 }

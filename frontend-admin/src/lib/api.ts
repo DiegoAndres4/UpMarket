@@ -112,6 +112,39 @@ export async function descargarDocumento(documento: DocumentoDescargable): Promi
   enlace.click()
 }
 
+/**
+ * Trae los bytes del documento para verlo en línea, con el token en la cabecera y nunca en la URL.
+ * Devuelve un Blob listo para crear un object URL; quien lo pide se encarga de revocarlo.
+ */
+export async function contenidoDocumento(documento: DocumentoDescargable): Promise<Blob> {
+  const sesion = leerSesion()
+  if (!sesion) {
+    salir()
+    throw new ErrorApi('La sesión no es válida', 401)
+  }
+  const respuesta = await fetch(`/api/admin/documentos/${documento.id}/contenido`, {
+    headers: {
+      Authorization: `Bearer ${sesion.token}`,
+    },
+  })
+  if (respuesta.status === 401) {
+    salir()
+    throw new ErrorApi('La sesión venció; vuelve a iniciar sesión', 401)
+  }
+  if (!respuesta.ok) {
+    const texto = await respuesta.text()
+    let mensaje = 'No pudimos abrir el documento.'
+    try {
+      const cuerpo = JSON.parse(texto) as { mensaje?: string; message?: string; error?: string }
+      mensaje = cuerpo.mensaje ?? cuerpo.message ?? cuerpo.error ?? mensaje
+    } catch {
+      // respuesta sin JSON
+    }
+    throw new ErrorApi(mensaje, respuesta.status)
+  }
+  return await respuesta.blob()
+}
+
 export async function api<T>(ruta: string, init: RequestInit = {}): Promise<T> {
   const sesion = leerSesion()
   if (!sesion) {

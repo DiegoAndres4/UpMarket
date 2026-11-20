@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Download, FileText } from 'lucide-react'
+import { Download, Eye, FileText } from 'lucide-react'
 import { api, descargarDocumento } from '../lib/api'
 import { fecha, numero, precio } from '../lib/formato'
 import type { DocumentoAdmin, EstadoPago, Pagina, PagoAdmin } from '../lib/tipos'
+import { DocumentoViewer, type DocumentoVista } from '../components/DocumentoViewer'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
@@ -26,6 +27,7 @@ export default function Pagos() {
   const [generando, setGenerando] = useState<number | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
+  const [vista, setVista] = useState<DocumentoVista | null>(null)
 
   useEffect(() => {
     let vigente = true
@@ -75,6 +77,18 @@ export default function Pagos() {
     } catch (e) {
       setErrorAccion(e instanceof Error ? e.message : 'No se pudo descargar el recibo')
     }
+  }
+
+  const ver = (pago: PagoAdmin) => {
+    const recibo = pago.recibo
+    if (!recibo.documentoId || !recibo.numero) return
+    setVista({
+      id: recibo.documentoId,
+      numero: recibo.numero,
+      formato: 'PDF',
+      nombreArchivo: recibo.nombreArchivo ?? `recibo-${recibo.numero}.pdf`,
+      tipo: 'Recibo de pago',
+    })
   }
 
   const totalPaginas = datos ? Math.max(1, Math.ceil(datos.total / datos.tamano)) : 1
@@ -170,9 +184,14 @@ export default function Pagos() {
                         <span className="text-muted-foreground">—</span>
                       ) : pago.recibo.existe && pago.recibo.documentoId ? (
                         <div className="flex flex-col items-end gap-1">
-                          <Button variant="outline" size="sm" onClick={() => void descargar(pago)}>
-                            <Download className="h-4 w-4" /> Descargar recibo
-                          </Button>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <Button variant="outline" size="sm" onClick={() => ver(pago)}>
+                              <Eye className="h-4 w-4" /> Ver
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => void descargar(pago)}>
+                              <Download className="h-4 w-4" /> Descargar recibo
+                            </Button>
+                          </div>
                           <span className="text-xs text-muted-foreground">{pago.recibo.numero}</span>
                         </div>
                       ) : (
@@ -198,6 +217,8 @@ export default function Pagos() {
           </div>
         </CardContent>
       </Card>
+
+      <DocumentoViewer documento={vista} onCerrar={() => setVista(null)} />
     </div>
   )
 }

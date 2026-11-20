@@ -151,6 +151,7 @@ El entorno de desarrollo siembra datos de demostración al arrancar el dominio: 
 | `GET /api/admin/pagos?pagina&tamano` | ADMIN | 200 paginado, más recientes primero: referencia, monto, estado, fechas, publicación, comprador y si el recibo existe · 403 |
 | `POST /api/admin/pagos/{pagoId}/recibo` | ADMIN | 201 con el recibo PDF nuevo; 200 con el existente (idempotente) · 404 · 409 si el pago no está aprobado · 403 |
 | `GET /api/admin/documentos/{id}/descarga` | ADMIN | 302 a un enlace firmado de 10 minutos (Cloudinary) o adjunto en streaming (local) · 403 · 404 |
+| `GET /api/admin/documentos/{id}/contenido` | ADMIN | 200 con el archivo en línea (`inline`, sin caché): PDF o XML con su `Content-Type` · 403 · 404 |
 | `POST /api/admin/reportes/estadisticas` | ADMIN | 201 con el PDF y el XML generados desde una sola foto de las estadísticas · 403 |
 | `GET /api/admin/reportes?pagina&tamano` | ADMIN | 200 paginado: número, fecha, autor y descargas PDF/XML del reporte · 403 |
 | `GET /api/perfil` · `PUT /api/perfil` | autenticado | Perfil propio (nombre, celular colombiano, foto). 400 si el nombre o el celular no son válidos |
@@ -172,7 +173,7 @@ El entorno de desarrollo siembra datos de demostración al arrancar el dominio: 
 ### Documentos del panel (recibos y reportes)
 
 - El recibo de pago (`POST /api/admin/pagos/{pagoId}/recibo`, solo PDF) y el reporte de estadísticas (`POST /api/admin/reportes/estadisticas`, PDF + XML) se dibujan con openhtmltopdf y las fuentes Archivo embebidas, con los mismos tokens visuales de la app. El XML valida contra `src/main/resources/xsd/estadisticas-1.xsd`.
-- Se guardan **privados**: Cloudinary con `resource_type=raw` y `type=private`, o disco local en `DOCUMENTOS_DIR` (volumen `documentos-data` montado en `/data/documentos`). La descarga pasa siempre por `GET /api/admin/documentos/{id}/descarga` (ADMIN): 302 a un enlace firmado de 10 minutos en Cloudinary, o streaming del archivo en local. Nunca se guarda una URL pública permanente y el token jamás viaja en la URL.
+- Se guardan **privados**: Cloudinary con `resource_type=raw` y `type=private`, o disco local en `DOCUMENTOS_DIR` (volumen `documentos-data` montado en `/data/documentos`). La descarga pasa siempre por `GET /api/admin/documentos/{id}/descarga` (ADMIN): 302 a un enlace firmado de 10 minutos en Cloudinary, o streaming del archivo en local. Para verlos en el panel sin descargarlos, `GET /api/admin/documentos/{id}/contenido` entrega los bytes `inline` (en Cloudinary los trae el backend por el enlace firmado). Nunca se guarda una URL pública permanente y el token jamás viaja en la URL.
 - El recibo es informativo: el pago es simulado y el propio documento lo dice («no tiene validez fiscal ante la DIAN»). No hay NIT, IVA ni datos legales inventados.
 - El proveedor se elige con el mismo `FOTOS_PROVEEDOR` de las fotos: un solo interruptor mueve todo el almacenamiento binario.
 
@@ -182,8 +183,8 @@ El entorno de desarrollo siembra datos de demostración al arrancar el dominio: 
 - Comparte el origen y el token del sitio: lee `upmarket.token` de `localStorage`. Si no hay token o el rol no es `ADMIN`, redirige a `/`.
 - Se compila en la imagen Docker (`frontend/Dockerfile`, etapa Node) y nginx lo sirve bajo `/admin/` con respaldo de SPA.
 - Los administradores ven el enlace «Admin» en la barra del sitio público.
-- Página «Pagos»: listado paginado con estado, comprador y recibo; en los pagos aprobados se genera o descarga el recibo.
-- Tablero: «Generar reporte (PDF y XML)» y el historial de reportes con sus dos descargas.
+- Página «Pagos»: listado paginado con estado, comprador y recibo; en los pagos aprobados se genera, se ve en línea o se descarga el recibo.
+- Tablero: «Generar reporte (PDF y XML)» y el historial de reportes; cada PDF y XML se puede ver en línea (diálogo con el PDF o el XML indentado) o descargar.
 - Contacto: celular colombiano y/o correo (al menos uno). Celular válido = 10 dígitos que empiezan por 3, con 57 o +57 opcional; el vendedor elige qué medios publica.
 - Cuenta: el **correo es el nombre de usuario en AuthCore**. Eliminar la cuenta en UPMarket borra sus datos aquí y sus credenciales en AuthCore (llamada `DELETE /api/auth/users/me`); si AuthCore falla, la operación se revierte y responde error. El detalle **no** lo incluye; se pide aparte y solo mientras la publicación está disponible.
 - Categoría: se identifica por su nombre sin tildes ni mayúsculas («libros» = «Libros»); la base tiene una restricción única como última defensa.

@@ -1,8 +1,11 @@
 package com.upmarket.catalogo.infrastructure.adapters.in.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -169,7 +172,35 @@ class ReporteRestTest {
         mvc.perform(con(post("/api/admin/reportes/estadisticas"), usuario, null))
                 .andExpect(status().isForbidden());
         mvc.perform(con(get("/api/admin/reportes"), usuario, null)).andExpect(status().isForbidden());
+        mvc.perform(con(get("/api/admin/documentos/1/contenido"), usuario, null)).andExpect(status().isForbidden());
         mvc.perform(con(get("/api/admin/reportes"), admin(), null)).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Ver en línea: el XML sale inline, con su tipo y sin caché; el PDF también; id desconocido 404")
+    void verReporteEnLinea() throws Exception {
+        String cuerpo = generarReporte();
+        long pdfId = ((Number) JsonPath.read(cuerpo, "$.pdf.id")).longValue();
+        long xmlId = ((Number) JsonPath.read(cuerpo, "$.xml.id")).longValue();
+
+        MvcResult vistaXml = mvc.perform(
+                        con(get("/api/admin/documentos/" + xmlId + "/contenido"), admin(), null))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", startsWith("inline")))
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string("Content-Type", containsString("application/xml")))
+                .andExpect(header().string("Content-Type", containsString("UTF-8")))
+                .andReturn();
+        String texto = new String(vistaXml.getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
+        assertThat(texto).contains("reporteEstadisticas").startsWith("<?xml");
+
+        mvc.perform(con(get("/api/admin/documentos/" + pdfId + "/contenido"), admin(), null))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(header().string("Content-Disposition", startsWith("inline")));
+
+        mvc.perform(con(get("/api/admin/documentos/999999/contenido"), admin(), null))
+                .andExpect(status().isNotFound());
     }
 
     @Test

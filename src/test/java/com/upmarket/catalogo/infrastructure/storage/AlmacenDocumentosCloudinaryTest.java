@@ -57,6 +57,19 @@ class AlmacenDocumentosCloudinaryTest {
     }
 
     @Test
+    void leeElContenidoPorElEnlaceFirmadoDelLadoDelServidor() throws Exception {
+        String enlace = "https://res.cloudinary.com/demo/raw/private/s--firma--/recibo.pdf?expires_at=1";
+        when(cliente.enlacePrivado(eq(PUBLIC_ID), eq(""), anyMap())).thenReturn(enlace);
+        when(cliente.descargar(enlace)).thenReturn(PDF);
+
+        DocumentoAlmacenado documento = new DocumentoAlmacenado("cloudinary", PUBLIC_ID, NOMBRE,
+                "application/pdf", PDF.length);
+
+        assertThat(almacen.leer(documento)).isEqualTo(PDF);
+        verify(cliente).descargar(enlace);
+    }
+
+    @Test
     void firmaElEnlaceConCaducidadYSinUrlPublicaPermanente() throws Exception {
         Map<?, ?> respuesta = Map.of("public_id", PUBLIC_ID, "bytes", PDF.length);
         when(cliente.subir(any(byte[].class), anyMap())).thenAnswer(invocacion -> respuesta);

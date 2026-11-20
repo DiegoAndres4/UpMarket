@@ -1,5 +1,6 @@
 package com.upmarket.catalogo.infrastructure.adapters.in.rest;
 
+import com.upmarket.catalogo.application.port.in.admin.ContenidoDocumento;
 import com.upmarket.catalogo.application.port.in.admin.DescargaDocumento;
 import com.upmarket.catalogo.application.port.in.admin.DocumentoAdmin;
 import com.upmarket.catalogo.application.port.in.admin.DocumentosUseCase;
@@ -84,5 +85,17 @@ public class DocumentoAdminController {
                         .filename(descarga.nombreArchivo(), StandardCharsets.UTF_8).build().toString())
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .body(descarga.contenido());
+    }
+
+    /** Ver en línea: mismos permisos y búsqueda que la descarga, pero {@code inline} y sin caché. */
+    @GetMapping("/documentos/{id}/contenido")
+    public ResponseEntity<byte[]> contenido(@PathVariable long id) {
+        ContenidoDocumento documento = documentos.contenido(ActorActual.obtener(), id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(documento.contentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline()
+                        .filename(documento.nombreArchivo(), StandardCharsets.UTF_8).build().toString())
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(documento.contenido());
     }
 }

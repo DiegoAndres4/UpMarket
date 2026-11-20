@@ -1,6 +1,7 @@
 package com.upmarket.catalogo.application.service;
 
 import com.upmarket.catalogo.application.port.in.admin.AdminUseCase;
+import com.upmarket.catalogo.application.port.in.admin.ContenidoDocumento;
 import com.upmarket.catalogo.application.port.in.admin.DescargaDocumento;
 import com.upmarket.catalogo.application.port.in.admin.DocumentoAdmin;
 import com.upmarket.catalogo.application.port.in.admin.DocumentosUseCase;
@@ -249,19 +250,36 @@ public class DocumentosService implements DocumentosUseCase {
 
     @Override
     public DescargaDocumento descargar(Actor actor, long documentoId) {
-        acceso.asegurarAdmin(actor, "descargar documentos");
+        DocumentoAlmacenado guardado = buscarAlmacenado(actor, documentoId, "descargar documentos");
+        URI enlace = almacen.enlaceDescarga(guardado, VALIDEZ_ENLACE);
+        if (enlace != null) {
+            return new DescargaDocumento(enlace, null, guardado.nombreArchivo(), guardado.contentType());
+        }
+        return new DescargaDocumento(null, almacen.leer(guardado), guardado.nombreArchivo(),
+                guardado.contentType());
+    }
+
+    @Override
+    public ContenidoDocumento contenido(Actor actor, long documentoId) {
+        // Mismo permiso y misma búsqueda que la descarga; cambia solo cómo se entrega el archivo.
+        DocumentoAlmacenado guardado = buscarAlmacenado(actor, documentoId, "ver documentos");
+        return new ContenidoDocumento(almacen.leer(guardado), guardado.nombreArchivo(),
+                guardado.contentType());
+    }
+
+    /** Localiza el documento y comprueba rol y almacenamiento antes de leerlo o firmarlo. */
+    private DocumentoAlmacenado buscarAlmacenado(Actor actor, long documentoId, String accion) {
+        acceso.asegurarAdmin(actor, accion);
         DocumentoGenerado documento = documentos.buscarPorId(documentoId)
                 .orElseThrow(() -> new DocumentoNoEncontradoException(documentoId));
         if (!documento.almacenado()) {
             throw new DocumentoNoEncontradoException(documentoId);
         }
-        String contentType = documento.formato() == FormatoDocumento.XML ? "application/xml" : "application/pdf";
-        DocumentoAlmacenado guardado = new DocumentoAlmacenado(documento.proveedor(), documento.referencia(),
-                documento.nombreArchivo(), contentType, documento.tamanoBytes());
-        URI enlace = almacen.enlaceDescarga(guardado, VALIDEZ_ENLACE);
-        if (enlace != null) {
-            return new DescargaDocumento(enlace, null, documento.nombreArchivo(), contentType);
-        }
-        return new DescargaDocumento(null, almacen.leer(guardado), documento.nombreArchivo(), contentType);
+        return new DocumentoAlmacenado(documento.proveedor(), documento.referencia(), documento.nombreArchivo(),
+                tipoContenido(documento.formato()), documento.tamanoBytes());
+    }
+
+    private static String tipoContenido(FormatoDocumento formato) {
+        return formato == FormatoDocumento.XML ? "application/xml; charset=UTF-8" : "application/pdf";
     }
 }

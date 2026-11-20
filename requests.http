@@ -131,6 +131,10 @@ Authorization: Bearer {{tokenAdmin}}
 GET {{host}}/api/admin/documentos/1/descarga
 Authorization: Bearer {{tokenAdmin}}
 
+### Panel de administración: ver un documento en línea (200 inline, sin descargar)
+GET {{host}}/api/admin/documentos/1/contenido
+Authorization: Bearer {{tokenAdmin}}
+
 ### Panel de administración: generar el reporte de estadísticas (PDF + XML)
 POST {{host}}/api/admin/reportes/estadisticas
 Authorization: Bearer {{tokenAdmin}}

@@ -15,6 +15,9 @@ public interface DocumentosUseCase {
 
     DescargaDocumento descargar(Actor actor, long documentoId);
 
+    /** Bytes para ver el documento en línea; el backend los entrega siempre, sin enlaces. */
+    ContenidoDocumento contenido(Actor actor, long documentoId);
+
     /** Genera PDF y XML desde UNA sola foto de {@code AdminService.estadisticas}. */
     ReporteGenerado generarReporteEstadisticas(Actor actor);
 
