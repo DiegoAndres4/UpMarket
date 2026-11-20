@@ -585,7 +585,7 @@ function vistaLanding() {
     return s;
   };
 
-  montar(h('div', { class: 'cartelera' },
+  const raizLanding = h('div', { class: 'cartelera' },
     h('section', { class: 'cartelera-hero' },
       h('div', { class: 'cartelera-ancho' },
         h('h1', {}, 'La cartelera de la sede.'),
@@ -622,10 +622,13 @@ function vistaLanding() {
           h('p', {}, 'Publícalo por $3.000 y deja que lo encuentre quien lo necesita.'),
           h('div', { class: 'cartelera-cierre__acciones' },
             h('a', { class: 'btn', href: '#/registro' }, 'Crear cuenta'),
-            h('a', { class: 'cartelera-cierre__enlace', href: '#/login' }, 'Ya tengo cuenta')))))));
+            h('a', { class: 'cartelera-cierre__enlace', href: '#/login' }, 'Ya tengo cuenta'))))));
+  montar(raizLanding);
 
   // Aparición una sola vez al entrar en pantalla; sin movimiento, todo queda visible.
   if (!sinMovimiento && 'IntersectionObserver' in window) {
+    // El opt-in del script activa el estado oculto del CSS; sin él, todo se ve.
+    raizLanding.classList.add('animar');
     const observador = new IntersectionObserver((entradas) => {
       for (const e of entradas) {
         if (e.isIntersecting) { e.target.classList.add('entra'); observador.unobserve(e.target); }
