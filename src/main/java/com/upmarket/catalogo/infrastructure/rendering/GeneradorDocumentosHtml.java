@@ -202,8 +202,8 @@ public class GeneradorDocumentosHtml implements GeneradorDocumentosPort {
                 .derecha { text-align: right; }
                 .datos { margin-top: 8mm; background: #FAF7F0; padding: 5mm 6mm; }
                 .datos div { margin-bottom: 1.2mm; }
-                .nota { margin-top: 8mm; font-size: 9pt; color: #4A4A4A;
-                        border-left: 2.5pt solid #D62828; padding-left: 3mm; }
+                .nota { margin-top: 8mm; font-size: 9pt; color: #1A1A1A;
+                        background: #FAF7F0; padding: 4mm 5mm; }
                 .pie { margin-top: 10mm; border-top: 0.5pt solid #E5E0D5; padding-top: 2.5mm;
                        font-size: 8.5pt; color: #4A4A4A; }
                 .pie table { width: 100%%; border-collapse: collapse; }
@@ -279,16 +279,12 @@ public class GeneradorDocumentosHtml implements GeneradorDocumentosPort {
         EstadisticasAdmin e = datos.estadisticas();
         long maxCategoria = Math.max(1,
                 e.publicacionesPorCategoria().values().stream().mapToLong(Long::longValue).max().orElse(0));
-        long maxDia = Math.max(1,
-                e.publicacionesPorDia().stream().mapToLong(EstadisticasAdmin.ConteoDia::total).max().orElse(0));
 
         String categorias = e.publicacionesPorCategoria().entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
                 .map(entrada -> barra(entrada.getKey(), entrada.getValue(), maxCategoria))
                 .collect(Collectors.joining());
-        String dias = e.publicacionesPorDia().stream()
-                .map(dia -> barra(dia.fecha(), dia.total(), maxDia))
-                .collect(Collectors.joining());
+        String graficoDias = graficoDias(e);
 
         StringBuilder filasTop = new StringBuilder();
         int puesto = 1;
@@ -318,8 +314,7 @@ public class GeneradorDocumentosHtml implements GeneradorDocumentosPort {
                 .append(escapar(datos.numero())).append("</div>")
                 .append("<div><span class=\"negrita\">Generado el</span> ").append(escapar(emitido)).append("</div>")
                 .append("<div><span class=\"negrita\">Generado por</span> ")
-                .append(escapar(datos.generadoPor())).append("</div></td></tr></table>")
-                .append("<div class=\"regla\"></div>");
+                .append(escapar(datos.generadoPor())).append("</div></td></tr></table>");
 
         h.append("<table class=\"kpis\"><tr>")
                 .append(cifra("Publicaciones", numero(e.totalPublicaciones()),
@@ -338,7 +333,7 @@ public class GeneradorDocumentosHtml implements GeneradorDocumentosPort {
                         numero(e.publicacionesPorCategoria().size()), null, null))
                 .append("<td></td><td></td></tr></table>");
 
-        h.append("<div class=\"seccion negrita\">Publicaciones por día (últimos 30 días)</div>").append(dias);
+        h.append("<div class=\"seccion negrita\">Publicaciones por día (últimos 30 días)</div>").append(graficoDias);
         h.append("<div class=\"seccion negrita\">Publicaciones por categoría</div>").append(categorias);
         h.append("<div class=\"seccion negrita\">Publicaciones más vistas</div>")
                 .append("<table class=\"datos\"><thead><tr><th class=\"derecha\">#</th><th>Título</th>")
@@ -367,8 +362,7 @@ public class GeneradorDocumentosHtml implements GeneradorDocumentosPort {
                 .marca .tinta { color: #1A1A1A; }
                 .meta { text-align: right; color: #4A4A4A; font-size: 9pt; }
                 .meta .titulo { color: #1A1A1A; font-size: 14pt; }
-                .regla { border-top: 1.2pt solid #1A1A1A; margin: 6mm 0 4mm; }
-                .kpis { width: 100%%; border-collapse: collapse; }
+                .kpis { width: 100%%; border-collapse: collapse; margin-top: 6mm; }
                 .kpis td { padding: 0 2mm 2mm 0; vertical-align: top; }
                 .kpis td.cifra { width: 33.33%%; background: #FAF7F0; border: 0.5pt solid #E5E0D5;
                                  padding: 3.5mm; }
@@ -383,6 +377,20 @@ public class GeneradorDocumentosHtml implements GeneradorDocumentosPort {
                 .barra .pista { background: #F2EDE3; height: 4mm; }
                 .barra .relleno { background: #F5B700; height: 4mm; }
                 .barra .val { width: 12mm; text-align: right; font-size: 8pt; padding-left: 2mm; }
+                .grafico-dias { width: 100%%; border-collapse: collapse; margin-top: 2mm; }
+                .grafico-dias .eje { width: 13mm; vertical-align: bottom; padding-right: 2mm;
+                                     text-align: right; font-size: 7.5pt; color: #4A4A4A; }
+                .grafico-dias .eje .maximo { font-size: 11pt; color: #1A1A1A; }
+                .grafico-dias .area { vertical-align: bottom; }
+                .barras-dia { width: 100%%; border-collapse: collapse; table-layout: fixed; }
+                .barras-dia td { padding: 0; text-align: center; vertical-align: bottom; }
+                .barras-dia tr.pistas td { height: 34mm; background: #F2EDE3; }
+                .barras-dia td.pista { vertical-align: bottom; }
+                .barras-dia .columna { text-align: center; }
+                .barras-dia .valor-barra { height: 3.4mm; font-size: 5.5pt; line-height: 3.4mm; color: #1A1A1A; }
+                .barras-dia .relleno { width: 68%%; margin: 0 auto; background: #F5B700; }
+                .barras-dia tr.etiquetas td { height: 4mm; font-size: 5.5pt; color: #4A4A4A; white-space: nowrap; }
+                .total-periodo { margin-top: 2.5mm; font-size: 8.5pt; color: #4A4A4A; }
                 table.datos { width: 100%%; border-collapse: collapse; margin-top: 3mm; }
                 table.datos th { background: #F2EDE3; text-align: left; padding: 2.6mm 2.5mm; font-size: 8.5pt; }
                 table.datos td { padding: 2.6mm 2.5mm; border-bottom: 0.4pt solid #E5E0D5; font-size: 8.5pt; }
@@ -412,6 +420,43 @@ public class GeneradorDocumentosHtml implements GeneradorDocumentosPort {
                         + "<td class=\"pista\"><div class=\"relleno\" style=\"width:%d%%\"></div></td>"
                         + "<td class=\"val\">%s</td></tr></table>",
                 escapar(etiqueta), porcentaje, numero(valor));
+    }
+
+    /**
+     * Un solo bloque compacto para los últimos 30 días: 30 barras verticales en una tabla de
+     * altura fija, con la columna alineada abajo. Sin flexbox (openhtmltopdf no lo soporta).
+     */
+    private static String graficoDias(EstadisticasAdmin e) {
+        List<EstadisticasAdmin.ConteoDia> dias = e.publicacionesPorDia();
+        long maxReal = dias.stream().mapToLong(EstadisticasAdmin.ConteoDia::total).max().orElse(0);
+        long maximo = Math.max(1, maxReal);
+        long total = dias.stream().mapToLong(EstadisticasAdmin.ConteoDia::total).sum();
+
+        StringBuilder pistas = new StringBuilder();
+        StringBuilder etiquetas = new StringBuilder();
+        for (int i = 0; i < dias.size(); i++) {
+            EstadisticasAdmin.ConteoDia dia = dias.get(i);
+            int alto = dia.total() <= 0 ? 0 : (int) Math.max(1, Math.round(dia.total() * 30.0 / maximo));
+            pistas.append("<td class=\"pista\"><div class=\"columna\"><div class=\"valor-barra\">")
+                    .append(dia.total() > 0 ? numero(dia.total()) : "&#160;")
+                    .append("</div><div class=\"relleno\" style=\"height:").append(alto)
+                    .append("mm;\"></div></div></td>");
+            String fecha = dia.fecha();
+            String etiqueta = i % 7 == 0 && fecha != null && fecha.length() >= 10
+                    ? fecha.substring(8, 10) + "/" + fecha.substring(5, 7)
+                    : "&#160;";
+            etiquetas.append("<td class=\"etiqueta\">").append(etiqueta).append("</td>");
+        }
+
+        return "<table class=\"grafico-dias\"><tr>"
+                + "<td class=\"eje\"><div>Máx.</div><div class=\"maximo negrita\">" + numero(maxReal)
+                + "</div></td>"
+                + "<td class=\"area\"><table class=\"barras-dia\">"
+                + "<tr class=\"pistas\">" + pistas + "</tr>"
+                + "<tr class=\"etiquetas\">" + etiquetas + "</tr>"
+                + "</table></td></tr></table>"
+                + "<div class=\"total-periodo\">Total en el periodo: " + numero(total)
+                + " publicaciones</div>";
     }
 
     private byte[] pdf(String html) {
