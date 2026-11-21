@@ -28,9 +28,9 @@ final class Escenario {
     final CategoriaService categoriaService = new CategoriaService(categorias, publicaciones, tx, acceso);
     final PublicacionService publicacionService = new PublicacionService(publicaciones, categorias, tx, reloj, acceso);
     final PagoService pagoService = new PagoService(pagos, publicaciones, pasarela, paypal, tx, reloj, acceso,
-            3000, "simulado", "", new BigDecimal("0.75"));
+            3000, "simulado", "", new BigDecimal("0.75"), true);
     final PagoService pagoServicePaypal = new PagoService(pagos, publicaciones, pasarela, paypal, tx, reloj, acceso,
-            3000, "paypal", "cliente-publico", new BigDecimal("0.75"));
+            3000, "paypal", "cliente-publico", new BigDecimal("0.75"), true);
 
     Escenario() {
         categoriaService.asegurarIniciales();

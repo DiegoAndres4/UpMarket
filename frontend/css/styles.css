@@ -569,15 +569,45 @@ a{text-decoration:underline;text-underline-offset:2px}
 .pago-nota{margin:16px 0 0}
 
 /* ---------- pago de publicación ----------
-   Los botones de PayPal viven en un iframe con su propio esquema de color; si heredara el esquema
-   oscuro de la página se pinta un lienzo claro detrás. Solo el contenedor de PayPal fija "light";
-   el resto de la vista usa los tokens del tema. */
-.pago-panel{max-width:720px}
-.pago-pasarela{margin-top:12px;background-color:transparent;color:var(--text)}
-.pago-pasarela--paypal{color-scheme:light}
+   Dos columnas: el aviso como cartel de la cartelera y el resumen en un panel tonal.
+   Los botones de PayPal viven en un iframe con su propio esquema de color; solo su contenedor
+   fija "light" para que no aparezca un lienzo blanco en modo oscuro. */
+.pago{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);grid-template-areas:"publicacion resumen" "alPagar resumen";gap:36px 44px;align-items:start}
+.pago__publicacion{grid-area:publicacion;min-width:0}
+.pago__al-pagar{grid-area:alPagar;min-width:0}
+.pago__resumen{grid-area:resumen;position:sticky;top:84px;min-width:0}
+.pago h2{margin:0 0 16px;font-size:var(--text-lg);line-height:1.25}
+.pago__aviso{max-width:380px}
+.pago__al-pagar h3{margin:0 0 10px;font-size:18px;line-height:1.3}
+.pago__beneficios{margin:0;padding-left:20px;display:grid;gap:6px}
+.pago__beneficios li{font-size:var(--text-md);line-height:1.5;color:var(--text-muted)}
+.pago__panel{background:var(--surface-2);border-radius:var(--radius-panel);padding:clamp(24px,2.6vw,32px)}
+.pago__linea{display:flex;align-items:baseline;justify-content:space-between;gap:16px;font-size:var(--text-md);color:var(--text-muted);font-variant-numeric:tabular-nums}
+.pago__linea span:last-child{color:var(--text);font-weight:600}
+.pago__total{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-top:20px;font-variant-numeric:tabular-nums}
+.pago__total span:first-child{font-size:var(--text-md);font-weight:600;color:var(--text)}
+.pago__total span:last-child{font-size:clamp(28px,3vw,32px);font-weight:800;line-height:1.1;color:var(--text)}
+.pago__equivalente{margin:12px 0 0;font-size:var(--text-sm);line-height:1.4;color:var(--text-muted);font-variant-numeric:tabular-nums}
+.pago__pasarela{margin-top:24px;background-color:transparent;color:var(--text)}
+.pago__pasarela--paypal{color-scheme:light}
 .pago-btn{width:100%}
-.pago-verificacion{margin-top:16px}
-.pago-verificacion .meta{margin-top:0}
+.pago__verificacion{margin-top:20px}
+.pago__verificacion .meta{margin-top:0}
+.pago__verificacion .btn{width:100%}
+.pago__nota{margin:16px 0 0;font-size:var(--text-sm);line-height:1.5;color:var(--text-muted)}
+.pago__panel .acciones .btn{flex:1 1 100%}
+@media(max-width:899px){
+  .pago{grid-template-columns:minmax(0,1fr);grid-template-areas:"publicacion" "resumen" "alPagar";gap:28px}
+  .pago__resumen{position:static}
+  .pago__aviso{max-width:none}
+  .pago__aviso .cartelera__enlace{display:flex;align-items:center;gap:14px;padding:10px 12px;transform:none}
+  .pago__aviso .cartelera__chincheta{top:-5px;left:auto;right:12px;margin-left:0}
+  .pago__aviso .cartelera__foto{flex:none;width:64px;height:64px;aspect-ratio:auto;border-radius:2px}
+  .pago__aviso .cartelera__papel{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;min-width:0;padding:0}
+  .pago__aviso .cartelera__aviso-titulo{order:1;flex:1 1 auto;min-width:0;-webkit-line-clamp:2}
+  .pago__aviso .cartelera__precio{order:2;flex:none;margin:0}
+  .pago__aviso .cartelera__aviso-meta{display:none}
+}
 
 /* ---------- reseñas del vendedor ---------- */
 .estrellas{color:var(--star);font-weight:700;letter-spacing:.5px;white-space:nowrap;display:inline-flex;align-items:center;gap:2px}

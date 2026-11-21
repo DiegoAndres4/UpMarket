@@ -42,11 +42,12 @@ public class PagoService implements PagoUseCase {
     private final String proveedor;
     private final String paypalClientId;
     private final BigDecimal montoUsd;
+    private final boolean paypalSandbox;
 
     public PagoService(PagoRepositoryPort pagos, PublicacionRepositoryPort publicaciones,
                        PasarelaPagoPort pasarela, PasarelaPaypalPort paypal, TransaccionPort transaccion,
                        Clock reloj, PoliticaAcceso acceso, long tarifaCop, String proveedor, String paypalClientId,
-                       BigDecimal montoUsd) {
+                       BigDecimal montoUsd, boolean paypalSandbox) {
         if (tarifaCop <= 0) {
             throw new ValorInvalidoException("La tarifa de publicación debe ser mayor que cero");
         }
@@ -64,6 +65,7 @@ public class PagoService implements PagoUseCase {
         this.proveedor = normalizarProveedor(proveedor);
         this.paypalClientId = paypalClientId;
         this.montoUsd = montoUsd.setScale(2);
+        this.paypalSandbox = paypalSandbox;
     }
 
     @Override
@@ -184,7 +186,8 @@ public class PagoService implements PagoUseCase {
 
     @Override
     public ConfiguracionPago configuracion() {
-        return new ConfiguracionPago(proveedor, esPaypal() ? paypalClientId : null, montoUsd, MONEDA_PAYPAL);
+        return new ConfiguracionPago(proveedor, esPaypal() ? paypalClientId : null, montoUsd, MONEDA_PAYPAL,
+                paypalSandbox);
     }
 
     /** Verifica la respuesta de PayPal: estado, moneda, monto y que la orden sea de esta publicación. */

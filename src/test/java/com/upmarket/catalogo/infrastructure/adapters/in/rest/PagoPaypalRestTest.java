@@ -101,6 +101,7 @@ class PagoPaypalRestTest {
                 .andExpect(jsonPath("$.clientId").value("cliente-publico"))
                 .andExpect(jsonPath("$.montoUsd").value(0.75))
                 .andExpect(jsonPath("$.monedaPaypal").value("USD"))
+                .andExpect(jsonPath("$.sandbox").value(true))
                 .andExpect(jsonPath("$.clientSecret").doesNotExist());
     }
 

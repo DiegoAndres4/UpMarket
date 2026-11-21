@@ -201,6 +201,7 @@ class UpmarketRestTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.proveedor").value("simulado"))
                 .andExpect(jsonPath("$.monedaPaypal").value("USD"))
+                .andExpect(jsonPath("$.sandbox").value(true))
                 .andExpect(jsonPath("$.montoUsd").value(0.75));
     }
 

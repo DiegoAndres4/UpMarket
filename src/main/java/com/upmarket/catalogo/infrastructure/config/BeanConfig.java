@@ -121,9 +121,11 @@ public class BeanConfig {
                             @Value("${upmarket.publicacion.tarifa:3000}") long tarifa,
                             @Value("${pagos.proveedor:simulado}") String proveedor,
                             @Value("${pagos.paypal.client-id:}") String paypalClientId,
-                            @Value("${pagos.paypal.monto-usd:0.75}") BigDecimal montoUsd) {
+                            @Value("${pagos.paypal.monto-usd:0.75}") BigDecimal montoUsd,
+                            @Value("${pagos.paypal.base-url:https://api-m.sandbox.paypal.com}") String paypalBaseUrl) {
+        boolean sandbox = paypalBaseUrl != null && paypalBaseUrl.toLowerCase().contains("sandbox");
         return new PagoService(pagos, publicaciones, pasarela, paypal, transaccion, reloj, acceso, tarifa,
-                proveedor, paypalClientId, montoUsd);
+                proveedor, paypalClientId, montoUsd, sandbox);
     }
 
     /**

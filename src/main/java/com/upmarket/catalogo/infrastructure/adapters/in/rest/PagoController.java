@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class PagoController {
 
     public record ConfiguracionResponse(String proveedor, String clientId, BigDecimal montoUsd,
-                                        String monedaPaypal) {
+                                        String monedaPaypal, boolean sandbox) {
     }
 
     private final PagoUseCase pagos;
@@ -25,6 +25,6 @@ public class PagoController {
     public ConfiguracionResponse configuracion() {
         PagoUseCase.ConfiguracionPago config = pagos.configuracion();
         return new ConfiguracionResponse(config.proveedor(), config.clientId(), config.montoUsd(),
-                config.monedaPaypal());
+                config.monedaPaypal(), config.sandbox());
     }
 }

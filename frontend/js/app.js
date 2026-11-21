@@ -297,7 +297,7 @@ function pintarPie() {
     esAdmin ? enlace('/admin/', 'Panel de administración') : null,
   ].filter(Boolean);
   const ayuda = [
-    esAdmin ? null : h('li', {}, h('span', { class: 'pie__dato' }, 'Publicar cuesta $3.000 (pago simulado)')),
+    esAdmin ? null : h('li', {}, h('span', { class: 'pie__dato' }, 'Publicar cuesta $3.000.')),
     SOPORTE_CORREO ? h('li', {}, h('a', { href: 'mailto:' + SOPORTE_CORREO }, 'Contactar soporte')) : null,
   ].filter(Boolean);
   pie.replaceChildren(
@@ -1366,6 +1366,24 @@ function pintarPagoAprobado(panel, publicacion, id) {
     h('div', { class: 'acciones' }, h('a', { class: 'btn sec', href: '#/p/' + id }, 'Ver publicación')));
 }
 
+/* Aviso de la publicación con el mismo papel y la misma chincheta que la cartelera de la sede. */
+function avisoPublicacionPago(p) {
+  const rotacion = ((((Number(p.id) % 7) + 7) % 7) - 3) * 0.5;
+  const estadoTexto = p.estadoArticulo === 'NUEVO' ? 'Nuevo' : 'Usado';
+  const foto = p.fotos && p.fotos.length
+    ? h('img', { class: 'cartelera__foto', src: urlFoto(p.fotos[0].url), alt: p.titulo,
+        width: 480, height: 320, decoding: 'async' })
+    : h('span', { class: 'cartelera__foto cartelera__foto--vacia' }, h('span', {}, p.categoria));
+  return h('div', { class: 'pago__aviso cartelera__aviso', style: `--rot:${rotacion}deg` },
+    h('div', { class: 'cartelera__enlace' },
+      h('span', { class: 'cartelera__chincheta', 'aria-hidden': 'true' }),
+      foto,
+      h('span', { class: 'cartelera__papel' },
+        h('span', { class: 'cartelera__precio' }, precio(p.precio)),
+        h('span', { class: 'cartelera__aviso-titulo' }, p.titulo),
+        h('span', { class: 'cartelera__aviso-meta' }, p.categoria + ' · ' + estadoTexto))));
+}
+
 async function vistaPago(id) {
   const [p, config] = await Promise.all([
     api('GET', '/api/publicaciones/' + id),
@@ -1377,25 +1395,43 @@ async function vistaPago(id) {
   const montoUsd = Number(config.montoUsd).toLocaleString('es-CO', {
     minimumFractionDigits: 2, maximumFractionDigits: 2,
   });
-  const panel = h('div', { class: 'panel pago-panel' },
-    h('p', {}, 'Publicar cuesta:'),
-    h('p', { class: 'detalle-precio' }, precio(3000) + ' COP'),
-    h('p', { class: 'sub' }, '«' + p.titulo + '» quedará visible en el catálogo apenas se apruebe el pago.'));
-  const zonaPago = h('div', { class: 'pago-pasarela' });
+  const tarifa = precio(3000);
+  const panel = h('div', { class: 'pago__panel' },
+    h('div', { class: 'pago__linea' },
+      h('span', {}, 'Tarifa de publicación'), h('span', {}, tarifa)),
+    h('div', { class: 'pago__total' },
+      h('span', {}, 'Total'), h('span', {}, tarifa + ' COP')));
+  const zonaPago = h('div', { class: 'pago__pasarela' });
+
+  montar(
+    h('a', { class: 'volver', href: '#/mias' }, '← Volver a mis publicaciones'),
+    h('h1', {}, 'Pagar publicación'),
+    h('div', { class: 'pago' },
+      h('section', { class: 'pago__publicacion', 'aria-labelledby': 'pago-publicacion' },
+        h('h2', { id: 'pago-publicacion' }, 'Lo que vas a publicar'),
+        avisoPublicacionPago(p)),
+      h('section', { class: 'pago__al-pagar', 'aria-labelledby': 'pago-al-pagar' },
+        h('h3', { id: 'pago-al-pagar' }, 'Al pagar:'),
+        h('ul', { class: 'pago__beneficios' },
+          h('li', {}, 'Tu aviso aparece en el catálogo y en la cartelera de la sede.'),
+          h('li', {}, 'Puedes ver y descargar tu recibo en PDF.'),
+          h('li', {}, 'Ves cuántas personas abren tu aviso.'))),
+      h('section', { class: 'pago__resumen', 'aria-labelledby': 'pago-resumen' },
+        h('h2', { id: 'pago-resumen' }, 'Resumen del pago'),
+        panel)));
 
   if (config.proveedor === 'paypal') {
     /* Un pago que PayPal ya cobró puede quedar pendiente si la captura no se confirma. La orden
        se guarda en la publicación, así que se puede verificar sin volver a pagar. */
-    zonaPago.classList.add('pago-pasarela--paypal');
-    const zonaVerificacion = h('div', { class: 'pago-verificacion' });
+    zonaPago.classList.add('pago__pasarela--paypal');
+    const zonaVerificacion = h('div', { class: 'pago__verificacion' });
     panel.append(
-      h('p', { class: 'meta' }, 'PayPal cobra el equivalente en dólares: USD ' + montoUsd + '.'),
+      h('p', { class: 'pago__equivalente' }, 'PayPal cobra el equivalente: USD ' + montoUsd),
       zonaPago,
       zonaVerificacion);
-    montar(
-      h('a', { class: 'volver', href: '#/mias' }, '← Volver a mis publicaciones'),
-      h('h1', {}, 'Pagar publicación'),
-      panel);
+    if (config.sandbox) {
+      panel.append(h('p', { class: 'pago__nota' }, 'Pago de prueba (sandbox): no se cobra dinero real.'));
+    }
 
     if (!config.clientId) {
       aviso('PayPal no está configurado. Intenta más tarde.', true);
@@ -1482,7 +1518,6 @@ async function vistaPago(id) {
   }
 
   panel.append(
-    h('p', { class: 'meta' }, 'Pago simulado: no se cobra dinero real.'),
     h('button', { class: 'btn pago-btn', type: 'button', onclick: async (ev) => {
       const boton = ev.currentTarget;
       const restaurar = cargandoEn(boton, 'Pagando…');
@@ -1494,11 +1529,8 @@ async function vistaPago(id) {
         aviso(e.message, true);
         restaurar();
       }
-    } }, 'Pagar'));
-  montar(
-    h('a', { class: 'volver', href: '#/mias' }, '← Volver a mis publicaciones'),
-    h('h1', {}, 'Pagar publicación'),
-    panel);
+    } }, 'Pagar'),
+    h('p', { class: 'pago__nota' }, 'Pago simulado: no se cobra dinero real.'));
 }
 
 /* ---------- detalle y contacto (HU-11) ---------- */

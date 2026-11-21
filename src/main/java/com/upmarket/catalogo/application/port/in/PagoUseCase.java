@@ -25,6 +25,7 @@ public interface PagoUseCase {
     /** Configuración pública que el frontend necesita para pintar la pasarela. */
     ConfiguracionPago configuracion();
 
-    record ConfiguracionPago(String proveedor, String clientId, BigDecimal montoUsd, String monedaPaypal) {
+    record ConfiguracionPago(String proveedor, String clientId, BigDecimal montoUsd, String monedaPaypal,
+                             boolean sandbox) {
     }
 }
