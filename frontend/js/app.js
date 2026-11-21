@@ -958,71 +958,134 @@ function esqueletoCatalogo() {
         h('span', { class: 'hueso corto' }),
         h('span', { class: 'hueso mini' })))));
 }
-/* Sin filtros: todo lo disponible, ordenado por secciones (categorías). Con filtros: lista plana con «Mostrar más». */
+/* Catálogo (#/): búsqueda grande, chips de categoría y filtros secundarios en una fila.
+   Los chips, el estado y el orden aplican al instante; el texto, al enviar o con Enter. */
 async function vistaCatalogo() {
-  const POR_SECCION = 8, POR_PAGINA = 24;
-  const campo = (id, etiqueta, el) => h('div', {}, h('label', { for: id }, etiqueta), el);
-  const q = h('input', { id: 'q', type: 'search', placeholder: 'Calculadora, libro de cálculo…', maxlength: 100 });
-  const cat = h('select', { id: 'cat' }, h('option', { value: '' }, 'Todas'));
-  const min = h('input', { id: 'min', type: 'number', inputmode: 'decimal', min: 0, step: 'any', placeholder: '0', 'aria-describedby': 'error-filtros' });
-  const max = h('input', { id: 'max', type: 'number', inputmode: 'decimal', min: 0, step: 'any', placeholder: 'Sin tope', 'aria-describedby': 'error-filtros' });
-  const est = h('select', { id: 'est' }, h('option', { value: '' }, 'Cualquiera'),
-    h('option', { value: 'NUEVO' }, 'Nuevo'), h('option', { value: 'USADO' }, 'Usado'));
-  const errorFiltros = h('p', { class: 'error', id: 'error-filtros', role: 'alert', hidden: true });
-  const resultados = h('div', { 'aria-busy': 'false' });
-  const info = h('p', { class: 'sub', role: 'status', 'aria-live': 'polite' });
+  const estado = { texto: '', categoria: '', min: '', max: '', articulo: '', orden: 'recientes' };
+  const miles = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
+  const soloNumero = (valor) => (valor || '').replace(/\D/g, '');
+  const numero = (valor) => { const d = soloNumero(valor); return d ? Number(d) : null; };
+  const formatoMiles = (valor) => { const n = soloNumero(valor); return n ? miles.format(Number(n)) : ''; };
   let cats = [];
+  let turno = 0;
 
-  function limpiarFiltros() {
-    q.value = ''; cat.value = ''; min.value = ''; max.value = ''; est.value = '';
-    errorFiltros.hidden = true;
-    buscar();
-  }
-  const limpiar = h('button', { class: 'btn sec', type: 'button', onclick: limpiarFiltros }, 'Quitar filtros');
-  const limpiarCaja = h('div', { class: 'acciones fin', hidden: true }, limpiar);
-  [min, max].forEach((el) => el.addEventListener('input', () => { errorFiltros.hidden = true; }));
+  const lupa = h('span', { class: 'catalogo-buscar__lupa', 'aria-hidden': 'true' });
+  lupa.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" focusable="false"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16.5 16.5 21 21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+  const entrada = h('input', { id: 'q', type: 'search', maxlength: 100, placeholder: 'Calculadora, libro de cálculo…', autocomplete: 'off' });
+  const botonBuscar = h('button', { class: 'btn', type: 'submit' }, 'Buscar');
+  const formulario = h('form', { class: 'catalogo-buscar', role: 'search', onsubmit: (ev) => {
+    ev.preventDefault();
+    estado.texto = entrada.value.trim();
+    const restaurar = cargandoEn(botonBuscar, 'Buscando…');
+    buscar().finally(restaurar);
+  } },
+    h('label', { class: 'sr-only', for: 'q' }, 'Buscar en el catálogo'),
+    h('div', { class: 'catalogo-buscar__fila' }, lupa, entrada, botonBuscar));
 
-  function pintarPlano(lista) {
-    let limite = POR_PAGINA;
-    const rejilla = h('div', { class: 'rejilla' });
-    const mas = h('button', { class: 'btn sec', type: 'button' }, 'Mostrar más');
-    const dibujar = () => { rejilla.replaceChildren(...lista.slice(0, limite).map(tarjeta)); mas.hidden = limite >= lista.length; };
-    mas.addEventListener('click', () => { limite += POR_PAGINA; dibujar(); });
-    dibujar();
-    resultados.replaceChildren(rejilla, h('div', { class: 'acciones centradas' }, mas));
-  }
-  function pintarSecciones(lista) {
-    const porCat = new Map();
-    for (const p of lista) { if (!porCat.has(p.categoria)) porCat.set(p.categoria, []); porCat.get(p.categoria).push(p); }
-    const orden = cats.map((c) => c.nombre).filter((n) => porCat.has(n));
-    for (const n of porCat.keys()) if (!orden.includes(n)) orden.push(n);
-    resultados.replaceChildren(...orden.map((n) => {
-      const items = porCat.get(n);
-      return h('section', { class: 'seccion' },
-        h('div', { class: 'seccion-cab' }, h('h2', {}, n, h('span', { class: 'meta' }, ' · ' + items.length)),
-          items.length > POR_SECCION ? h('button', { class: 'btn sec', type: 'button', onclick: () => { cat.value = n; buscar(); } }, 'Ver todos (' + items.length + ')') : null),
-        h('div', { class: 'rejilla' }, items.slice(0, POR_SECCION).map(tarjeta)));
+  const chips = h('div', { class: 'catalogo-chips', role: 'group', 'aria-label': 'Categorías' });
+  function pintarChips() {
+    const opciones = ['Todas', ...cats.map((c) => c.nombre)];
+    chips.replaceChildren(...opciones.map((nombre) => {
+      const valor = nombre === 'Todas' ? '' : nombre;
+      return h('button', { type: 'button', class: 'chip', 'aria-pressed': String(estado.categoria === valor),
+        onclick: () => { estado.categoria = valor; pintarChips(); buscar(); } }, nombre);
     }));
   }
-  function panelError(mensaje) {
-    return h('div', { class: 'panel vacio' },
-      h('p', {}, 'No se pudieron cargar las publicaciones.'),
-      h('p', { class: 'meta' }, mensaje),
-      h('div', { class: 'acciones' },
-        h('button', { class: 'btn', type: 'button', onclick: buscar }, 'Reintentar')));
+
+  const errorFiltros = h('p', { class: 'error', id: 'error-filtros', role: 'alert', hidden: true });
+  const min = h('input', { id: 'min', type: 'text', inputmode: 'numeric', autocomplete: 'off', placeholder: '0', 'aria-label': 'Precio mínimo', 'aria-describedby': 'error-filtros' });
+  const max = h('input', { id: 'max', type: 'text', inputmode: 'numeric', autocomplete: 'off', placeholder: 'Sin tope', 'aria-label': 'Precio máximo', 'aria-describedby': 'error-filtros' });
+  min.addEventListener('input', () => { estado.min = min.value; errorFiltros.hidden = true; });
+  max.addEventListener('input', () => { estado.max = max.value; errorFiltros.hidden = true; });
+  min.addEventListener('blur', () => { min.value = formatoMiles(min.value); estado.min = min.value; });
+  max.addEventListener('blur', () => { max.value = formatoMiles(max.value); estado.max = max.value; });
+
+  const segmentos = [
+    { valor: '', texto: 'Cualquiera' }, { valor: 'NUEVO', texto: 'Nuevo' }, { valor: 'USADO', texto: 'Usado' },
+  ].map((opcion) => ({ ...opcion,
+    boton: h('button', { type: 'button', class: 'segmentado__op', 'aria-pressed': 'false',
+      onclick: () => { estado.articulo = opcion.valor; buscar(); } }, opcion.texto) }));
+  const selectorEstado = h('div', { class: 'segmentado', role: 'group', 'aria-label': 'Estado del artículo' },
+    segmentos.map((s) => s.boton));
+
+  const orden = h('select', { id: 'orden' },
+    h('option', { value: 'recientes' }, 'Más recientes'),
+    h('option', { value: 'menor' }, 'Menor precio'),
+    h('option', { value: 'mayor' }, 'Mayor precio'));
+  orden.addEventListener('change', () => { estado.orden = orden.value; buscar(); });
+
+  const limpiar = h('button', { class: 'enlace-filtro', type: 'button', hidden: true, onclick: () => limpiarFiltros() }, 'Limpiar filtros');
+  const panel = h('div', { class: 'catalogo-panel', id: 'filtros-catalogo' },
+    h('div', { class: 'filtro-grupo' },
+      h('span', { class: 'filtro-grupo__titulo' }, 'Precio'),
+      h('div', { class: 'filtro-precio' },
+        h('span', { class: 'precio-campo' }, h('span', { class: 'prefijo', 'aria-hidden': 'true' }, '$'), min),
+        h('span', { class: 'precio-campo' }, h('span', { class: 'prefijo', 'aria-hidden': 'true' }, '$'), max))),
+    h('div', { class: 'filtro-grupo' }, h('span', { class: 'filtro-grupo__titulo' }, 'Estado'), selectorEstado),
+    h('div', { class: 'filtro-grupo' }, h('label', { for: 'orden' }, 'Ordenar'), orden),
+    h('div', { class: 'filtro-grupo filtro-grupo--fin' }, limpiar),
+    errorFiltros);
+
+  const botonFiltros = h('button', { class: 'btn sec catalogo-filtros__toggle', type: 'button',
+    'aria-expanded': 'false', 'aria-controls': 'filtros-catalogo', onclick: () => {
+      const abierto = botonFiltros.getAttribute('aria-expanded') === 'true';
+      botonFiltros.setAttribute('aria-expanded', String(!abierto));
+      panel.classList.toggle('abierto', !abierto);
+    } }, 'Filtros');
+
+  const chipsActivos = h('div', { class: 'chips-activos', 'aria-label': 'Filtros activos' });
+  const info = h('p', { class: 'catalogo-cuenta', role: 'status', 'aria-live': 'polite' });
+  const resultados = h('div', { 'aria-busy': 'false' });
+
+  function activos() {
+    return [estado.texto, estado.categoria, numero(estado.min) !== null, numero(estado.max) !== null, estado.articulo].filter(Boolean).length;
+  }
+  function pintarActivos() {
+    const quitar = (etiqueta, limpiarFiltro) => h('button', { class: 'chip-activo', type: 'button',
+      onclick: () => { limpiarFiltro(); buscar(); } }, etiqueta, iconoSvg('M6 6l12 12M18 6L6 18', 12));
+    const items = [];
+    if (estado.texto) items.push(quitar('«' + estado.texto + '»', () => { estado.texto = ''; entrada.value = ''; }));
+    if (estado.categoria) items.push(quitar(estado.categoria, () => { estado.categoria = ''; pintarChips(); }));
+    if (estado.min && numero(estado.min) !== null) items.push(quitar('Desde ' + precio(numero(estado.min)), () => { estado.min = ''; min.value = ''; }));
+    if (estado.max && numero(estado.max) !== null) items.push(quitar('Hasta ' + precio(numero(estado.max)), () => { estado.max = ''; max.value = ''; }));
+    if (estado.articulo) items.push(quitar(estado.articulo === 'NUEVO' ? 'Nuevo' : 'Usado', () => { estado.articulo = ''; }));
+    chipsActivos.replaceChildren(...items);
+    chipsActivos.hidden = !items.length;
+  }
+  function actualizarPanel() {
+    const total = activos();
+    botonFiltros.replaceChildren('Filtros', total ? h('span', { class: 'cuenta' }, String(total)) : '');
+    limpiar.hidden = total === 0;
+    segmentos.forEach((s) => s.boton.setAttribute('aria-pressed', String(estado.articulo === s.valor)));
+    pintarActivos();
+  }
+  function limpiarFiltros() {
+    estado.texto = ''; estado.categoria = ''; estado.min = ''; estado.max = ''; estado.articulo = ''; estado.orden = 'recientes';
+    entrada.value = ''; min.value = ''; max.value = ''; orden.value = 'recientes';
+    errorFiltros.hidden = true;
+    pintarChips();
+    buscar();
+  }
+  function ordenar(lista) {
+    const copia = [...lista];
+    if (estado.orden === 'menor') copia.sort((a, b) => Number(a.precio) - Number(b.precio));
+    else if (estado.orden === 'mayor') copia.sort((a, b) => Number(b.precio) - Number(a.precio));
+    else copia.sort((a, b) => new Date(b.publicadaEn) - new Date(a.publicadaEn));
+    return copia;
   }
   function panelVacio(hayFiltros) {
     return h('div', { class: 'panel vacio' },
       h('p', {}, hayFiltros ? 'No encontramos publicaciones con esos filtros.' : 'Todavía no hay publicaciones. ¡Sé el primero en publicar!'),
       h('div', { class: 'acciones' },
-        hayFiltros ? h('button', { class: 'btn sec', type: 'button', onclick: limpiarFiltros }, 'Quitar filtros') : null,
+        hayFiltros ? h('button', { class: 'btn sec', type: 'button', onclick: () => limpiarFiltros() }, 'Limpiar filtros') : null,
         leerSesion() && !leerSesion().esAdmin ? h('a', { class: 'btn', href: '#/publicar' }, 'Publicar un artículo') : null));
   }
 
   async function buscar() {
+    const miTurno = ++turno;
     errorFiltros.hidden = true;
-    const minV = min.value === '' ? null : Number(min.value);
-    const maxV = max.value === '' ? null : Number(max.value);
+    const minV = numero(estado.min);
+    const maxV = numero(estado.max);
     if (minV !== null && maxV !== null && minV > maxV) {
       errorFiltros.textContent = 'El precio mínimo no puede ser mayor que el máximo.';
       errorFiltros.hidden = false;
@@ -1030,51 +1093,53 @@ async function vistaCatalogo() {
       return;
     }
     const ps = new URLSearchParams();
-    if (q.value.trim()) ps.set('texto', q.value.trim());
-    if (cat.value) ps.set('categoria', cat.value);
-    if (min.value) ps.set('precioMin', min.value);
-    if (max.value) ps.set('precioMax', max.value);
-    if (est.value) ps.set('estado', est.value);
+    if (estado.texto) ps.set('texto', estado.texto);
+    if (estado.categoria) ps.set('categoria', estado.categoria);
+    if (minV !== null) ps.set('precioMin', String(minV));
+    if (maxV !== null) ps.set('precioMax', String(maxV));
+    if (estado.articulo) ps.set('estado', estado.articulo);
     const hayFiltros = ps.toString() !== '';
-    limpiarCaja.hidden = !hayFiltros;
+    actualizarPanel();
     resultados.setAttribute('aria-busy', 'true');
     resultados.replaceChildren(esqueletoCatalogo());
     info.textContent = 'Cargando publicaciones…';
     try {
       const lista = await api('GET', '/api/publicaciones' + (hayFiltros ? '?' + ps : ''));
-      limpiarCaja.hidden = !hayFiltros || lista.length === 0;
-      info.textContent = hayFiltros
-        ? (lista.length === 1 ? '1 resultado' : lista.length + ' resultados')
-        : (lista.length === 1 ? '1 publicación disponible' : lista.length + ' publicaciones disponibles');
-      if (!lista.length) resultados.replaceChildren(panelVacio(hayFiltros));
-      else if (hayFiltros) pintarPlano(lista);
-      else pintarSecciones(lista);
+      if (miTurno !== turno) return;
+      const ordenadas = ordenar(lista);
+      info.textContent = ordenadas.length === 1 ? '1 publicación' : ordenadas.length + ' publicaciones';
+      resultados.replaceChildren(ordenadas.length
+        ? h('div', { class: 'rejilla catalogo-rejilla' }, ordenadas.map(tarjeta))
+        : panelVacio(hayFiltros));
     } catch (e) {
-      info.textContent = '';
-      resultados.replaceChildren(panelError(e.message));
+      if (miTurno !== turno) return;
+      info.textContent = '0 publicaciones';
+      resultados.replaceChildren(h('div', { class: 'panel vacio' },
+        h('p', {}, 'No se pudieron cargar las publicaciones.'),
+        h('p', { class: 'meta' }, e.message),
+        h('div', { class: 'acciones' }, h('button', { class: 'btn', type: 'button', onclick: () => buscar() }, 'Reintentar'))));
       aviso(e.message, true);
     } finally {
-      resultados.setAttribute('aria-busy', 'false');
+      if (miTurno === turno) resultados.setAttribute('aria-busy', 'false');
     }
   }
 
-  const botonBuscar = h('button', { class: 'btn', type: 'submit' }, 'Buscar');
-  const filtros = h('form', { class: 'tarjeta filtros', onsubmit: (ev) => {
-    ev.preventDefault();
-    const restaurar = cargandoEn(botonBuscar, 'Buscando…');
-    buscar().finally(restaurar);
-  } },
-    h('div', { class: 'buscar' }, h('label', { for: 'q' }, 'Buscar'), q),
-    campo('cat', 'Categoría', cat), campo('min', 'Precio mínimo', min), campo('max', 'Precio máximo', max),
-    campo('est', 'Estado', est),
-    botonBuscar,
-    errorFiltros);
-  montar(h('h1', {}, 'Catálogo'), h('p', { class: 'sub' }, 'Lo que tus compañeros están vendiendo, ordenado y en un solo lugar.'),
-    filtros, limpiarCaja, info, resultados);
+  montar(
+    h('h1', {}, 'Catálogo'),
+    h('p', { class: 'sub' }, 'Lo que tus compañeros están vendiendo, ordenado y en un solo lugar.'),
+    formulario,
+    chips,
+    botonFiltros,
+    panel,
+    chipsActivos,
+    info,
+    resultados);
 
+  pintarChips();
+  actualizarPanel();
   try {
     cats = await api('GET', '/api/categorias');
-    cat.append(...cats.map((c) => h('option', { value: c.nombre }, `${c.nombre} (${c.disponibles})`)));
+    pintarChips();
   } catch (e) {
     aviso('No se pudieron cargar las categorías: ' + e.message, true);
   }
