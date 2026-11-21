@@ -133,6 +133,63 @@ function mensajeDeError(estado, d, ruta) {
   return estado === 409 ? 'Ese dato ya existe.' : 'No pudimos completar la acción. Intenta de nuevo.';
 }
 
+/* ---------- tema claro / oscuro ----------
+   Se guarda 'claro' u 'oscuro' en localStorage; sin valor se sigue la preferencia del sistema.
+   tema.js aplica la elección antes del primer pintado; aquí solo se alterna y se anuncian los botones. */
+const CLAVE_TEMA = 'upmarket.tema';
+function temaGuardado() {
+  try { const t = localStorage.getItem(CLAVE_TEMA); return t === 'claro' || t === 'oscuro' ? t : null; }
+  catch { return null; }
+}
+function prefiereOscuro() {
+  return Boolean(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+}
+function temaEfectivo() {
+  const t = temaGuardado();
+  if (t) return t;
+  return prefiereOscuro() ? 'oscuro' : 'claro';
+}
+function iconoTema(nombre) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  for (const [k, v] of Object.entries({ viewBox: '0 0 24 24', width: '20', height: '20', fill: 'none',
+    stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+    class: 'icono-' + nombre, 'aria-hidden': 'true', focusable: 'false' })) svg.setAttribute(k, v);
+  if (nombre === 'luna') {
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', 'M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z');
+    svg.append(path);
+  } else {
+    const circulo = document.createElementNS(ns, 'circle');
+    circulo.setAttribute('cx', '12'); circulo.setAttribute('cy', '12'); circulo.setAttribute('r', '3.5');
+    const rayos = document.createElementNS(ns, 'path');
+    rayos.setAttribute('d', 'M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4');
+    svg.append(circulo, rayos);
+  }
+  return svg;
+}
+function botonTema() {
+  return h('button', { class: 'boton-tema', type: 'button', 'aria-label': 'Cambiar a modo oscuro',
+    'aria-pressed': 'false', onclick: alternarTema }, iconoTema('luna'), iconoTema('sol'));
+}
+function actualizarBotonesTema() {
+  const raiz = document.documentElement;
+  const oscuro = raiz.getAttribute('data-tema') === 'oscuro'
+    || (!raiz.hasAttribute('data-tema') && prefiereOscuro());
+  const etiqueta = oscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro';
+  document.querySelectorAll('.boton-tema').forEach((boton) => {
+    boton.setAttribute('aria-pressed', String(oscuro));
+    boton.setAttribute('aria-label', etiqueta);
+    boton.setAttribute('title', etiqueta);
+  });
+}
+function alternarTema() {
+  const destino = temaEfectivo() === 'oscuro' ? 'claro' : 'oscuro';
+  try { localStorage.setItem(CLAVE_TEMA, destino); } catch { /* sin almacenamiento: solo esta sesión */ }
+  document.documentElement.setAttribute('data-tema', destino);
+  actualizarBotonesTema();
+}
+
 /* ---------- navegación ---------- */
 function pintarNav() {
   const s = leerSesion(); const nav = document.getElementById('nav'); const menu = document.getElementById('menu'); const ruta = location.hash || '#/';
@@ -185,7 +242,8 @@ function pintarPie() {
         h('a', { class: 'marca pie__marca', href: '#/' }, 'UP', h('span', {}, 'Market')),
         h('p', { class: 'pie__lema' }, 'El mercado de los estudiantes de la Universidad de Pamplona, sede Villa del Rosario.'),
         h('a', { class: 'btn pie__accion', href: esAdmin ? '/admin/' : (s ? '#/publicar' : '#/registro') },
-          esAdmin ? 'Ir al panel de administración' : (s ? 'Publicar un artículo' : 'Crear cuenta'))),
+          esAdmin ? 'Ir al panel de administración' : (s ? 'Publicar un artículo' : 'Crear cuenta')),
+        botonTema()),
       h('nav', { class: 'pie__nav', 'aria-label': 'Pie de página' },
         h('div', { class: 'pie__grupo' },
           h('h2', { class: 'pie__grupo-titulo' }, 'Mercado'),
@@ -197,6 +255,12 @@ function pintarPie() {
         h('img', { src: 'public/escudo-128.png', alt: 'Escudo de la Universidad de Pamplona', width: 128, height: 167, loading: 'lazy', decoding: 'async' }),
         h('span', {}, 'Proyecto Integrador · Universidad de Pamplona · ' + anio)),
       h('img', { class: 'pie__mascota', src: 'public/mascota-upmarket.png', alt: '', width: 241, height: 360, 'aria-hidden': 'true' })));
+  actualizarBotonesTema();
+}
+document.getElementById('tema').addEventListener('click', alternarTema);
+actualizarBotonesTema();
+if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').addEventListener) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', actualizarBotonesTema);
 }
 document.getElementById('menu').addEventListener('click', () => {
   const nav = document.getElementById('nav'); const abierto = nav.classList.toggle('abierto');
