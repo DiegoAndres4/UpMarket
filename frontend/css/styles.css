@@ -17,6 +17,7 @@
   --accent-hover:#A61E1E;
   --accent-soft:#FDE8E8;
   --accent-text:#B91F1F;
+  --ok:#1F7A3D;
   --on-accent:#FFFFFF;
   --on-primary:#1A1A1A;
   --ink:#1A1A1A;
@@ -59,6 +60,7 @@
     --accent-hover:#B91F1F;
     --accent-soft:#3A1A1A;
     --accent-text:#FF7A6E;
+    --ok:#6FD08C;
     --on-accent:#FFFFFF;
     --on-primary:#1A1A1A;
     --ink:#0E0D0B;
@@ -94,6 +96,7 @@
   --accent-hover:#B91F1F;
   --accent-soft:#3A1A1A;
   --accent-text:#FF7A6E;
+  --ok:#6FD08C;
   --on-accent:#FFFFFF;
   --on-primary:#1A1A1A;
   --ink:#0E0D0B;
@@ -488,28 +491,32 @@ a{text-decoration:underline;text-underline-offset:2px}
 .chip .cuenta{font-variant-numeric:tabular-nums;font-weight:700}
 
 .mias-lista,.mias-esqueleto{list-style:none;margin:0;padding:0;border:1px solid var(--border);border-radius:var(--radius-panel);background:var(--surface);overflow:hidden}
-.mias-fila{display:grid;grid-template-columns:minmax(0,1fr) 124px 272px;gap:16px;align-items:center;padding:12px 16px;border-top:1px solid var(--border)}
+.mias-fila{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"principal precio" "acciones acciones";gap:12px 16px;align-items:start;padding:14px 16px;border-top:1px solid var(--border)}
 .mias-fila:first-child,.mias-esqueleto li:first-child{border-top:0}
 .mias-fila:hover{background:var(--surface-2)}
-.mias-fila__principal{display:flex;align-items:center;gap:14px;min-width:0;text-decoration:none;color:var(--text)}
+.mias-fila__principal{grid-area:principal;display:flex;align-items:center;gap:14px;min-width:0;text-decoration:none;color:var(--text)}
 .mias-fila__principal:hover{text-decoration:none}
 .mias-fila__principal:hover .mias-fila__titulo{text-decoration:underline;text-underline-offset:2px}
 .mias-fila__foto{width:56px;height:56px;flex:none;border-radius:var(--radius-control);object-fit:cover;background:var(--surface-2)}
 .mias-fila__foto--vacia{display:grid;place-content:center;text-align:center;font-size:11px;line-height:1.2;color:var(--text-muted);padding:4px}
-.mias-fila__texto{display:flex;flex-direction:column;gap:2px;min-width:0}
+.mias-fila__texto{display:flex;flex-direction:column;gap:3px;min-width:0}
 .mias-fila__titulo{font-size:var(--text-md);font-weight:600;line-height:1.3;overflow-wrap:anywhere}
 .mias-fila__meta{font-size:13px;color:var(--text-muted);overflow-wrap:anywhere}
-.mias-fila__cifras{display:flex;flex-direction:column;align-items:flex-end;gap:4px;text-align:right}
-.mias-fila__cifras .etiqueta{margin:0}
-.mias-fila__precio{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mias-fila__estado{min-width:0}
+.mias-fila__cifras{grid-area:precio;text-align:right}
+.mias-fila__precio{font-size:1.15rem;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
 .mias-fila--vendida .mias-fila__foto{opacity:.55}
 .mias-fila--vendida .mias-fila__precio{font-weight:600;color:var(--text-muted);text-decoration:line-through}
-.mias-fila__acciones{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}
-.btn-mini{font:inherit;font-size:var(--text-sm);font-weight:600;min-height:34px;padding:6px 10px;border:1px solid transparent;border-radius:var(--radius-control);background:none;color:var(--text);cursor:pointer;white-space:nowrap}
-.btn-mini:hover{background:var(--surface-2);border-color:var(--border)}
+.mias-fila__acciones{grid-area:acciones;display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}
+.btn-mini{font:inherit;font-size:var(--text-sm);font-weight:600;min-height:34px;padding:6px 10px;border:1px solid transparent;border-radius:var(--radius-control);background:none;color:var(--text);cursor:pointer;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.btn-mini:hover{background:var(--surface-2);border-color:var(--border);text-decoration:none}
 .btn-mini[disabled]{color:var(--text-muted);cursor:not-allowed}
+.btn-mini--primario{background:var(--primary);border-color:var(--primary);color:var(--on-primary);font-weight:700}
+.btn-mini--primario:hover{background:var(--primary-hover);border-color:var(--primary-hover);color:var(--on-primary)}
 .btn-mini--peligro{color:var(--accent-text)}
 .btn-mini--peligro:hover{background:var(--accent-soft);border-color:var(--accent-soft);color:var(--accent-text)}
+.btn-texto-peligro{font:inherit;font-size:var(--text-sm);font-weight:600;min-height:40px;padding:8px 12px;border:0;border-radius:var(--radius-control);background:none;color:var(--accent-text);cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.btn-texto-peligro:hover{background:var(--accent-soft)}
 
 .mias-vacio{border:1px dashed var(--border-strong);border-radius:var(--radius-panel);padding:24px;background:var(--bg)}
 .mias-vacio__titulo{margin:0 0 4px;font-weight:600;font-size:var(--text-md)}
@@ -517,7 +524,7 @@ a{text-decoration:underline;text-underline-offset:2px}
 .mias-error{border-color:var(--accent)}
 .mias-error__texto{margin:0 0 12px;color:var(--text)}
 
-.mias-esqueleto li{display:grid;grid-template-columns:56px minmax(0,1fr) 124px;gap:16px;align-items:center;padding:12px 16px;border-top:1px solid var(--border)}
+.mias-esqueleto li{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:16px;align-items:center;padding:12px 16px;border-top:1px solid var(--border)}
 .mias-esqueleto .bloque{display:block;height:14px;border-radius:4px;background:var(--surface-2)}
 .mias-esqueleto .bloque--foto{width:56px;height:56px;border-radius:var(--radius-control)}
 .mias-esqueleto .bloque--titulo{width:min(100%,320px);height:16px;margin-bottom:8px}
@@ -527,15 +534,35 @@ a{text-decoration:underline;text-underline-offset:2px}
 @media(max-width:860px){
   .mias-fila{grid-template-columns:minmax(0,1fr) auto;gap:10px 12px;padding:12px}
   .mias-fila__foto{width:48px;height:48px}
-  .mias-fila__acciones{grid-column:1/-1;justify-content:flex-start;gap:8px}
+  .mias-fila__acciones{justify-content:flex-start;gap:8px}
   .btn-mini{min-height:44px;padding:8px 12px;border-color:var(--border);background:var(--bg)}
+  .btn-mini--primario{background:var(--primary);border-color:var(--primary)}
   .mias-esqueleto li{grid-template-columns:48px minmax(0,1fr);padding:12px}
   .mias-esqueleto .bloque--foto{width:48px;height:48px}
   .mias-esqueleto .bloque--precio{display:none}
 }
+@media(max-width:639px){
+  .mias-fila__acciones .btn-mini{flex:1 1 100%}
+  .mias-fila__acciones .recibo-acciones{flex:1 1 100%;display:flex;flex-wrap:wrap}
+  .mias-fila__acciones .recibo-acciones .btn-mini{flex:1 1 100%}
+}
+
+/* ---------- indicadores de estado (compartidos) ---------- */
+.indicador{display:inline-flex;align-items:center;gap:5px;font-size:13px;line-height:1.4;color:var(--text-muted);white-space:nowrap}
+.indicador .icono{flex:none}
+.indicador__punto{width:8px;height:8px;border-radius:50%;background:currentColor;flex:none}
+.indicador--disponible,.indicador--ok{color:var(--ok)}
+.indicador--vendido,.indicador--neutro{color:var(--text-muted)}
+.indicador--alerta{color:var(--accent-text)}
+.linea-indicadores{display:inline-flex;flex-wrap:wrap;align-items:center;gap:1px 0;font-size:13px;line-height:1.4;color:var(--text-muted)}
+.linea-indicadores .separador{color:var(--border-strong)}
+.detalle-estado{margin-top:6px}
+.item__estado{margin-top:2px}
+.pago-nota{margin:16px 0 0}
 
 /* ---------- reseñas del vendedor ---------- */
-.estrellas{color:var(--star);font-weight:700;letter-spacing:.5px;white-space:nowrap}
+.estrellas{color:var(--star);font-weight:700;letter-spacing:.5px;white-space:nowrap;display:inline-flex;align-items:center;gap:2px}
+.estrellas svg{display:block;vertical-align:-2px}
 .vendedor__enlace{color:inherit;text-decoration:none}
 .vendedor__enlace:hover{text-decoration:underline}
 .vendedor__resumen{margin-top:2px}
@@ -553,6 +580,7 @@ a{text-decoration:underline;text-underline-offset:2px}
 .estrellas-picker legend{padding:0;font-weight:500;font-size:var(--text-sm);color:var(--text);margin-bottom:6px}
 .estrellas-picker__fila{display:inline-flex;gap:0}
 .estrellas-picker__fila label{display:inline-flex;align-items:center;justify-content:center;margin:0;padding:2px 3px;font-size:34px;line-height:1;font-weight:400;color:var(--border-strong);cursor:pointer;border-radius:6px;transition:color .12s,transform .12s;user-select:none}
+.estrellas-picker__fila label svg{width:30px;height:30px;display:block}
 .estrellas-picker__fila label.llena{color:var(--primary)}
 .estrellas-picker__fila label:active{transform:scale(.9)}
 .estrella__radio{position:absolute;width:1px;height:1px;min-height:0;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}

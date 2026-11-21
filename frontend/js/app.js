@@ -43,6 +43,57 @@ function aviso(texto, mal) {
 const pesos = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
 const precio = (n) => pesos.format(Number(n));
 const fecha = (iso) => new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
+const vistasTexto = (n) => Number(n) + (Number(n) === 1 ? ' vista' : ' vistas');
+
+/* Iconos SVG de trazo único: nada de emoji como interfaz. */
+function iconoSvg(d, tamano) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  for (const [k, v] of Object.entries({ viewBox: '0 0 24 24', width: String(tamano || 16),
+    height: String(tamano || 16), fill: 'none', stroke: 'currentColor', 'stroke-width': '1.8',
+    'stroke-linecap': 'round', 'stroke-linejoin': 'round', class: 'icono', 'aria-hidden': 'true',
+    focusable: 'false' })) svg.setAttribute(k, v);
+  const path = document.createElementNS(ns, 'path');
+  path.setAttribute('d', d);
+  svg.append(path);
+  return svg;
+}
+const iconoVista = () => iconoSvg('M2.5 12S6 6.5 12 6.5 21.5 12 21.5 12 18 17.5 12 17.5 2.5 12 2.5 12zM12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z', 16);
+function iconoEstrella(llena) {
+  const svg = iconoSvg('M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8L3.6 9.7l5.8-.8z', 16);
+  if (llena) { svg.setAttribute('fill', 'currentColor'); svg.setAttribute('stroke', 'currentColor'); }
+  return svg;
+}
+function indicador(texto, tipo, icono) {
+  return h('span', { class: 'indicador' + (tipo ? ' indicador--' + tipo : '') },
+    icono || h('span', { class: 'indicador__punto', 'aria-hidden': 'true' }), texto);
+}
+function lineaIndicadores(items) {
+  const nodos = [];
+  items.filter(Boolean).forEach((item, i) => {
+    if (i) nodos.push(h('span', { class: 'separador', 'aria-hidden': 'true' }, ' · '));
+    nodos.push(item);
+  });
+  return h('span', { class: 'linea-indicadores' }, nodos);
+}
+/* Estado de una publicación con el mismo lenguaje visual en catálogo, detalle y Mis publicaciones. */
+function indicadoresPublicacion(p, opciones) {
+  const o = opciones || {};
+  const items = [];
+  if (o.estado !== false) {
+    items.push(p.estadoPublicacion === 'VENDIDA'
+      ? indicador('Vendido', 'vendido')
+      : indicador('Disponible', 'disponible'));
+  }
+  if (o.articulo) items.push(indicador(p.estadoArticulo === 'USADO' ? 'Usado' : 'Nuevo', 'neutro'));
+  if (o.categoria) items.push(h('span', { class: 'indicador indicador--neutro' }, p.categoria));
+  if (p.vistas != null) items.push(indicador(vistasTexto(p.vistas), 'neutro', iconoVista()));
+  if (o.pago) {
+    if (p.estadoPago === 'PENDIENTE') items.push(indicador('Pendiente de pago', 'alerta'));
+    else if (p.estadoPago === 'APROBADO') items.push(indicador('Pagado', 'ok'));
+  }
+  return lineaIndicadores(items);
+}
 
 /* Validaciones (el servidor vuelve a validar todo; esto solo da el aviso antes). */
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -894,10 +945,8 @@ function tarjeta(p) {
     h('div', { class: 'cuerpo' },
       h('span', { class: 'precio' }, precio(p.precio)),
       h('h3', {}, p.titulo),
-      h('div', {},
-        h('span', { class: 'etiqueta' + (p.estadoArticulo === 'USADO' ? ' usado' : '') }, p.estadoArticulo === 'USADO' ? 'Usado' : 'Nuevo'),
-        p.estadoPublicacion === 'VENDIDA' ? h('span', { class: 'etiqueta vendida' }, 'Vendido') : null),
-      h('span', { class: 'meta' }, p.categoria + ' · ' + nombreCorto(p.vendedor))));
+      h('span', { class: 'meta' }, p.categoria + ' · ' + nombreCorto(p.vendedor)),
+      h('div', { class: 'item__estado' }, indicadoresPublicacion(p, { articulo: true }))));
 }
 function esqueletoCatalogo() {
   return h('div', { class: 'rejilla', 'aria-hidden': 'true' },
@@ -1101,9 +1150,14 @@ async function vistaDetalle(id) {
   api('GET', '/api/perfil/' + encodeURIComponent(p.vendedor) + '/resenas')
     .then((r) => {
       datosResenas = r;
-      resumenVendedor.textContent = r.total
-        ? '★ ' + r.promedio.toFixed(1) + ' · ' + r.total + (r.total === 1 ? ' reseña' : ' reseñas')
-        : 'Sin reseñas todavía';
+      if (r.total) {
+        resumenVendedor.replaceChildren(
+          h('span', { class: 'estrellas', 'aria-label': 'Promedio ' + r.promedio.toFixed(1) + ' de 5' },
+            iconoEstrella(true), ' ' + r.promedio.toFixed(1)),
+          ' · ' + r.total + (r.total === 1 ? ' reseña' : ' reseñas'));
+      } else {
+        resumenVendedor.textContent = 'Sin reseñas todavía';
+      }
       pintarBotonResena();
     })
     .catch(() => { resumenVendedor.textContent = ''; });
@@ -1169,34 +1223,36 @@ async function vistaDetalle(id) {
     h('strong', {}, 'Esta publicación ya se vendió'),
     h('p', {}, 'El vendedor ya no recibe consultas por este artículo.'));
 
-  /* El autor gestiona (editar, vender, borrar); el ADMIN solo modera: puede borrar lo ajeno. */
-  const pagoPendiente = esMia && p.estadoPago === 'PENDIENTE'
-    ? h('div', { class: 'estado-vendido', role: 'status' },
-        h('strong', {}, 'Pendiente de pago'),
-        h('p', {}, 'Publicar cuesta $3.000 (pago simulado).'),
-        h('button', { class: 'btn', type: 'button', onclick: () => accion(() => api('POST', `/api/publicaciones/${id}/pago`), 'Pago aprobado', () => vistaDetalle(id)) }, 'Pagar'))
+  /* El autor gestiona (pagar, editar, vender, recibo, borrar); el ADMIN solo modera. */
+  const notaPago = esMia && p.estadoPago === 'PENDIENTE'
+    ? h('p', { class: 'meta pago-nota', role: 'status' }, 'Publicar cuesta $3.000 (pago simulado).')
     : null;
 
+  const pagar = esMia && p.estadoPago === 'PENDIENTE'
+    ? h('button', { class: 'btn', type: 'button', onclick: () => accion(() => api('POST', `/api/publicaciones/${id}/pago`), 'Pago aprobado', () => vistaDetalle(id)) }, 'Pagar')
+    : null;
+  const editar = esMia && disponible
+    ? h('a', { class: 'btn' + (pagar ? ' sec' : ''), href: '#/editar/' + id }, 'Editar') : null;
+  const vender = esMia && disponible
+    ? h('button', { class: 'btn sec', onclick: () => accion(() => api('POST', `/api/publicaciones/${id}/sold`), 'Marcada como vendida', () => vistaDetalle(id)) }, 'Marcar como vendido') : null;
+  const eliminar = (esMia || esAdmin) ? h('button', { class: 'btn-texto-peligro', onclick: () => {
+    const pregunta = esMia ? '¿Eliminar esta publicación?' : '¿Eliminar «' + p.titulo + '» como moderador?';
+    if (confirm(pregunta + ' No se puede deshacer.'))
+      accion(() => api('DELETE', '/api/publicaciones/' + id), 'Publicación eliminada', () => { location.hash = esMia ? '#/mias' : '#/'; });
+  } }, 'Eliminar') : null;
+
   const acciones = (esMia || esAdmin) ? h('div', { class: 'acciones' },
-    esMia && disponible ? h('a', { class: 'btn', href: '#/editar/' + id }, 'Editar') : null,
-    esMia && disponible ? h('button', { class: 'btn sec', onclick: () => accion(() => api('POST', `/api/publicaciones/${id}/sold`), 'Marcada como vendida', () => vistaDetalle(id)) }, 'Marcar como vendido') : null,
+    pagar, editar, vender,
     esMia && p.estadoPago === 'APROBADO' ? accionesRecibo(id) : null,
-    (esMia || esAdmin) ? h('button', { class: 'btn peligro', onclick: () => {
-      const pregunta = esMia ? '¿Eliminar esta publicación?' : '¿Eliminar «' + p.titulo + '» como moderador?';
-      if (confirm(pregunta + ' No se puede deshacer.'))
-        accion(() => api('DELETE', '/api/publicaciones/' + id), 'Publicación eliminada', () => { location.hash = esMia ? '#/mias' : '#/'; });
-    } }, 'Eliminar') : null) : null;
+    eliminar) : null;
 
   montar(
     h('a', { class: 'volver', href: '#/' }, '← Volver al catálogo'),
     h('header', { class: 'detalle-cab' },
       h('div', { class: 'detalle-cab__texto' },
         h('h1', { class: 'detalle-titulo', tabindex: '-1' }, p.titulo),
-        h('div', { class: 'etiquetas' },
-          h('span', { class: 'etiqueta' + (p.estadoArticulo === 'USADO' ? ' usado' : '') }, p.estadoArticulo === 'USADO' ? 'Usado' : 'Nuevo'),
-          h('span', { class: 'etiqueta cat' }, p.categoria),
-          p.vistas != null ? h('span', { class: 'etiqueta' }, '👁 ' + p.vistas + ' vistas') : null,
-          disponible ? null : h('span', { class: 'etiqueta vendida' }, 'Vendido'))),
+        h('div', { class: 'detalle-estado' },
+          indicadoresPublicacion(p, { articulo: true, categoria: true }))),
       h('div', { class: 'detalle-precio' + (disponible ? '' : ' vendido') }, precio(p.precio))),
     h('div', { class: 'detalle' },
       galeria,
@@ -1207,13 +1263,13 @@ async function vistaDetalle(id) {
         h('div', { class: 'vendedor' }, avatarVendedor,
           h('div', {}, h('strong', {}, nombreVendedor), resumenVendedor,
             h('div', { class: 'meta' }, 'Publicado el ' + fecha(p.publicadaEn)))),
-        btnContacto, zonaContacto, zonaResena, estadoVendido, pagoPendiente, acciones)));
+        btnContacto, zonaContacto, zonaResena, estadoVendido, notaPago, acciones)));
 }
 
 /* ---------- reseñas del vendedor ---------- */
 function estrellasDe(n) {
   const llenas = Math.max(0, Math.min(5, Math.round(Number(n) || 0)));
-  return '★'.repeat(llenas) + '☆'.repeat(5 - llenas);
+  return Array.from({ length: 5 }, (_, i) => iconoEstrella(i < llenas));
 }
 
 /* Selector de estrellas 1..5: radios nativos (teclado y lector de pantalla) con estrellas clicables. */
@@ -1222,7 +1278,7 @@ function selectorEstrellas() {
     [1, 2, 3, 4, 5].flatMap((n) => [
       h('input', { type: 'radio', name: 'estrellas', id: 'estrella-' + n, value: String(n), class: 'estrella__radio' }),
       h('label', { for: 'estrella-' + n, class: 'estrella__opcion', title: n + ' de 5 estrellas' },
-        h('span', { 'aria-hidden': 'true' }, '★'),
+        h('span', { 'aria-hidden': 'true' }, iconoEstrella(true)),
         h('span', { class: 'sr-only' }, n + (n === 1 ? ' estrella' : ' estrellas'))),
     ]));
   const labels = [...fila.querySelectorAll('label')];
@@ -1263,7 +1319,7 @@ async function vistaVendedor(usuario) {
 
   const resumen = h('p', { class: 'vendedor-resumen' }, datos.total
     ? h('span', { class: 'estrellas', 'aria-label': 'Promedio ' + datos.promedio.toFixed(1) + ' de 5' },
-        '★ ' + datos.promedio.toFixed(1) + ' · ' + datos.total + (datos.total === 1 ? ' reseña' : ' reseñas'))
+        iconoEstrella(true), ' ' + datos.promedio.toFixed(1) + ' · ' + datos.total + (datos.total === 1 ? ' reseña' : ' reseñas'))
     : h('span', { class: 'meta' }, 'Sin reseñas todavía'));
 
   const lista = datos.resenas.length
@@ -1677,27 +1733,30 @@ function filaMia(p) {
     : h('div', { class: 'mias-fila__foto mias-fila__foto--vacia' }, 'Sin foto');
   const cuando = vendida && p.vendidaEn
     ? 'Vendida el ' + fecha(p.vendidaEn)
-    : 'Publicado el ' + fecha(p.publicadaEn);
+    : 'Publicada el ' + fecha(p.publicadaEn);
+  const principal = p.estadoPago === 'PENDIENTE'
+    ? h('button', { class: 'btn-mini btn-mini--primario', type: 'button', 'aria-label': 'Pagar ' + p.titulo,
+        onclick: (ev) => { const boton = ev.currentTarget; boton.disabled = true;
+          accion(() => api('POST', `/api/publicaciones/${p.id}/pago`), 'Pago aprobado', () => vistaMias(true))
+            .finally(() => { if (boton.isConnected) boton.disabled = false; }); } }, 'Pagar')
+    : h('a', { class: 'btn-mini btn-mini--primario', href: '#/p/' + p.id, 'aria-label': 'Ver ' + p.titulo }, 'Ver');
   return h('li', { class: 'mias-fila' + (vendida ? ' mias-fila--vendida' : '') },
     h('a', { class: 'mias-fila__principal', href: '#/p/' + p.id },
       foto,
       h('div', { class: 'mias-fila__texto' },
         h('span', { class: 'mias-fila__titulo' }, p.titulo),
-        h('span', { class: 'mias-fila__meta' },
-          [p.categoria, p.estadoArticulo === 'USADO' ? 'Usado' : 'Nuevo', cuando].join(' · ')))),
+        h('span', { class: 'mias-fila__meta' }, [p.categoria, cuando].join(' · ')),
+        h('span', { class: 'mias-fila__estado' }, indicadoresPublicacion(p, { pago: true })))),
     h('div', { class: 'mias-fila__cifras' },
-      h('span', { class: 'mias-fila__precio' }, precio(p.precio)),
-      h('span', { class: 'etiqueta' + (vendida ? ' vendida' : '') }, vendida ? 'Vendida' : 'Disponible'),
-      p.vistas != null ? h('span', { class: 'etiqueta' }, '👁 ' + p.vistas + ' vistas') : null,
-      p.estadoPago === 'PENDIENTE' ? h('span', { class: 'etiqueta' }, 'Pendiente de pago') : null),
+      h('span', { class: 'mias-fila__precio' }, precio(p.precio))),
     h('div', { class: 'mias-fila__acciones' },
-      p.estadoPago === 'PENDIENTE' ? h('button', { class: 'btn-mini', type: 'button', 'aria-label': 'Pagar ' + p.titulo,
-        onclick: () => accion(() => api('POST', `/api/publicaciones/${p.id}/pago`), 'Pago aprobado', () => vistaMias(true)) }, 'Pagar') : null,
-      h('button', { class: 'btn-mini', type: 'button', 'aria-label': 'Editar ' + p.titulo, onclick: () => { location.hash = '#/editar/' + p.id; } }, 'Editar'),
-      vendida ? null : h('button', { class: 'btn-mini', type: 'button', 'aria-label': 'Marcar como vendida ' + p.titulo,
+      principal,
+      !vendida ? h('button', { class: 'btn-mini', type: 'button', 'aria-label': 'Editar ' + p.titulo,
+        onclick: () => { location.hash = '#/editar/' + p.id; } }, 'Editar') : null,
+      !vendida ? h('button', { class: 'btn-mini', type: 'button', 'aria-label': 'Marcar como vendido ' + p.titulo,
         onclick: (ev) => { const boton = ev.currentTarget; boton.disabled = true;
           accion(() => api('POST', '/api/publicaciones/' + p.id + '/sold'), 'Publicación marcada como vendida', () => vistaMias(true))
-            .finally(() => { if (boton.isConnected) boton.disabled = false; }); } }, 'Marcar vendida'),
+            .finally(() => { if (boton.isConnected) boton.disabled = false; }); } }, 'Marcar como vendido') : null,
       p.estadoPago === 'APROBADO' ? accionesRecibo(p.id) : null,
       h('button', { class: 'btn-mini btn-mini--peligro', type: 'button', 'aria-label': 'Eliminar ' + p.titulo,
         onclick: () => { if (confirm('¿Eliminar «' + p.titulo + '»? Esta acción no se puede deshacer.')) accion(() => api('DELETE', '/api/publicaciones/' + p.id), 'Publicación eliminada', () => vistaMias(true)); } }, 'Eliminar')));
