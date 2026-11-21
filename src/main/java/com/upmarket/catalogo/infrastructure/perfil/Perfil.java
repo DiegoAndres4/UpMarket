@@ -47,12 +47,4 @@ public class Perfil {
         this.telefono = telefono;
         this.fotoUrl = fotoUrl;
     }
-
-    /** La cuenta queda marcada como eliminada y sin datos personales. */
-    public void marcarEliminada() {
-        this.nombre = "Cuenta eliminada";
-        this.telefono = null;
-        this.fotoUrl = null;
-        this.eliminada = true;
-    }
 }

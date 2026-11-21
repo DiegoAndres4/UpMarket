@@ -6,6 +6,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -46,7 +47,9 @@ public class JwtTokenValidator {
             }
             Object uid = claims.get("uid");
             Long idUsuario = uid instanceof Number n ? n.longValue() : null;
-            return Optional.of(new UsuarioAutenticado(usuario, idUsuario, leerRoles(claims)));
+            Date emitido = claims.getIssuedAt();
+            Instant emitidoEn = emitido == null ? null : emitido.toInstant();
+            return Optional.of(new UsuarioAutenticado(usuario, idUsuario, leerRoles(claims), emitidoEn));
         } catch (JwtException | IllegalArgumentException e) {
             return Optional.empty();   // expirado, mal formado, firma inválida, etc.
         }

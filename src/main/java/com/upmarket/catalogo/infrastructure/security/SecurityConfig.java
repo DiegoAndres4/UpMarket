@@ -1,5 +1,6 @@
 package com.upmarket.catalogo.infrastructure.security;
 
+import com.upmarket.catalogo.infrastructure.perfil.PerfilEliminadoRepository;
 import com.upmarket.catalogo.infrastructure.perfil.PerfilRepository;
 import java.time.Clock;
 import java.util.Arrays;
@@ -31,8 +32,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain filtros(HttpSecurity http, JwtTokenValidator validador, PerfilRepository perfiles)
-            throws Exception {
+    SecurityFilterChain filtros(HttpSecurity http, JwtTokenValidator validador, PerfilRepository perfiles,
+                                PerfilEliminadoRepository eliminados) throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)                       // API sin sesión ni cookies
             .cors(Customizer.withDefaults())
@@ -57,7 +58,7 @@ public class SecurityConfig {
                 .authenticationEntryPoint((req, res, ex) -> escribir(res, 401, "No autenticado: falta un token válido"))
                 .accessDeniedHandler((req, res, ex) -> escribir(res, 403, "No tiene permiso para esta operación")))
             .addFilterBefore(new JwtAuthenticationFilter(validador), UsernamePasswordAuthenticationFilter.class)
-            .addFilterAfter(new CuentaActivaFilter(perfiles), JwtAuthenticationFilter.class);
+            .addFilterAfter(new CuentaActivaFilter(perfiles, eliminados), JwtAuthenticationFilter.class);
         return http.build();
     }
 

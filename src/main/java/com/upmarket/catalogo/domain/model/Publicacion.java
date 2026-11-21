@@ -28,10 +28,12 @@ public class Publicacion {
     private Instant vendidaEn;
     private EstadoPago estadoPago;
     private long vistas;
+    private Instant archivadaEn;
 
     private Publicacion(Long id, String titulo, String descripcion, BigDecimal precio, EstadoArticulo estadoArticulo,
                         String categoria, List<Foto> fotos, Contacto contacto, String vendedor, Instant publicadaEn,
-                        EstadoPublicacion estado, Instant vendidaEn, EstadoPago estadoPago, long vistas) {
+                        EstadoPublicacion estado, Instant vendidaEn, EstadoPago estadoPago, long vistas,
+                        Instant archivadaEn) {
         this.id = id;
         this.titulo = titulo;
         this.descripcion = descripcion;
@@ -46,6 +48,7 @@ public class Publicacion {
         this.vendidaEn = vendidaEn;
         this.estadoPago = estadoPago;
         this.vistas = vistas;
+        this.archivadaEn = archivadaEn;
     }
 
     /** La publicación nace DISPONIBLE y pendiente de pago. {@code precio} llega como texto y se valida aquí. */
@@ -65,7 +68,7 @@ public class Publicacion {
         }
         return new Publicacion(null, titulo.trim(), descripcion.trim(), Precio.de(precio), estadoArticulo,
                 categoria.getNombre(), lista, contacto, vendedor, ahora, EstadoPublicacion.DISPONIBLE, null,
-                EstadoPago.PENDIENTE, 0L);
+                EstadoPago.PENDIENTE, 0L, null);
     }
 
     public static Publicacion reconstruir(Long id, String titulo, String descripcion, BigDecimal precio,
@@ -73,8 +76,17 @@ public class Publicacion {
                                           Contacto contacto, String vendedor, Instant publicadaEn,
                                           EstadoPublicacion estado, Instant vendidaEn, EstadoPago estadoPago,
                                           long vistas) {
+        return reconstruir(id, titulo, descripcion, precio, estadoArticulo, categoria, fotos, contacto, vendedor,
+                publicadaEn, estado, vendidaEn, estadoPago, vistas, null);
+    }
+
+    public static Publicacion reconstruir(Long id, String titulo, String descripcion, BigDecimal precio,
+                                          EstadoArticulo estadoArticulo, String categoria, List<Foto> fotos,
+                                          Contacto contacto, String vendedor, Instant publicadaEn,
+                                          EstadoPublicacion estado, Instant vendidaEn, EstadoPago estadoPago,
+                                          long vistas, Instant archivadaEn) {
         return new Publicacion(id, titulo, descripcion, precio, estadoArticulo, categoria, fotos, contacto, vendedor,
-                publicadaEn, estado, vendidaEn, estadoPago, vistas);
+                publicadaEn, estado, vendidaEn, estadoPago, vistas, archivadaEn);
     }
 
     private static void validarTexto(String titulo, String descripcion) {
@@ -131,6 +143,18 @@ public class Publicacion {
 
     public boolean estaPagada() { return estadoPago == EstadoPago.APROBADO; }
 
+    /**
+     * La cuenta del vendedor se eliminó: la publicación deja de ser visible, pero NO se borra para
+     * conservar pagos, recibos y estadísticas. Es idempotente.
+     */
+    public void archivar(Instant ahora) {
+        if (archivadaEn == null) {
+            archivadaEn = ahora;
+        }
+    }
+
+    public boolean estaArchivada() { return archivadaEn != null; }
+
     /** Texto ya normalizado sobre el que se busca: título y descripción, sin mayúsculas ni tildes. */
     public String textoBusqueda() { return Texto.normalizar(titulo + " " + descripcion); }
 
@@ -149,4 +173,5 @@ public class Publicacion {
     public Instant getVendidaEn() { return vendidaEn; }
     public EstadoPago getEstadoPago() { return estadoPago; }
     public long getVistas() { return vistas; }
+    public Instant getArchivadaEn() { return archivadaEn; }
 }

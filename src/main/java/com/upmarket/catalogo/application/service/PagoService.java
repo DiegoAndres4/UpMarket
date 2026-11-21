@@ -48,6 +48,10 @@ public class PagoService implements PagoUseCase {
             Publicacion publicacion = publicaciones.buscarPorId(publicacionId)
                     .orElseThrow(() -> new PublicacionNoEncontradaException(publicacionId));
             acceso.asegurarEsAutor(publicacion, actor);
+            if (publicacion.estaArchivada()) {
+                // Una cuenta nueva con el mismo usuario no puede pagar las publicaciones archivadas.
+                throw new PublicacionNoEncontradaException(publicacionId);
+            }
             if (publicacion.estaPagada() || pagos.buscarPorPublicacion(publicacionId)
                     .map(pago -> pago.getEstado() == com.upmarket.catalogo.domain.model.EstadoPago.APROBADO)
                     .orElse(false)) {

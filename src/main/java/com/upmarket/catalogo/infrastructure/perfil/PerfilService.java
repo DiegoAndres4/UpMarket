@@ -7,6 +7,7 @@ import com.upmarket.catalogo.domain.model.Actor;
 import com.upmarket.catalogo.domain.model.Foto;
 import com.upmarket.catalogo.domain.model.TelefonoColombia;
 import com.upmarket.catalogo.infrastructure.storage.AlmacenFotosLocal;
+import java.time.Clock;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,16 +20,20 @@ public class PerfilService {
     private static final int MAXIMO_URL = 500;
 
     private final PerfilRepository perfiles;
+    private final PerfilEliminadoRepository eliminados;
     private final AlmacenFotosPort almacen;
     private final AlmacenFotosLocal fotosLocal;
     private final CredencialesPort credenciales;
+    private final Clock reloj;
 
-    public PerfilService(PerfilRepository perfiles, AlmacenFotosPort almacen, AlmacenFotosLocal fotosLocal,
-                         CredencialesPort credenciales) {
+    public PerfilService(PerfilRepository perfiles, PerfilEliminadoRepository eliminados, AlmacenFotosPort almacen,
+                         AlmacenFotosLocal fotosLocal, CredencialesPort credenciales, Clock reloj) {
         this.perfiles = perfiles;
+        this.eliminados = eliminados;
         this.almacen = almacen;
         this.fotosLocal = fotosLocal;
         this.credenciales = credenciales;
+        this.reloj = reloj;
     }
 
     @Transactional
@@ -88,28 +93,27 @@ public class PerfilService {
     }
 
     /**
-     * Borra las publicaciones del usuario (con sus fotos), su foto de perfil y sus datos, y después elimina sus
-     * credenciales en AuthCore: el username queda libre y el login deja de funcionar. Si AuthCore falla se lanza una
-     * excepción y la transacción revierte, para no dejar una cuenta a medias.
+     * Elimina la cuenta sin perder el registro: guarda una copia del perfil en
+     * {@code perfiles_eliminados}, archiva (no borra) las publicaciones para conservar pagos y
+     * recibos, borra la fila activa del perfil para liberar el usuario y, por último, elimina las
+     * credenciales en AuthCore. Todo ocurre en una sola transacción: si AuthCore falla, no queda una
+     * cuenta a medias.
      */
     @Transactional
     public void eliminarCuenta(Actor actor, PublicacionUseCase publicaciones, String authorizationHeader) {
-        for (var p : publicaciones.mias(actor)) {
-            publicaciones.eliminar(actor, p.getId());
-            p.getFotos().forEach(f -> borrarArchivo(f.url()));
-        }
-        marcarEliminada(actor.username());
+        Perfil perfil = obtener(actor.username());
+        eliminados.save(new PerfilEliminado(perfil.getUsuario(), perfil.getNombre(), perfil.getTelefono(),
+                correoDe(perfil.getUsuario()), perfil.getFotoUrl(), reloj.instant(),
+                PerfilEliminado.MOTIVO_BAJA_USUARIO));
+        // Las publicaciones se archivan, nunca se borran: sus pagos y recibos deben sobrevivir.
+        publicaciones.archivarDelUsuario(actor);
+        perfiles.delete(perfil);
         credenciales.eliminarCuenta(authorizationHeader);
     }
 
-    @Transactional
-    void marcarEliminada(String usuario) {
-        Perfil p = obtener(usuario);
-        if (p.getFotoUrl() != null) {
-            borrarArchivo(p.getFotoUrl());
-        }
-        p.marcarEliminada();
-        perfiles.save(p);
+    /** El nombre de usuario de AuthCore es el correo cuando la cuenta se registró con uno. */
+    static String correoDe(String usuario) {
+        return usuario != null && usuario.contains("@") ? usuario : null;
     }
 
     private static boolean esFotoValida(String foto) {

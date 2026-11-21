@@ -26,4 +26,11 @@ public interface PublicacionUseCase {
     Publicacion marcarVendida(Actor actor, long id);
 
     void eliminar(Actor actor, long id);
+
+    /**
+     * Marca como archivadas todas las publicaciones del usuario. Se usa al eliminar su cuenta: la
+     * publicación desaparece de la vista pública y del historial del usuario, pero el registro se
+     * conserva junto con sus pagos y recibos.
+     */
+    void archivarDelUsuario(Actor actor);
 }

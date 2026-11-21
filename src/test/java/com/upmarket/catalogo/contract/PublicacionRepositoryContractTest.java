@@ -144,6 +144,20 @@ public abstract class PublicacionRepositoryContractTest {
     }
 
     @Test
+    void lasArchivadasSeConservanPorIdPeroNoAparecenEnListados() {
+        Publicacion g = guardar("maria", "Calculadora", "Casio fx-991", "50000", "Tecnología", 0);
+        g.archivar(Datos.AHORA.plus(Duration.ofDays(2)));
+        repo().guardar(g);
+
+        Publicacion archivada = repo().buscarPorId(g.getId()).orElseThrow();
+        assertTrue(archivada.estaArchivada());
+        assertEquals(Datos.AHORA.plus(Duration.ofDays(2)), archivada.getArchivadaEn());
+        assertEquals(0, repo().buscar(filtro(null, null, null, null, null, null, null)).size());
+        assertEquals(0, repo().buscar(filtro(null, null, null, null, null, null, "maria")).size());
+        assertNull(repo().contarDisponiblesPorCategoria().get("Tecnología"));
+    }
+
+    @Test
     void cuentaLasDisponiblesPorCategoria() {
         guardar("maria", "Uno", "Descripción uno", "100", "Libros", 0);
         guardar("maria", "Dos", "Descripción dos", "100", "Libros", 1);

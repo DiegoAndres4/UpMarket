@@ -15,7 +15,7 @@ public class PublicacionRepositoryEnMemoria implements PublicacionRepositoryPort
     private static Publicacion copiar(long id, Publicacion p) {
         return Publicacion.reconstruir(id, p.getTitulo(), p.getDescripcion(), p.getPrecio(), p.getEstadoArticulo(),
                 p.getCategoria(), p.getFotos(), p.getContacto(), p.getVendedor(), p.getPublicadaEn(), p.getEstado(),
-                p.getVendidaEn(), p.getEstadoPago(), p.getVistas());
+                p.getVendidaEn(), p.getEstadoPago(), p.getVistas(), p.getArchivadaEn());
     }
 
     @Override
@@ -39,6 +39,9 @@ public class PublicacionRepositoryEnMemoria implements PublicacionRepositoryPort
     public List<Publicacion> buscar(FiltroPublicacion f) {
         List<Publicacion> r = new ArrayList<>();
         for (Publicacion p : filas.values()) {
+            if (p.estaArchivada()) {
+                continue;
+            }
             if ((f.texto() == null || p.textoBusqueda().contains(f.texto()))
                     && (f.categoria() == null || f.categoria().equals(p.getCategoria()))
                     && (f.precioMin() == null || p.getPrecio().compareTo(f.precioMin()) >= 0)
@@ -60,14 +63,15 @@ public class PublicacionRepositoryEnMemoria implements PublicacionRepositoryPort
         if (p == null) return;
         filas.put(id, Publicacion.reconstruir(id, p.getTitulo(), p.getDescripcion(), p.getPrecio(),
                 p.getEstadoArticulo(), p.getCategoria(), p.getFotos(), p.getContacto(), p.getVendedor(),
-                p.getPublicadaEn(), p.getEstado(), p.getVendidaEn(), p.getEstadoPago(), p.getVistas() + 1));
+                p.getPublicadaEn(), p.getEstado(), p.getVendidaEn(), p.getEstadoPago(), p.getVistas() + 1,
+                p.getArchivadaEn()));
     }
 
     @Override
     public Map<String, Long> contarDisponiblesPorCategoria() {
         Map<String, Long> r = new HashMap<>();
         for (Publicacion p : filas.values()) {
-            if (p.getEstado() == EstadoPublicacion.DISPONIBLE && p.estaPagada()) {
+            if (!p.estaArchivada() && p.getEstado() == EstadoPublicacion.DISPONIBLE && p.estaPagada()) {
                 r.merge(p.getCategoria(), 1L, Long::sum);
             }
         }

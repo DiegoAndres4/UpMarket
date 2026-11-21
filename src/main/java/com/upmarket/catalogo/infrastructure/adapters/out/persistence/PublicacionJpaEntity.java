@@ -86,6 +86,10 @@ public class PublicacionJpaEntity {
     @Column(nullable = false)
     private long vistas;
 
+    /** Marca de archivado por eliminación de la cuenta del vendedor: nunca se borra el historial. */
+    @Column(name = "archivada_en")
+    private Instant archivadaEn;
+
     protected PublicacionJpaEntity() {
     }
 
@@ -108,11 +112,13 @@ public class PublicacionJpaEntity {
         this.vendidaEn = p.getVendidaEn();
         this.estadoPago = p.getEstadoPago();
         this.vistas = p.getVistas();
+        this.archivadaEn = p.getArchivadaEn();
     }
 
     public Publicacion aDominio() {
         List<Foto> listaFotos = fotos.stream().map(FotoEmbeddable::aDominio).toList();
         return Publicacion.reconstruir(id, titulo, descripcion, precio, estadoArticulo, categoria, listaFotos,
-                Contacto.rehidratar(whatsapp, correo), vendedor, publicadaEn, estado, vendidaEn, estadoPago, vistas);
+                Contacto.rehidratar(whatsapp, correo), vendedor, publicadaEn, estado, vendidaEn, estadoPago, vistas,
+                archivadaEn);
     }
 }

@@ -158,7 +158,7 @@ El entorno de desarrollo siembra datos de demostración al arrancar el dominio: 
 | `GET /api/perfil/publico?usuario=` | autenticado | Nombre y foto de otra persona, nunca el celular |
 | `GET /api/perfil/{usuario}/resenas` | autenticado | 200 `{ vendedor, promedio, total, resenas[] }`; promedio con un decimal y reseñas más recientes primero |
 | `POST /api/perfil/{usuario}/resenas` | autenticado (no el propio vendedor) | 201 · 400 (estrellas fuera de 0–5, comentario fuera de 3–500 o auto-reseña) · 409 (ya reseñó a ese vendedor) |
-| `DELETE /api/perfil` | autenticado | 204: borra publicaciones y fotos, inhabilita el perfil y elimina las credenciales en AuthCore; el token deja de servir (401 «cuenta eliminada») |
+| `DELETE /api/perfil` | autenticado | 204: archiva el perfil en `perfiles_eliminados`, archiva sus publicaciones (conserva pagos y recibos), libera el usuario y elimina las credenciales en AuthCore; el token anterior deja de servir (401 «cuenta eliminada») |
 | `GET /api/fotos/{nombre}` | público (la etiqueta `img` no envía token) | 200 · 404 |
 
 ## Reglas de negocio clave
@@ -186,7 +186,7 @@ El entorno de desarrollo siembra datos de demostración al arrancar el dominio: 
 - Página «Pagos»: listado paginado con estado, comprador y recibo; en los pagos aprobados se genera, se ve en línea o se descarga el recibo.
 - Tablero: «Generar reporte (PDF y XML)» y el historial de reportes; cada PDF y XML se puede ver en línea (diálogo con el PDF o el XML indentado) o descargar.
 - Contacto: celular colombiano y/o correo (al menos uno). Celular válido = 10 dígitos que empiezan por 3, con 57 o +57 opcional; el vendedor elige qué medios publica.
-- Cuenta: el **correo es el nombre de usuario en AuthCore**. Eliminar la cuenta en UPMarket borra sus datos aquí y sus credenciales en AuthCore (llamada `DELETE /api/auth/users/me`); si AuthCore falla, la operación se revierte y responde error. El detalle **no** lo incluye; se pide aparte y solo mientras la publicación está disponible.
+- Cuenta: el **correo es el nombre de usuario en AuthCore**. Eliminar la cuenta en UPMarket no pierde el registro: el perfil se copia a `perfiles_eliminados`, sus publicaciones se archivan (`archivada_en`) para conservar pagos, recibos y estadísticas, la fila activa se borra (el usuario queda libre para una cuenta nueva) y luego se eliminan las credenciales en AuthCore (`DELETE /api/auth/users/me`). Si AuthCore falla, todo se revierte. El detalle **no** incluye el contacto; se pide aparte y solo mientras la publicación está disponible.
 - Categoría: se identifica por su nombre sin tildes ni mayúsculas («libros» = «Libros»); la base tiene una restricción única como última defensa.
 - Búsqueda: palabra clave sin importar tildes ni mayúsculas, en título y descripción; categoría, rango de precio (inclusivo) y estado (NUEVO/USADO) combinables. Los comodines `%` y `_` se tratan como texto.
 - Orden de validación: 400 → 404 → 403 → 409.

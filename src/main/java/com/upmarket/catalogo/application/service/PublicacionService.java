@@ -93,7 +93,7 @@ public class PublicacionService implements PublicacionUseCase {
                 "estado", c.estado(), "categoría", c.categoria());
         EstadoArticulo estado = EstadoArticulo.de(c.estado());
         return transaccion.ejecutar(() -> {
-            Publicacion p = cargar(c.id());
+            Publicacion p = cargarNoArchivada(c.id());
             acceso.asegurarEsAutor(p, actor);
             Categoria categoria = cargarCategoria(c.categoria());
             p.editar(c.titulo(), c.descripcion(), c.precio(), estado, categoria);
@@ -104,7 +104,7 @@ public class PublicacionService implements PublicacionUseCase {
     @Override
     public Publicacion marcarVendida(Actor actor, long id) {
         return transaccion.ejecutar(() -> {
-            Publicacion p = cargar(id);
+            Publicacion p = cargarNoArchivada(id);
             acceso.asegurarEsAutor(p, actor);
             p.marcarVendida(reloj.instant());
             return publicaciones.guardar(p);
@@ -114,9 +114,23 @@ public class PublicacionService implements PublicacionUseCase {
     @Override
     public void eliminar(Actor actor, long id) {
         transaccion.ejecutar(() -> {
-            Publicacion p = cargar(id);
+            Publicacion p = cargarNoArchivada(id);
             acceso.asegurarPuedeEliminar(p, actor);
             publicaciones.eliminar(id);
+            return null;
+        });
+    }
+
+    @Override
+    public void archivarDelUsuario(Actor actor) {
+        transaccion.ejecutar(() -> {
+            var ahora = reloj.instant();
+            var delUsuario = publicaciones.buscar(
+                    new FiltroPublicacion(null, null, null, null, null, null, actor.username(), null));
+            for (Publicacion p : delUsuario) {
+                p.archivar(ahora);
+                publicaciones.guardar(p);
+            }
             return null;
         });
     }
@@ -125,9 +139,18 @@ public class PublicacionService implements PublicacionUseCase {
         return publicaciones.buscarPorId(id).orElseThrow(() -> new PublicacionNoEncontradaException(id));
     }
 
+    /** Una publicación archivada existe para el historial, pero no para los usuarios: responde 404. */
+    private Publicacion cargarNoArchivada(long id) {
+        Publicacion p = cargar(id);
+        if (p.estaArchivada()) {
+            throw new PublicacionNoEncontradaException(id);
+        }
+        return p;
+    }
+
     /** Una publicación sin pago aprobado solo existe para su autor y para el administrador. */
     private Publicacion cargarVisible(Actor actor, long id) {
-        Publicacion p = cargar(id);
+        Publicacion p = cargarNoArchivada(id);
         if (!p.estaPagada() && !acceso.esAutor(p, actor) && !actor.esAdmin()) {
             throw new PublicacionNoEncontradaException(id);
         }

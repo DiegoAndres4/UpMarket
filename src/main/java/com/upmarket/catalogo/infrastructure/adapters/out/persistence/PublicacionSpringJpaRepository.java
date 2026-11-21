@@ -22,6 +22,7 @@ public interface PublicacionSpringJpaRepository extends JpaRepository<Publicacio
               AND (:estado IS NULL OR p.estado = :estado)
               AND (:vendedor IS NULL OR p.vendedor = :vendedor)
               AND (:estadoPago IS NULL OR p.estadoPago = :estadoPago)
+              AND p.archivadaEn IS NULL
             ORDER BY p.publicadaEn DESC, p.id DESC
             """)
     List<PublicacionJpaEntity> buscar(
@@ -43,6 +44,7 @@ public interface PublicacionSpringJpaRepository extends JpaRepository<Publicacio
             FROM PublicacionJpaEntity p
             WHERE p.estado = com.upmarket.catalogo.domain.model.EstadoPublicacion.DISPONIBLE
               AND p.estadoPago = com.upmarket.catalogo.domain.model.EstadoPago.APROBADO
+              AND p.archivadaEn IS NULL
             GROUP BY p.categoria
             """)
     List<Object[]> contarDisponiblesPorCategoria();
