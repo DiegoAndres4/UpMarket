@@ -12,9 +12,11 @@ import org.springframework.stereotype.Repository;
 public class PerfilAdminAdapter implements PerfilAdminPort {
 
     private final PerfilRepository perfiles;
+    private final PerfilEliminadoRepository eliminados;
 
-    public PerfilAdminAdapter(PerfilRepository perfiles) {
+    public PerfilAdminAdapter(PerfilRepository perfiles, PerfilEliminadoRepository eliminados) {
         this.perfiles = perfiles;
+        this.eliminados = eliminados;
     }
 
     @Override
@@ -32,6 +34,17 @@ public class PerfilAdminAdapter implements PerfilAdminPort {
         }
         return perfiles.findById(usuario).map(perfil -> new PerfilAdmin(perfil.getUsuario(), perfil.getNombre(),
                 perfil.getUsuario(), perfil.getFotoUrl(), perfil.isEliminada()));
+    }
+
+    @Override
+    public Optional<PerfilAdmin> buscarArchivado(String usuario) {
+        if (usuario == null || usuario.isBlank()) {
+            return Optional.empty();
+        }
+        return eliminados.findFirstByUsuarioOrderByEliminadoEnDesc(usuario)
+                .map(archivo -> new PerfilAdmin(archivo.getUsuario(), archivo.getNombre(),
+                        archivo.getCorreo() == null ? archivo.getUsuario() : archivo.getCorreo(),
+                        archivo.getFotoUrl(), true));
     }
 
     @Override

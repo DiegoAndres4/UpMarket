@@ -19,7 +19,6 @@ import com.upmarket.catalogo.application.port.out.DatosRecibo;
 import com.upmarket.catalogo.application.port.out.DatosReporte;
 import com.upmarket.catalogo.application.port.out.DocumentoAlmacenado;
 import com.upmarket.catalogo.application.port.out.DocumentoRepositoryPort;
-import com.upmarket.catalogo.application.port.out.FiltroPublicacion;
 import com.upmarket.catalogo.application.port.out.GeneradorDocumentosPort;
 import com.upmarket.catalogo.application.port.out.PagoRepositoryPort;
 import com.upmarket.catalogo.application.port.out.PerfilAdmin;
@@ -104,13 +103,25 @@ public class DocumentosService implements DocumentosUseCase {
                 .thenComparing(Pago::getId, Comparator.reverseOrder()));
 
         Map<Long, Publicacion> publicacionesPorId = new HashMap<>();
-        for (Publicacion publicacion : publicaciones.buscar(
-                new FiltroPublicacion(null, null, null, null, null, null, null, null))) {
-            publicacionesPorId.put(publicacion.getId(), publicacion);
+        for (Pago pago : lista) {
+            Long publicacionId = pago.getPublicacionId();
+            // buscarPorId sí devuelve las archivadas: un pago histórico conserva su publicación.
+            if (publicacionId != null && !publicacionesPorId.containsKey(publicacionId)) {
+                publicacionesPorId.put(publicacionId, publicaciones.buscarPorId(publicacionId).orElse(null));
+            }
         }
         Map<String, PerfilAdmin> perfilesPorUsuario = new HashMap<>();
         for (PerfilAdmin perfil : perfiles.listar()) {
             perfilesPorUsuario.put(perfil.usuario(), perfil);
+        }
+        // Sin perfil activo (cuenta eliminada) se usa la última copia archivada para el nombre.
+        for (Pago pago : lista) {
+            Publicacion publicacion = publicacionesPorId.get(pago.getPublicacionId());
+            String usuario = publicacion == null ? null : publicacion.getVendedor();
+            if (usuario != null && !perfilesPorUsuario.containsKey(usuario)) {
+                perfiles.buscarArchivado(usuario)
+                        .ifPresent(archivo -> perfilesPorUsuario.put(archivo.usuario(), archivo));
+            }
         }
         Map<Long, DocumentoGenerado> recibosPorPago = new HashMap<>();
         for (DocumentoGenerado recibo : documentos.recibos()) {
@@ -130,6 +141,9 @@ public class DocumentosService implements DocumentosUseCase {
                                   DocumentoGenerado recibo) {
         String usuario = publicacion == null ? null : publicacion.getVendedor();
         PerfilAdmin perfil = usuario == null ? null : perfiles.get(usuario);
+        // Un pago histórico puede ser de una cuenta eliminada: la publicación queda archivada.
+        boolean cuentaEliminada = (publicacion != null && publicacion.estaArchivada())
+                || (perfil != null && perfil.eliminada());
         ResumenPublicacion resumenPublicacion = publicacion == null ? null
                 : new ResumenPublicacion(publicacion.getId(), publicacion.getTitulo());
         ResumenComprador comprador = usuario == null ? null
@@ -139,7 +153,8 @@ public class DocumentosService implements DocumentosUseCase {
                 : new ResumenRecibo(true, recibo.id(), recibo.nombreArchivo(), recibo.numero(),
                         recibo.generadoEn());
         return new PagoAdmin(pago.getId(), pago.getReferencia(), pago.getMonto(), pago.getEstado(),
-                pago.getCreadoEn(), pago.getAprobadoEn(), resumenPublicacion, comprador, resumenRecibo);
+                pago.getCreadoEn(), pago.getAprobadoEn(), resumenPublicacion, comprador, resumenRecibo,
+                cuentaEliminada);
     }
 
     @Override
@@ -180,7 +195,9 @@ public class DocumentosService implements DocumentosUseCase {
         }
         Publicacion publicacion = publicaciones.buscarPorId(pago.getPublicacionId())
                 .orElseThrow(() -> new PublicacionNoEncontradaException(pago.getPublicacionId()));
-        PerfilAdmin perfil = perfiles.buscar(publicacion.getVendedor()).orElse(null);
+        PerfilAdmin perfil = perfiles.buscar(publicacion.getVendedor())
+                .or(() -> perfiles.buscarArchivado(publicacion.getVendedor()))
+                .orElse(null);
         String nombreComprador = perfil == null ? publicacion.getVendedor() : perfil.nombre();
         String correoComprador = perfil == null ? publicacion.getVendedor() : perfil.correo();
 

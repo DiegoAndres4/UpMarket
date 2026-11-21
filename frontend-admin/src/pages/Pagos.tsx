@@ -20,6 +20,14 @@ function Estado({ estado }: { estado: EstadoPago }) {
   return <Badge variant="destructive">Rechazado</Badge>
 }
 
+function CuentaEliminada() {
+  return (
+    <Badge variant="secondary" className="bg-muted text-muted-foreground">
+      Cuenta eliminada
+    </Badge>
+  )
+}
+
 function AccionesRecibo({
   pago,
   generando,
@@ -208,10 +216,13 @@ export default function Pagos() {
                           {pago.publicacion?.titulo ?? 'Publicación eliminada'}
                           {pago.publicacion ? <span className="ml-2 text-xs text-muted-foreground">#{pago.publicacion.id}</span> : null}
                         </p>
-                        <p className="truncate text-sm text-muted-foreground">
-                          {pago.comprador?.nombre ?? '—'}
-                          {pago.comprador ? ` · ${pago.comprador.usuario}` : ''}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                          <span className="truncate">
+                            {pago.comprador?.nombre ?? '—'}
+                            {pago.comprador ? ` · ${pago.comprador.usuario}` : ''}
+                          </span>
+                          {pago.cuentaEliminada ? <CuentaEliminada /> : null}
+                        </div>
                       </div>
                       <Estado estado={pago.estado} />
                     </div>
@@ -280,6 +291,7 @@ export default function Pagos() {
                             <p className="truncate text-xs text-muted-foreground" title={pago.comprador?.usuario}>
                               {pago.comprador?.usuario ?? ''}
                             </p>
+                            {pago.cuentaEliminada ? <div className="mt-1"><CuentaEliminada /></div> : null}
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-right tabular-nums">{precio(pago.monto)}</TableCell>

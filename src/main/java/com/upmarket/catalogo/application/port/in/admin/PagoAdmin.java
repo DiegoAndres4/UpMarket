@@ -7,7 +7,7 @@ import java.time.Instant;
 /** Fila del listado de pagos del panel, con su publicación, comprador y recibo. */
 public record PagoAdmin(long id, String referencia, BigDecimal monto, EstadoPago estado, Instant creadoEn,
                         Instant aprobadoEn, ResumenPublicacion publicacion, ResumenComprador comprador,
-                        ResumenRecibo recibo) {
+                        ResumenRecibo recibo, boolean cuentaEliminada) {
 
     public record ResumenPublicacion(long id, String titulo) {
     }

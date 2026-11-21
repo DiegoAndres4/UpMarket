@@ -68,6 +68,7 @@ export type PagoAdmin = {
   publicacion: { id: number; titulo: string } | null
   comprador: { usuario: string; nombre: string } | null
   recibo: ReciboResumen
+  cuentaEliminada: boolean
 }
 
 export type ReporteGenerado = {

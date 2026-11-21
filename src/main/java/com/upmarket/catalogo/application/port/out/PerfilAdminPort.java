@@ -11,5 +11,11 @@ public interface PerfilAdminPort {
     /** Perfil del usuario (el correo es su nombre de usuario), si existe. */
     Optional<PerfilAdmin> buscar(String usuario);
 
+    /**
+     * Última copia archivada del perfil (cuenta eliminada) para ese usuario, si existe. Permite
+     * mostrar el comprador de un pago histórico cuando la fila activa del perfil ya no está.
+     */
+    Optional<PerfilAdmin> buscarArchivado(String usuario);
+
     long contar();
 }

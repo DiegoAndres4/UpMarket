@@ -29,7 +29,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,7 +49,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
         "seguridad.jwt.secret-base64=Lu7e1SCfczRWZpilqgAQVZqNiJopaxOzxiu9UaLENKGTeGeBtIyfpBegmsIKQS3D6pmEiahNszQXjzxmhjabaw==",
-        "fotos.directorio=target/fotos-prueba"})
+        "fotos.directorio=target/fotos-prueba",
+        "upmarket.documentos.directorio=target/documentos-test-archivo"})
 class ArchivadoCuentaRestTest {
 
     private static final String SECRETO = "Lu7e1SCfczRWZpilqgAQVZqNiJopaxOzxiu9UaLENKGTeGeBtIyfpBegmsIKQS3D6pmEiahNszQXjzxmhjabaw==";
@@ -156,5 +161,66 @@ class ArchivadoCuentaRestTest {
         // El token de la cuenta eliminada (emitido antes de la baja) deja de servir.
         mvc.perform(get("/api/perfil").header("Authorization", autorizacion))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("El pago de una cuenta eliminada conserva título, comprador archivado y su recibo")
+    void pagoDeCuentaEliminadaSeMuestraConEtiqueta() throws Exception {
+        String usuario = "etiqueta-" + UUID.randomUUID() + "@correo.com";
+        String autorizacion = "Bearer " + token(usuario, Instant.now());
+        String marca = "marca" + UUID.randomUUID().toString().replace("-", "");
+
+        mvc.perform(put("/api/perfil").header("Authorization", autorizacion)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nombre\":\"Cuenta Borrada\",\"telefono\":\"300 123 4567\","
+                                + "\"fotoUrl\":null}"))
+                .andExpect(status().isOk());
+        long publicacion = publicarPendiente(usuario, "Bicicleta " + marca, marca);
+        mvc.perform(post("/api/publicaciones/" + publicacion + "/pago").header("Authorization", autorizacion))
+                .andExpect(status().isOk());
+        long pagoArchivado = pagos.buscarPorPublicacion(publicacion).orElseThrow().getId();
+
+        mvc.perform(delete("/api/perfil").header("Authorization", autorizacion))
+                .andExpect(status().isNoContent());
+
+        // Un pago de una cuenta vigente debe seguir marcándose como normal.
+        String vivo = "vigente-" + UUID.randomUUID() + "@correo.com";
+        long publicacionViva = publicarPendiente(vivo, "Mesa " + marca, marca);
+        mvc.perform(post("/api/publicaciones/" + publicacionViva + "/pago")
+                        .header("Authorization", "Bearer " + token(vivo, Instant.now())))
+                .andExpect(status().isOk());
+        long pagoVivo = pagos.buscarPorPublicacion(publicacionViva).orElseThrow().getId();
+
+        String admin = "Bearer " + token("admin", Instant.now(), "ADMIN", "USER");
+        String cuerpo = mvc.perform(get("/api/admin/pagos?pagina=1&tamano=100").header("Authorization", admin))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        List<Map<String, Object>> filas = JsonPath.read(cuerpo, "$.contenido");
+
+        Map<String, Object> archivada = fila(filas, pagoArchivado);
+        assertEquals("Bicicleta " + marca, ((Map<?, ?>) archivada.get("publicacion")).get("titulo"));
+        assertEquals("Cuenta Borrada", ((Map<?, ?>) archivada.get("comprador")).get("nombre"));
+        assertEquals(usuario, ((Map<?, ?>) archivada.get("comprador")).get("usuario"));
+        assertEquals(Boolean.TRUE, archivada.get("cuentaEliminada"));
+        assertEquals(Boolean.FALSE, fila(filas, pagoVivo).get("cuentaEliminada"));
+
+        // El recibo se genera después de la baja usando el snapshot archivado para "Pagado por".
+        String recibo = mvc.perform(post("/api/admin/pagos/" + pagoArchivado + "/recibo")
+                        .header("Authorization", admin))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long documentoId = ((Number) JsonPath.read(recibo, "$.id")).longValue();
+        byte[] pdf = mvc.perform(get("/api/admin/documentos/" + documentoId + "/contenido")
+                        .header("Authorization", admin))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
+        try (PDDocument documento = Loader.loadPDF(pdf)) {
+            String texto = new PDFTextStripper().getText(documento);
+            assertTrue(texto.contains("Cuenta Borrada"));
+            assertTrue(texto.contains("Bicicleta"));
+        }
+    }
+
+    private static Map<String, Object> fila(List<Map<String, Object>> filas, long id) {
+        return filas.stream()
+                .filter(fila -> ((Number) fila.get("id")).longValue() == id)
+                .findFirst().orElseThrow();
     }
 }
