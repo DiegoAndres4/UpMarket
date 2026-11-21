@@ -83,6 +83,22 @@ public class PublicacionController {
         return PagoResponse.de(pagos.pagar(ActorActual.obtener(), id));
     }
 
+    public record OrdenPaypalResponse(String orderId) { }
+
+    public record CapturaPaypalRequest(String orderId) { }
+
+    /** Crea la orden de PayPal (Orders v2). Solo el autor; el monto USD lo fija la configuración. */
+    @PostMapping("/{id}/pago/paypal/orden")
+    public OrdenPaypalResponse ordenPaypal(@PathVariable long id) {
+        return new OrdenPaypalResponse(pagos.crearOrdenPaypal(ActorActual.obtener(), id));
+    }
+
+    /** Captura la orden de PayPal y, si todo coincide, aprueba el pago y activa la publicación. */
+    @PostMapping("/{id}/pago/paypal/captura")
+    public PagoResponse capturarPaypal(@PathVariable long id, @RequestBody CapturaPaypalRequest peticion) {
+        return PagoResponse.de(pagos.capturarPaypal(ActorActual.obtener(), id, peticion.orderId()));
+    }
+
     /**
      * Recibo del pago aprobado, para el autor o un ADMIN. Se muestra en línea (iframe) salvo con
      * {@code ?descargar=true}, que lo entrega como adjunto. Si el recibo no existe se genera aquí.

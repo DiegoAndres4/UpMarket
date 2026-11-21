@@ -44,6 +44,14 @@ public class PagoJpaEntity {
     @Column(name = "aprobado_en")
     private Instant aprobadoEn;
 
+    /** Monto realmente cobrado en USD cuando el proveedor es PayPal. */
+    @Column(name = "monto_usd", precision = 11, scale = 2)
+    private BigDecimal montoUsd;
+
+    /** Proveedor que aprobó el pago: PAYPAL o nulo para el pago simulado. */
+    @Column(length = 30)
+    private String proveedor;
+
     protected PagoJpaEntity() { }
 
     public PagoJpaEntity(Pago pago) {
@@ -53,9 +61,12 @@ public class PagoJpaEntity {
         this.referencia = pago.getReferencia();
         this.creadoEn = pago.getCreadoEn();
         this.aprobadoEn = pago.getAprobadoEn();
+        this.montoUsd = pago.getMontoUsd();
+        this.proveedor = pago.getProveedor();
     }
 
     public Pago aDominio() {
-        return Pago.reconstruir(id, publicacionId, monto, estado, referencia, creadoEn, aprobadoEn);
+        return Pago.reconstruir(id, publicacionId, monto, estado, referencia, creadoEn, aprobadoEn, montoUsd,
+                proveedor);
     }
 }

@@ -31,6 +31,11 @@ public class PublicacionRepositoryEnMemoria implements PublicacionRepositoryPort
     }
 
     @Override
+    public synchronized Optional<Publicacion> buscarPorIdBloqueando(long id) {
+        return buscarPorId(id);
+    }
+
+    @Override
     public void eliminar(long id) {
         filas.remove(id);
     }

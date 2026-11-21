@@ -58,7 +58,7 @@ Los repositorios tienen una prueba de contrato (`contract/`) que se ejecuta cont
 | HU-11 | Ver el detalle y contactar al vendedor | `PublicacionService.detalle/contacto`, `GET /api/publicaciones/{id}` y `/contacto` |
 | HU-12 | Editar, marcar como vendido, eliminar y ver mis publicaciones | `PublicacionService`, `PUT/DELETE /api/publicaciones/{id}`, `POST .../sold`, `GET .../mias` |
 | HU-13 | Reseñar al vendedor con comentario y 0–5 estrellas | `ResenaService`, `Resena`, `POST/GET /api/perfil/{usuario}/resenas` |
-| Modelo de negocio | Publicar cuesta 3.000 COP (pago simulado) y el vendedor ve las visitas de su publicación | `PagoService`, `Pago`, `PasarelaPagoPort`, `POST /api/publicaciones/{id}/pago` |
+| Modelo de negocio | Publicar cuesta 3.000 COP (pasarela simulada o PayPal sandbox en USD) y el vendedor ve las visitas de su publicación | `PagoService`, `Pago`, `PasarelaPagoPort`, `PasarelaPaypalPort`, `POST /api/publicaciones/{id}/pago` y `.../pago/paypal/*` |
 
 ## Ejecutar
 
@@ -86,6 +86,30 @@ AuthCore envía el enlace de confirmación por SMTP. Para Gmail:
 `APP_PUBLIC_URL` debe ser la dirección real con la que se abre el sitio (`https://<dominio>` con Caddy o `http://<IP>` sin TLS): con ella se arman los enlaces del correo y con otra no funcionan. Una cuenta gratuita de Gmail permite unos **500 correos por día**; suficiente para el proyecto, pero no para un envío masivo.
 
 Mientras la rama de AuthCore con verificación de correo no esté publicada en `main` de GitHub, el compose de producción construirá la versión anterior. Para probar en local, clone esa rama al lado del proyecto y defina en `.env` `AUTHCORE_CONTEXT=../Auth-Core-UpMarket`; el compose construye AuthCore desde esa carpeta.
+
+### Pagos con PayPal sandbox
+
+La pasarela se elige con `PAGOS_PROVEEDOR`:
+
+- `simulado` (por defecto): no cobra dinero real y siempre aprueba. No necesita credenciales.
+- `paypal`: usa **PayPal Orders v2 en modo sandbox**. La tarifa se sigue mostrando en COP, pero PayPal cobra su equivalente en USD (`PAYPAL_MONTO_USD`, por defecto `0.75`).
+
+Para probar PayPal (dinero de prueba, nunca real):
+
+1. Cree una app en [developer.paypal.com](https://developer.paypal.com/) (tipo *Merchant*), en **Sandbox**.
+2. Copie su **Client ID** y **Secret**.
+3. En [Sandbox → Accounts](https://developer.paypal.com/dashboard/accounts) cree (o use) una cuenta *Personal* de comprador para pagar.
+4. Añada al `.env` del servidor (nunca al repositorio):
+
+   ```bash
+   PAGOS_PROVEEDOR=paypal
+   PAYPAL_CLIENT_ID=...
+   PAYPAL_CLIENT_SECRET=...
+   PAYPAL_BASE_URL=https://api-m.sandbox.paypal.com
+   PAYPAL_MONTO_USD=0.75
+   ```
+
+Si `PAGOS_PROVEEDOR=paypal` y faltan las credenciales, el servicio de dominio **no arranca**: es preferible a aceptar pagos que no puede cobrar. El dinero de sandbox es ficticio y no se carga a ninguna tarjeta real. Al pagar, el backend verifica que la captura esté `COMPLETED`, que la moneda sea USD, que el monto coincida y que la orden sea de esa publicación; cualquier diferencia responde `409` sin aprobar nada.
 
 ### Desarrollo con Docker
 
@@ -135,7 +159,10 @@ El entorno de desarrollo siembra datos de demostración al arrancar el dominio: 
 | `POST /api/publicaciones` | autenticado | 201 · 400 (lista todos los faltantes) · 404 (categoría) |
 | `GET /api/publicaciones?texto&categoria&precioMin&precioMax&estado` | autenticado | 200 (solo disponibles, más recientes primero) · 400 |
 | `GET /api/publicaciones/mias` | autenticado | 200 (todas las propias, vendidas incluidas) |
-| `POST /api/publicaciones/{id}/pago` | solo el autor | 200 con estado y referencia del pago simulado · 403 · 404 · 409 (ya pagada) |
+| `POST /api/publicaciones/{id}/pago` | solo el autor | 200 con estado y referencia del pago simulado · 403 · 404 · 409 (ya pagada o proveedor=paypal) |
+| `GET /api/pagos/config` | autenticado | 200 `{proveedor, clientId, montoUsd, monedaPaypal}` (el `clientId` solo se expone con PayPal) |
+| `POST /api/publicaciones/{id}/pago/paypal/orden` | solo el autor (proveedor=paypal) | 200 `{orderId}` (Orders v2, USD, `custom_id` = publicación) · 403 · 404 · 409 |
+| `POST /api/publicaciones/{id}/pago/paypal/captura` (body `{orderId}`) | solo el autor (proveedor=paypal) | 200 pago APROBADO · 400 · 403 · 404 · 409 (monto, moneda, `custom_id` o estado no coinciden, o ya pagada) |
 | `GET /api/publicaciones/{id}` | autenticado | 200 (sin contacto; `vistas` solo para el autor o ADMIN) · 404 (también si está pendiente de pago y no es el autor) |
 | `GET /api/publicaciones/{id}/contacto` | autenticado | 200 · 404 · 409 (ya vendida) |
 | `PUT /api/publicaciones/{id}` | solo el autor | 200 · 400 · 403 · 404 · 409 (vendida) |
@@ -164,7 +191,7 @@ El entorno de desarrollo siembra datos de demostración al arrancar el dominio: 
 ## Reglas de negocio clave
 
 - Roles: **USER = estudiante**, **ADMIN = administrador**. Solo el ADMIN crea categorías. Editar y vender son **solo del autor**; **eliminar** lo permite el autor o un **ADMIN**, que modera el catálogo (puede borrar publicaciones ajenas, pero no editarlas ni marcarlas como vendidas).
-- El vendedor sale del token, nunca del cuerpo. La publicación nace `DISPONIBLE` pero `PENDIENTE` de pago: no aparece en búsquedas ni en el detalle de otras personas hasta que el autor paga la tarifa de 3.000 COP. El pago es simulado (`SIM-…`), solo lo puede hacer el autor y no se puede cobrar dos veces. Al venderla pasa a `VENDIDA` (ya no se edita ni se contacta).
+- El vendedor sale del token, nunca del cuerpo. La publicación nace `DISPONIBLE` pero `PENDIENTE` de pago: no aparece en búsquedas ni en el detalle de otras personas hasta que el autor paga la tarifa de 3.000 COP. El cobro es simulado (`SIM-…`) o con PayPal sandbox (monto en USD, `proveedor=PAYPAL`), solo lo puede hacer el autor y no se puede cobrar dos veces: la publicación se bloquea dentro de la transacción y se vuelve a comprobar que no esté pagada. Al venderla pasa a `VENDIDA` (ya no se edita ni se contacta).
 - Vistas: cada `GET /api/publicaciones/{id}` de una persona distinta del autor suma una vista de forma atómica (`vistas = vistas + 1`). El contador solo se devuelve al autor y al ADMIN, en el detalle y en «Mis publicaciones».
 - Precio: número mayor que cero, hasta 999 999 999.99, dos decimales; llega como texto y lo valida el dominio. Título 3–100 y descripción 5–2000 caracteres.
 - Fotos: hasta 5 por publicación, JPG o PNG, máximo 5 MB. El archivo se sube primero a `POST /api/fotos` (se valida por su **contenido**, no por el nombre ni el `Content-Type`) y la `url` que devuelve se envía en `fotos` al publicar. El proveedor se elige con `FOTOS_PROVEEDOR`: `local` (por defecto; disco `FOTOS_DIR`, volumen `fotos-data`) o `cloudinary` (URLs `https://` absolutas). Si elige Cloudinary, defina `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` y `CLOUDINARY_API_SECRET`, o `CLOUDINARY_URL`; sin credenciales la aplicación falla al arrancar con un mensaje claro. El navegador nunca ve el secreto: la subida siempre pasa por el backend.

@@ -8,6 +8,7 @@ import com.upmarket.catalogo.domain.model.Publicacion;
 import com.upmarket.catalogo.domain.service.PoliticaAcceso;
 import com.upmarket.catalogo.infrastructure.adapters.out.payment.PasarelaPagoSimulada;
 import com.upmarket.catalogo.testsupport.*;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
 
@@ -22,10 +23,14 @@ final class Escenario {
 
     final PagoRepositoryEnMemoria pagos = new PagoRepositoryEnMemoria();
     final PasarelaPagoSimulada pasarela = new PasarelaPagoSimulada();
+    final PasarelaPaypalFalsa paypal = new PasarelaPaypalFalsa();
 
     final CategoriaService categoriaService = new CategoriaService(categorias, publicaciones, tx, acceso);
     final PublicacionService publicacionService = new PublicacionService(publicaciones, categorias, tx, reloj, acceso);
-    final PagoService pagoService = new PagoService(pagos, publicaciones, pasarela, tx, reloj, acceso, 3000);
+    final PagoService pagoService = new PagoService(pagos, publicaciones, pasarela, paypal, tx, reloj, acceso,
+            3000, "simulado", "", new BigDecimal("0.75"));
+    final PagoService pagoServicePaypal = new PagoService(pagos, publicaciones, pasarela, paypal, tx, reloj, acceso,
+            3000, "paypal", "cliente-publico", new BigDecimal("0.75"));
 
     Escenario() {
         categoriaService.asegurarIniciales();

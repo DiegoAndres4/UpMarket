@@ -11,6 +11,13 @@ public interface PublicacionRepositoryPort {
 
     Optional<Publicacion> buscarPorId(long id);
 
+    /**
+     * Igual que {@link #buscarPorId}, pero bloquea la fila para escritura hasta el fin de la
+     * transacción. Es la base del cobro único: dos pagos simultáneos se serializan y el segundo ve
+     * la publicación ya pagada.
+     */
+    Optional<Publicacion> buscarPorIdBloqueando(long id);
+
     void eliminar(long id);
 
     List<Publicacion> buscar(FiltroPublicacion filtro);

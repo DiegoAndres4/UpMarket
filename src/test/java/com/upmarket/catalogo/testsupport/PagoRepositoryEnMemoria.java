@@ -44,6 +44,6 @@ public final class PagoRepositoryEnMemoria implements PagoRepositoryPort {
 
     private Pago copiar(Long id, Pago p) {
         return Pago.reconstruir(id, p.getPublicacionId(), p.getMonto(), p.getEstado(),
-                p.getReferencia(), p.getCreadoEn(), p.getAprobadoEn());
+                p.getReferencia(), p.getCreadoEn(), p.getAprobadoEn(), p.getMontoUsd(), p.getProveedor());
     }
 }

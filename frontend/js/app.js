@@ -1147,26 +1147,102 @@ async function vistaCatalogo() {
 }
 
 /* ---------- pago de publicación (modelo de negocio) ---------- */
+let sdkPaypal = null;
+function cargarPaypalSdk(clientId) {
+  if (window.paypal) return Promise.resolve(window.paypal);
+  if (sdkPaypal) return sdkPaypal;
+  sdkPaypal = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(clientId)
+      + '&currency=USD&intent=capture&components=buttons';
+    script.async = true;
+    script.onload = () => {
+      if (window.paypal) resolve(window.paypal);
+      else reject(new Error('PayPal no se pudo inicializar'));
+    };
+    script.onerror = () => {
+      sdkPaypal = null;
+      reject(new Error('No se pudo cargar PayPal'));
+    };
+    document.head.append(script);
+  });
+  return sdkPaypal;
+}
+
+function pintarPagoAprobado(panel, publicacion, id) {
+  document.title = 'Pago aprobado · UPMarket';
+  panel.replaceChildren(
+    h('h2', { class: 'detalle-sub' }, 'Pago aprobado'),
+    h('p', { class: 'sub' }, '«' + publicacion.titulo + '» ya está visible en el catálogo.'),
+    accionesRecibo(id),
+    h('div', { class: 'acciones' }, h('a', { class: 'btn sec', href: '#/p/' + id }, 'Ver publicación')));
+}
+
 async function vistaPago(id) {
-  const p = await api('GET', '/api/publicaciones/' + id);
+  const [p, config] = await Promise.all([
+    api('GET', '/api/publicaciones/' + id),
+    api('GET', '/api/pagos/config'),
+  ]);
   document.title = 'Pagar publicación · UPMarket';
   if (p.estadoPago === 'APROBADO') { location.hash = '#/p/' + id; return; }
+
+  const montoUsd = Number(config.montoUsd).toLocaleString('es-CO', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  });
   const panel = h('div', { class: 'panel' },
-    h('p', {}, 'Publicar cuesta $3.000 (pago simulado).'),
-    h('p', { class: 'detalle-precio' }, precio(3000)),
-    h('p', { class: 'sub' }, '«' + p.titulo + '» quedará visible en el catálogo apenas se apruebe el pago.'),
+    h('p', {}, 'Publicar cuesta:'),
+    h('p', { class: 'detalle-precio' }, precio(3000) + ' COP'),
+    h('p', { class: 'sub' }, '«' + p.titulo + '» quedará visible en el catálogo apenas se apruebe el pago.'));
+  const zonaPago = h('div', { class: 'pago-pasarela' });
+
+  if (config.proveedor === 'paypal') {
+    panel.append(
+      h('p', { class: 'meta' }, 'PayPal cobra el equivalente en dólares: USD ' + montoUsd + '.'),
+      zonaPago);
+    montar(
+      h('a', { class: 'volver', href: '#/mias' }, '← Volver a mis publicaciones'),
+      h('h1', {}, 'Pagar publicación'),
+      panel);
+
+    if (!config.clientId) {
+      aviso('PayPal no está configurado. Intenta más tarde.', true);
+      return;
+    }
+    try {
+      const paypal = await cargarPaypalSdk(config.clientId);
+      paypal.Buttons({
+        style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'paypal' },
+        createOrder: async () => {
+          const orden = await api('POST', `/api/publicaciones/${id}/pago/paypal/orden`);
+          return orden.orderId;
+        },
+        onApprove: async (datos) => {
+          try {
+            await api('POST', `/api/publicaciones/${id}/pago/paypal/captura`, { orderId: datos.orderID });
+            aviso('Pago aprobado');
+            pintarPagoAprobado(panel, p, id);
+          } catch (e) {
+            aviso(e.message, true);
+          }
+        },
+        onCancel: () => aviso('Cancelaste el pago. Tu publicación sigue pendiente.'),
+        onError: () => aviso('No se pudo completar el pago con PayPal. Intenta de nuevo.', true),
+      }).render(zonaPago);
+    } catch (e) {
+      aviso(e.message, true);
+    }
+    return;
+  }
+
+  panel.append(
+    h('p', { class: 'meta' }, 'Pago simulado: no se cobra dinero real.'),
     h('button', { class: 'btn', type: 'button', onclick: async (ev) => {
       const boton = ev.currentTarget;
       const restaurar = cargandoEn(boton, 'Pagando…');
       try {
         await api('POST', `/api/publicaciones/${id}/pago`);
         aviso('Pago aprobado');
-        document.title = 'Pago aprobado · UPMarket';
-        panel.replaceChildren(
-          h('h2', { class: 'detalle-sub' }, 'Pago aprobado'),
-          h('p', { class: 'sub' }, '«' + p.titulo + '» ya está visible en el catálogo.'),
-          accionesRecibo(id),
-          h('div', { class: 'acciones' }, h('a', { class: 'btn sec', href: '#/p/' + id }, 'Ver publicación')));
+        pintarPagoAprobado(panel, p, id);
       } catch (e) {
         aviso(e.message, true);
         restaurar();

@@ -89,6 +89,13 @@ services:
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
       # Para borrar las credenciales en AuthCore cuando un usuario elimina su cuenta.
       AUTHCORE_URL: http://authcore:8081
+      # Pasarela de pagos: simulado (por defecto, sin dinero real) o paypal (sandbox).
+      # Las credenciales de PayPal van vacías por defecto: solo se piden si PAGOS_PROVEEDOR=paypal.
+      PAGOS_PROVEEDOR: ${PAGOS_PROVEEDOR:-simulado}
+      PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
+      PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-}
+      PAYPAL_BASE_URL: ${PAYPAL_BASE_URL:-https://api-m.sandbox.paypal.com}
+      PAYPAL_MONTO_USD: ${PAYPAL_MONTO_USD:-0.75}
       JAVA_TOOL_OPTIONS: -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8084/actuator/health >/dev/null"]

@@ -51,7 +51,8 @@ public class SecurityConfig {
                 // Cartelera pública: SOLO lectura, sin token (landing de visitantes). Escrituras quedan denegadas.
                         .requestMatchers(HttpMethod.GET, "/api/publico/**").permitAll()
                 // El resto lo usa cualquier usuario autenticado; quién puede editar, vender o borrar lo decide el dominio.
-                .requestMatchers("/api/categorias/**", "/api/publicaciones/**", "/api/perfil", "/api/perfil/**").authenticated()
+                .requestMatchers("/api/categorias/**", "/api/publicaciones/**", "/api/perfil", "/api/perfil/**",
+                        "/api/pagos/**").authenticated()
                 // Lo demás se niega por defecto.
                 .anyRequest().denyAll())
             .exceptionHandling(e -> e

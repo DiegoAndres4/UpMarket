@@ -83,6 +83,12 @@ services:
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
       UPMARKET_SEED_ENABLED: "true"
       AUTHCORE_URL: http://authcore:8081
+      # Pasarela de pagos: simulado (por defecto, sin dinero real) o paypal (sandbox).
+      PAGOS_PROVEEDOR: ${PAGOS_PROVEEDOR:-simulado}
+      PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
+      PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-}
+      PAYPAL_BASE_URL: ${PAYPAL_BASE_URL:-https://api-m.sandbox.paypal.com}
+      PAYPAL_MONTO_USD: ${PAYPAL_MONTO_USD:-0.75}
     ports:
       - "127.0.0.1:8084:8084"
       - "127.0.0.1:5006:5005"   # depurador remoto del dominio

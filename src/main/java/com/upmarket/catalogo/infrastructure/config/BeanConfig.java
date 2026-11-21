@@ -7,10 +7,14 @@ import com.upmarket.catalogo.application.port.in.admin.DocumentosUseCase;
 import com.upmarket.catalogo.application.port.out.*;
 import com.upmarket.catalogo.application.service.*;
 import com.upmarket.catalogo.domain.service.PoliticaAcceso;
+import com.upmarket.catalogo.infrastructure.adapters.out.payment.ClientePaypal;
+import com.upmarket.catalogo.infrastructure.adapters.out.payment.ClientePaypalHttp;
+import com.upmarket.catalogo.infrastructure.adapters.out.payment.PasarelaPaypal;
 import com.upmarket.catalogo.infrastructure.storage.AlmacenDocumentosCloudinary;
 import com.upmarket.catalogo.infrastructure.storage.AlmacenDocumentosLocal;
 import com.upmarket.catalogo.infrastructure.storage.AlmacenFotosCloudinary;
 import com.upmarket.catalogo.infrastructure.storage.AlmacenFotosLocal;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.ZoneId;
 import org.springframework.beans.factory.ObjectProvider;
@@ -19,6 +23,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.web.client.RestClient;
 
 /**
  * Raíz de composición. El dominio y la aplicación no llevan anotaciones de Spring (DIP):
@@ -111,10 +116,38 @@ public class BeanConfig {
 
     @Bean
     PagoService pagoService(PagoRepositoryPort pagos, PublicacionRepositoryPort publicaciones,
-                            PasarelaPagoPort pasarela, TransaccionPort transaccion, Clock reloj,
-                            PoliticaAcceso acceso,
-                            @Value("${upmarket.publicacion.tarifa:3000}") long tarifa) {
-        return new PagoService(pagos, publicaciones, pasarela, transaccion, reloj, acceso, tarifa);
+                            PasarelaPagoPort pasarela, PasarelaPaypalPort paypal, TransaccionPort transaccion,
+                            Clock reloj, PoliticaAcceso acceso,
+                            @Value("${upmarket.publicacion.tarifa:3000}") long tarifa,
+                            @Value("${pagos.proveedor:simulado}") String proveedor,
+                            @Value("${pagos.paypal.client-id:}") String paypalClientId,
+                            @Value("${pagos.paypal.monto-usd:0.75}") BigDecimal montoUsd) {
+        return new PagoService(pagos, publicaciones, pasarela, paypal, transaccion, reloj, acceso, tarifa,
+                proveedor, paypalClientId, montoUsd);
+    }
+
+    /**
+     * Cliente de PayPal. Si el proveedor elegido es paypal, las credenciales son obligatorias: la
+     * aplicación falla al arrancar en vez de aceptar pagos que no puede cobrar. Con simulado no se
+     * hace ninguna llamada de red.
+     */
+    @Bean
+    ClientePaypal clientePaypal(RestClient.Builder builder,
+                                @Value("${pagos.proveedor:simulado}") String proveedor,
+                                @Value("${pagos.paypal.client-id:}") String clientId,
+                                @Value("${pagos.paypal.client-secret:}") String clientSecret,
+                                @Value("${pagos.paypal.base-url:https://api-m.sandbox.paypal.com}") String baseUrl) {
+        boolean paypal = "paypal".equalsIgnoreCase(proveedor == null ? "" : proveedor.trim());
+        if (paypal && (clientId == null || clientId.isBlank() || clientSecret == null || clientSecret.isBlank())) {
+            throw new IllegalStateException(
+                    "PAGOS_PROVEEDOR=paypal requiere PAYPAL_CLIENT_ID y PAYPAL_CLIENT_SECRET");
+        }
+        return new ClientePaypalHttp(builder, baseUrl, clientId, clientSecret);
+    }
+
+    @Bean
+    PasarelaPaypalPort pasarelaPaypal(ClientePaypal clientePaypal) {
+        return new PasarelaPaypal(clientePaypal);
     }
 
     @Bean

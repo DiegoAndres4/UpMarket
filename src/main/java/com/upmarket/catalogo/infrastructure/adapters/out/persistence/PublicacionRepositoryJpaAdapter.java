@@ -34,6 +34,11 @@ public class PublicacionRepositoryJpaAdapter implements PublicacionRepositoryPor
     }
 
     @Override
+    public Optional<Publicacion> buscarPorIdBloqueando(long id) {
+        return jpa.buscarPorIdParaActualizar(id).map(PublicacionJpaEntity::aDominio);
+    }
+
+    @Override
     public void eliminar(long id) {
         jpa.deleteById(id);
     }

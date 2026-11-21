@@ -195,9 +195,18 @@ class UpmarketRestTest {
     }
 
     @Test
+    @DisplayName("La configuración de pagos por defecto es la pasarela simulada")
+    void configuracionDePagosPorDefecto() throws Exception {
+        mvc.perform(con(get("/api/pagos/config"), estudiante("ana"), null))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.proveedor").value("simulado"))
+                .andExpect(jsonPath("$.monedaPaypal").value("USD"))
+                .andExpect(jsonPath("$.montoUsd").value(0.75));
+    }
+
+    @Test
     @DisplayName("Pago simulado: oculta hasta pagar, solo el autor paga, sin doble cobro, y las vistas solo las ve el autor")
-    void pagoYVistas() throws Exception {
-        String persona = unico("pagadora");
+    void pagoYVistas() throws Exception {        String persona = unico("pagadora");
         String marca = unico("monetizada");
         long id = publicarPendiente(persona, "Bicicleta " + marca, "300000", "Otros");
 
@@ -280,6 +289,36 @@ class UpmarketRestTest {
             assertEquals("La categoría '" + nombre + "' ya existe", JsonPath.read(respuesta409, "$.mensaje"));
             assertFalse(respuesta409.toLowerCase().contains("duplicate key"));
             assertFalse(respuesta409.toLowerCase().contains("uk_categoria_nombre"));
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("Concurrencia en el pago simulado: dos cobros simultáneos; solo uno aprueba (200) y el otro recibe 409")
+    void concurrenciaPagoSimulado() throws Exception {
+        String persona = unico("pagadora");
+        long id = publicarPendiente(persona, "Monitor " + unico("pago"), "450000", "Otros");
+        CountDownLatch listos = new CountDownLatch(2);
+        CountDownLatch largada = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+
+        try {
+            Callable<Integer> tarea = () -> {
+                listos.countDown();
+                largada.await(5, TimeUnit.SECONDS);
+                return mvc.perform(con(post("/api/publicaciones/" + id + "/pago"), estudiante(persona), null))
+                        .andReturn().getResponse().getStatus();
+            };
+
+            Future<Integer> f1 = pool.submit(tarea);
+            Future<Integer> f2 = pool.submit(tarea);
+            listos.await(5, TimeUnit.SECONDS);
+            largada.countDown();
+
+            List<Integer> codigos = List.of(f1.get(15, TimeUnit.SECONDS), f2.get(15, TimeUnit.SECONDS)).stream()
+                    .sorted().toList();
+            assertEquals(List.of(200, 409), codigos);
         } finally {
             pool.shutdownNow();
         }

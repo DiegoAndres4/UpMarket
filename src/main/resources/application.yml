@@ -71,3 +71,15 @@ upmarket:
     tarifa: ${UPMARKET_TARIFA_PUBLICACION:3000}
   seed:
     enabled: ${UPMARKET_SEED_ENABLED:false}
+
+pagos:
+  # simulado (por defecto; no cobra dinero real) o paypal (Orders v2 en modo sandbox).
+  proveedor: ${PAGOS_PROVEEDOR:simulado}
+  paypal:
+    # Credenciales SOLO por variables de entorno. Con proveedor=paypal son obligatorias.
+    client-id: ${PAYPAL_CLIENT_ID:}
+    client-secret: ${PAYPAL_CLIENT_SECRET:}
+    base-url: ${PAYPAL_BASE_URL:https://api-m.sandbox.paypal.com}
+    # Equivalente en dólares de la tarifa de publicación; PayPal no cobra en COP.
+    monto-usd: ${PAYPAL_MONTO_USD:0.75}
+

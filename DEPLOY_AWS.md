@@ -72,6 +72,29 @@ Si `FOTOS_PROVEEDOR=cloudinary` y faltan credenciales, el servicio falla al arra
 nombra las variables. El plan gratuito de Cloudinary alcanza para el proyecto; revise sus límites de
 transformaciones y ancho de banda. El navegador nunca recibe el secreto: las subidas pasan por el backend.
 
+### Pagos con PayPal sandbox (opcional)
+
+Por defecto `PAGOS_PROVEEDOR=simulado` (no cobra dinero real). Para cobrar con **PayPal sandbox**:
+
+1. Cree una app en <https://developer.paypal.com/> (tipo *Merchant*) y asegúrese de estar en **Sandbox**.
+2. Copie el **Client ID** y el **Secret** de esa app.
+3. En **Sandbox → Accounts** cree (o use) una cuenta *Personal* de comprador; con ella se prueba el pago.
+4. Añada al `.env` del servidor (nunca al repositorio):
+   ```bash
+   PAGOS_PROVEEDOR=paypal
+   PAYPAL_CLIENT_ID=...
+   PAYPAL_CLIENT_SECRET=...
+   PAYPAL_BASE_URL=https://api-m.sandbox.paypal.com
+   PAYPAL_MONTO_USD=0.75
+   ```
+5. Recreate el servicio: `docker compose up -d domain`.
+
+La tarifa de la app sigue en 3.000 COP; PayPal cobra su equivalente en USD (`PAYPAL_MONTO_USD`, dos
+decimales). Si `PAGOS_PROVEEDOR=paypal` y faltan credenciales, el servicio de dominio no arranca. El
+dinero de sandbox es ficticio: no se carga a ninguna tarjeta real. El `client-id` es público (lo usa el
+SDK en el navegador); el `secret` nunca sale del backend. La CSP de `frontend/nginx.conf` ya permite
+cargar el SDK y los iframes de PayPal.
+
 ### Correo y verificación de cuentas
 
 AuthCore manda un enlace de confirmación al registrarse. Para Gmail:

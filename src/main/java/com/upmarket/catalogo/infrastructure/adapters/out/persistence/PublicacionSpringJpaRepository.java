@@ -3,9 +3,12 @@ package com.upmarket.catalogo.infrastructure.adapters.out.persistence;
 import com.upmarket.catalogo.domain.model.EstadoArticulo;
 import com.upmarket.catalogo.domain.model.EstadoPago;
 import com.upmarket.catalogo.domain.model.EstadoPublicacion;
+import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -38,6 +41,11 @@ public interface PublicacionSpringJpaRepository extends JpaRepository<Publicacio
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE PublicacionJpaEntity p SET p.vistas = p.vistas + 1 WHERE p.id = :id")
     int incrementarVistas(@Param("id") long id);
+
+    /** Bloqueo pesimista de escritura: serializa los cobros de la misma publicación. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM PublicacionJpaEntity p WHERE p.id = :id")
+    Optional<PublicacionJpaEntity> buscarPorIdParaActualizar(@Param("id") long id);
 
     @Query("""
             SELECT p.categoria, COUNT(p)
