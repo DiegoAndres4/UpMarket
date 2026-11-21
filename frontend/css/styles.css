@@ -691,9 +691,19 @@ body.pantalla-landing #app{max-width:none;padding:0}
 .cartelera-final .btn{background:var(--paper);border-color:var(--paper);color:var(--paper-text)}
 .cartelera-final .btn:hover{background:var(--paper-hover);border-color:var(--paper-hover)}
 .cartelera-cierre__enlace{font-weight:600;color:var(--on-accent);text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:2px;min-height:44px;display:inline-flex;align-items:center}
+/* .cartelera a{color:inherit} gana por especificidad: repetir el selector completo en cada estado. */
+.cartelera .cartelera-cierre__enlace,
+.cartelera .cartelera-cierre__enlace:visited,
+.cartelera .cartelera-cierre__enlace:hover,
+.cartelera .cartelera-cierre__enlace:focus,
+.cartelera .cartelera-cierre__enlace:active{color:var(--on-accent)}
+.cartelera .cartelera-cierre__enlace:focus-visible{color:var(--on-accent);outline:3px solid var(--on-accent);outline-offset:3px}
 .cartelera-final :focus-visible{outline-color:var(--on-accent)}
 /* El rojo cierra contra el pie de página color crema: sin franja blanca en medio. */
 body.pantalla-landing .pie{margin-top:0}
+/* La landing ya muestra la mascota grande y "Crear cuenta" en el cierre: sin duplicados en el pie. */
+body.pantalla-landing .pie__mascota{display:none}
+body.pantalla-landing .pie__accion{display:none}
 
 @media(prefers-reduced-motion:no-preference){
   .cartelera__enlace{transition:transform .16s ease-out,box-shadow .16s ease-out}
