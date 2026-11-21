@@ -11,20 +11,39 @@ import {
 import { Download, Eye, Trash2 } from 'lucide-react'
 import { api, descargarDocumento } from '../lib/api'
 import { fecha, numero, precio } from '../lib/formato'
+import { useTema } from '../lib/tema'
 import type { DocumentoAdmin, Estadisticas, Pagina, ReporteAdmin, ReporteGenerado } from '../lib/tipos'
 import { DocumentoViewer, type DocumentoVista } from '../components/DocumentoViewer'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Skeleton } from '../components/ui/skeleton'
+import { Skeleton, SkeletonFilas } from '../components/ui/skeleton'
+import { Spinner } from '../components/ui/spinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 
-/* Paleta de la marca: ámbar para la serie principal, rojo para el énfasis, tinta y arena para ejes. */
-const AMBAR = '#F5B700'
-const TINTA = '#1A1A1A'
-const GRIS_EJE = '#4A4A4A'
-const ARENA = '#E5E0D5'
+/*
+ * Paleta de la marca por tema: el ámbar de las barras se mantiene; tinta, ejes y tooltip
+ * cambian para conservar el contraste sobre las superficies oscuras.
+ */
+const PALETAS = {
+  claro: {
+    barra: '#F5B700',
+    tinta: '#1A1A1A',
+    eje: '#4A4A4A',
+    rejilla: '#E5E0D5',
+    tooltipFondo: '#FFFFFF',
+    tooltipBorde: '#E5E0D5',
+  },
+  oscuro: {
+    barra: '#F5B700',
+    tinta: '#F3EFE6',
+    eje: '#C2BBAE',
+    rejilla: '#3A372F',
+    tooltipFondo: '#26241F',
+    tooltipBorde: '#3A372F',
+  },
+} as const
 
 function Cifra({ titulo, valor, detalle, nota }: { titulo: string; valor: string; detalle?: string; nota?: string }) {
   return (
@@ -44,6 +63,8 @@ function Cifra({ titulo, valor, detalle, nota }: { titulo: string; valor: string
 }
 
 export default function Dashboard() {
+  const tema = useTema()
+  const paleta = PALETAS[tema]
   const [datos, setDatos] = useState<Estadisticas | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [cargando, setCargando] = useState(true)
@@ -58,6 +79,21 @@ export default function Dashboard() {
   const [vista, setVista] = useState<DocumentoVista | null>(null)
   const [reporteAEliminar, setReporteAEliminar] = useState<ReporteAdmin | null>(null)
   const [eliminando, setEliminando] = useState(false)
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null)
+  const [descargando, setDescargando] = useState<number | null>(null)
+
+  const descargar = async (documento: DocumentoAdmin) => {
+    setDescargando(documento.id)
+    setAvisoReporte(null)
+    setErrorAccionReporte(null)
+    try {
+      await descargarDocumento(documento)
+    } catch (e) {
+      setErrorAccionReporte(e instanceof Error ? e.message : 'No se pudo descargar el documento')
+    } finally {
+      setDescargando(null)
+    }
+  }
 
   const cargar = () => {
     setCargando(true)
@@ -109,18 +145,21 @@ export default function Dashboard() {
 
   const eliminarReporte = async () => {
     if (!reporteAEliminar) return
+    const numero = reporteAEliminar.numero
     setEliminando(true)
+    setEliminandoId(numero)
     setAvisoReporte(null)
     setErrorAccionReporte(null)
     try {
-      await api(`/admin/reportes/${encodeURIComponent(reporteAEliminar.numero)}`, { method: 'DELETE' })
-      if (ultimoReporte?.numero === reporteAEliminar.numero) setUltimoReporte(null)
+      await api(`/admin/reportes/${encodeURIComponent(numero)}`, { method: 'DELETE' })
+      if (ultimoReporte?.numero === numero) setUltimoReporte(null)
       setAvisoReporte('Reporte eliminado')
       setRecargaReportes((valor) => valor + 1)
     } catch (e) {
       setErrorAccionReporte(e instanceof Error ? e.message : 'No se pudo eliminar el reporte')
     } finally {
       setEliminando(false)
+      setEliminandoId(null)
       setReporteAEliminar(null)
     }
   }
@@ -195,27 +234,27 @@ export default function Dashboard() {
           <CardContent>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={datos.publicacionesPorDia}>
-                <CartesianGrid strokeDasharray="3 3" stroke={ARENA} vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={paleta.rejilla} vertical={false} />
                 <XAxis
                   dataKey="fecha"
                   tickFormatter={(fecha: string) => fecha.slice(5)}
                   fontSize={12}
-                  stroke={ARENA}
-                  tick={{ fill: GRIS_EJE }}
+                  stroke={paleta.rejilla}
+                  tick={{ fill: paleta.eje }}
                 />
                 <YAxis
                   allowDecimals={false}
                   fontSize={12}
-                  stroke={ARENA}
-                  tick={{ fill: GRIS_EJE }}
+                  stroke={paleta.rejilla}
+                  tick={{ fill: paleta.eje }}
                 />
                 <Tooltip
-                  contentStyle={{ background: '#FFFFFF', border: `1px solid ${ARENA}`, borderRadius: 8 }}
-                  labelStyle={{ color: TINTA }}
-                  itemStyle={{ color: TINTA }}
+                  contentStyle={{ background: paleta.tooltipFondo, border: `1px solid ${paleta.tooltipBorde}`, borderRadius: 8 }}
+                  labelStyle={{ color: paleta.tinta }}
+                  itemStyle={{ color: paleta.tinta }}
                   labelFormatter={(fecha) => `Fecha: ${fecha}`}
                 />
-                <Bar dataKey="total" name="Publicaciones" fill={AMBAR} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="total" name="Publicaciones" fill={paleta.barra} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -232,28 +271,28 @@ export default function Dashboard() {
             ) : (
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={categorias} layout="vertical" margin={{ left: 8, right: 16 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={ARENA} horizontal={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={paleta.rejilla} horizontal={false} />
                   <XAxis
                     type="number"
                     allowDecimals={false}
                     fontSize={12}
-                    stroke={ARENA}
-                    tick={{ fill: GRIS_EJE }}
+                    stroke={paleta.rejilla}
+                    tick={{ fill: paleta.eje }}
                   />
                   <YAxis
                     type="category"
                     dataKey="nombre"
                     width={110}
                     fontSize={12}
-                    stroke={ARENA}
-                    tick={{ fill: GRIS_EJE }}
+                    stroke={paleta.rejilla}
+                    tick={{ fill: paleta.eje }}
                   />
                   <Tooltip
-                    contentStyle={{ background: '#FFFFFF', border: `1px solid ${ARENA}`, borderRadius: 8 }}
-                    labelStyle={{ color: TINTA }}
-                    itemStyle={{ color: TINTA }}
+                    contentStyle={{ background: paleta.tooltipFondo, border: `1px solid ${paleta.tooltipBorde}`, borderRadius: 8 }}
+                    labelStyle={{ color: paleta.tinta }}
+                    itemStyle={{ color: paleta.tinta }}
                   />
-                  <Bar dataKey="total" name="Publicaciones" fill={AMBAR} radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="total" name="Publicaciones" fill={paleta.barra} radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -301,34 +340,48 @@ export default function Dashboard() {
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
             <Button onClick={() => void generarReporte()} disabled={generandoReporte}>
-              {generandoReporte ? 'Generando…' : 'Generar reporte (PDF y XML)'}
+              {generandoReporte ? (
+                <>
+                  <Spinner /> Generando…
+                </>
+              ) : (
+                'Generar reporte (PDF y XML)'
+              )}
             </Button>
             {ultimoReporte ? (
               <>
                 <Button variant="outline" onClick={() => ver(ultimoReporte.pdf, ultimoReporte.numero)}>
-                  <Eye className="h-4 w-4" /> Ver PDF
+                  <Eye className="h-4 w-4" aria-hidden="true" /> Ver PDF
                 </Button>
-                <Button variant="outline" onClick={() => void descargarDocumento(ultimoReporte.pdf)}>
-                  <Download className="h-4 w-4" /> Descargar PDF
+                <Button
+                  variant="outline"
+                  onClick={() => void descargar(ultimoReporte.pdf)}
+                  disabled={descargando === ultimoReporte.pdf.id}
+                >
+                  {descargando === ultimoReporte.pdf.id ? <Spinner /> : <Download className="h-4 w-4" aria-hidden="true" />}
+                  {descargando === ultimoReporte.pdf.id ? 'Descargando…' : 'Descargar PDF'}
                 </Button>
-                <Button variant="outline" onClick={() => void descargarDocumento(ultimoReporte.xml)}>
-                  <Download className="h-4 w-4" /> Descargar XML
+                <Button
+                  variant="outline"
+                  onClick={() => void descargar(ultimoReporte.xml)}
+                  disabled={descargando === ultimoReporte.xml.id}
+                >
+                  {descargando === ultimoReporte.xml.id ? <Spinner /> : <Download className="h-4 w-4" aria-hidden="true" />}
+                  {descargando === ultimoReporte.xml.id ? 'Descargando…' : 'Descargar XML'}
                 </Button>
               </>
             ) : null}
           </div>
           {avisoReporte ? <p className="text-sm" role="status">{avisoReporte}</p> : null}
-          {errorAccionReporte ? <p className="text-sm text-destructive" role="alert">{errorAccionReporte}</p> : null}
+          {errorAccionReporte ? <p className="text-sm text-destructive-text" role="alert">{errorAccionReporte}</p> : null}
 
           <div>
             <h3 className="mb-2 text-sm font-semibold">Reportes generados</h3>
             {cargandoReportes ? (
-              <div className="space-y-2">
-                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10" />)}
-              </div>
+              <SkeletonFilas filas={3} />
             ) : errorReportes ? (
               <div className="space-y-2">
-                <p className="text-sm text-destructive">{errorReportes}</p>
+                <p className="text-sm text-destructive-text">{errorReportes}</p>
                 <Button variant="outline" size="sm" onClick={() => setRecargaReportes((valor) => valor + 1)}>
                   Reintentar
                 </Button>
@@ -356,21 +409,41 @@ export default function Dashboard() {
                           <div className="flex justify-end gap-2">
                             <Button variant="outline" size="sm" disabled={!reporte.pdf}
                               onClick={() => reporte.pdf ? ver(reporte.pdf, reporte.numero) : undefined}>
-                              <Eye className="h-4 w-4" /> Ver PDF
+                              <Eye className="h-4 w-4" aria-hidden="true" /> Ver PDF
                             </Button>
-                            <Button variant="outline" size="sm" disabled={!reporte.pdf}
-                              onClick={() => reporte.pdf ? void descargarDocumento(reporte.pdf) : undefined}>
-                              Descargar PDF
+                            <Button variant="outline" size="sm" disabled={!reporte.pdf || descargando === reporte.pdf.id}
+                              onClick={() => reporte.pdf ? void descargar(reporte.pdf) : undefined}>
+                              {reporte.pdf && descargando === reporte.pdf.id ? (
+                                <>
+                                  <Spinner /> Descargando…
+                                </>
+                              ) : (
+                                'Descargar PDF'
+                              )}
                             </Button>
                           </div>
                           <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" disabled={!reporte.xml}
-                              onClick={() => reporte.xml ? void descargarDocumento(reporte.xml) : undefined}>
-                              Descargar XML
+                            <Button variant="outline" size="sm" disabled={!reporte.xml || descargando === reporte.xml.id}
+                              onClick={() => reporte.xml ? void descargar(reporte.xml) : undefined}>
+                              {reporte.xml && descargando === reporte.xml.id ? (
+                                <>
+                                  <Spinner /> Descargando…
+                                </>
+                              ) : (
+                                'Descargar XML'
+                              )}
                             </Button>
-                            <Button variant="destructive" size="sm"
+                            <Button variant="destructive" size="sm" disabled={eliminandoId === reporte.numero}
                               onClick={() => setReporteAEliminar(reporte)}>
-                              <Trash2 className="h-4 w-4" /> Eliminar
+                              {eliminandoId === reporte.numero ? (
+                                <>
+                                  <Spinner /> Eliminando…
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 className="h-4 w-4" aria-hidden="true" /> Eliminar
+                                </>
+                              )}
                             </Button>
                           </div>
                         </div>
@@ -399,7 +472,13 @@ export default function Dashboard() {
             <AlertDialogCancel disabled={eliminando}>Cancelar</AlertDialogCancel>
             <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={eliminando} onClick={() => void eliminarReporte()}>
-              {eliminando ? 'Eliminando…' : 'Eliminar reporte'}
+              {eliminando ? (
+                <>
+                  <Spinner /> Eliminando…
+                </>
+              ) : (
+                'Eliminar reporte'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

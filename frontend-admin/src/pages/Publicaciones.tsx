@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Search, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
-import { fecha, numero, precio } from '../lib/formato'
+import { fecha, fechaCorta, numero, precio } from '../lib/formato'
 import type { EstadoPago, EstadoPublicacion, Pagina, PublicacionAdmin } from '../lib/tipos'
 import {
   AlertDialog,
@@ -18,10 +18,12 @@ import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
 import { Select } from '../components/ui/select'
-import { Skeleton } from '../components/ui/skeleton'
+import { SkeletonFilas } from '../components/ui/skeleton'
+import { Spinner } from '../components/ui/spinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 
 const TAMANO = 10
+const TOTAL_COLUMNAS = 8
 
 type Filtros = {
   texto: string
@@ -43,6 +45,19 @@ function Pago({ estado }: { estado: EstadoPago }) {
   return <Badge variant="destructive">Rechazado</Badge>
 }
 
+function Miniatura({ publicacion }: { publicacion: PublicacionAdmin }) {
+  if (publicacion.fotoUrl) {
+    return (
+      <img
+        src={publicacion.fotoUrl}
+        alt=""
+        className="h-12 w-12 shrink-0 rounded-md border border-border object-cover"
+      />
+    )
+  }
+  return <div aria-hidden="true" className="h-12 w-12 shrink-0 rounded-md border bg-muted" />
+}
+
 export default function Publicaciones() {
   const [borrador, setBorrador] = useState<Filtros>(VACIOS)
   const [consulta, setConsulta] = useState<Filtros & { pagina: number }>({ ...VACIOS, pagina: 1 })
@@ -52,6 +67,7 @@ export default function Publicaciones() {
   const [recarga, setRecarga] = useState(0)
   const [porEliminar, setPorEliminar] = useState<PublicacionAdmin | null>(null)
   const [eliminando, setEliminando] = useState(false)
+  const [eliminandoId, setEliminandoId] = useState<number | null>(null)
 
   useEffect(() => {
     let vigente = true
@@ -94,6 +110,7 @@ export default function Publicaciones() {
   const eliminar = async () => {
     if (!porEliminar) return
     setEliminando(true)
+    setEliminandoId(porEliminar.id)
     setError(null)
     try {
       await api(`/admin/publicaciones/${porEliminar.id}`, { method: 'DELETE' })
@@ -108,10 +125,12 @@ export default function Publicaciones() {
       setError(e instanceof Error ? e.message : 'No se pudo eliminar la publicación')
     } finally {
       setEliminando(false)
+      setEliminandoId(null)
     }
   }
 
   const totalPaginas = datos ? Math.max(1, Math.ceil(datos.total / datos.tamano)) : 1
+  const vacio = datos?.contenido.length === 0
 
   return (
     <div className="space-y-6">
@@ -164,7 +183,7 @@ export default function Publicaciones() {
                 placeholder="Usuario" />
             </label>
             <div className="flex gap-2 md:col-span-2 xl:col-span-5">
-              <Button type="submit"><Search className="h-4 w-4" /> Buscar</Button>
+              <Button type="submit"><Search className="h-4 w-4" aria-hidden="true" /> Buscar</Button>
               <Button type="button" variant="outline" onClick={limpiar}>Limpiar</Button>
             </div>
           </form>
@@ -174,7 +193,7 @@ export default function Publicaciones() {
       {error ? (
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-destructive">{error}</p>
+            <p className="text-sm text-destructive-text">{error}</p>
             <Button className="mt-3" variant="outline" onClick={() => setRecarga((valor) => valor + 1)}>
               Reintentar
             </Button>
@@ -193,64 +212,141 @@ export default function Publicaciones() {
         </CardHeader>
         <CardContent className="p-0">
           {cargando ? (
-            <div className="space-y-2 p-6">
-              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-10" />)}
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Publicación</TableHead>
-                  <TableHead>Vendedor</TableHead>
-                  <TableHead>Categoría</TableHead>
-                  <TableHead className="text-right">Precio</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Pago</TableHead>
-                  <TableHead className="text-right">Vistas</TableHead>
-                  <TableHead>Publicada</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {datos?.contenido.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
-                      No hay publicaciones con esos filtros.
-                    </TableCell>
-                  </TableRow>
+            <SkeletonFilas filas={6} />
+          ) : datos ? (
+            <>
+              <ul className="divide-y xl:hidden">
+                {vacio ? (
+                  <li className="px-4 py-8 text-center text-muted-foreground">No hay publicaciones con esos filtros.</li>
                 ) : null}
-                {datos?.contenido.map((publicacion) => (
-                  <TableRow key={publicacion.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        {publicacion.fotoUrl ? (
-                          <img src={publicacion.fotoUrl} alt="" className="h-10 w-10 rounded-md border border-border object-cover" />
-                        ) : (
-                          <div className="h-10 w-10 rounded-md border bg-muted" />
-                        )}
-                        <span className="max-w-[220px] truncate font-medium" title={publicacion.titulo}>
-                          {publicacion.titulo}
+                {datos.contenido.map((publicacion) => (
+                  <li key={publicacion.id} className="flex gap-3 p-4">
+                    <Miniatura publicacion={publicacion} />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium" title={publicacion.titulo}>{publicacion.titulo}</p>
+                        <p className="truncate text-xs text-muted-foreground" title={`${publicacion.categoria} · ${publicacion.vendedor}`}>
+                          {publicacion.categoria} · {publicacion.vendedor}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="text-sm font-semibold tabular-nums">{precio(publicacion.precio)}</span>
+                        <Estado estado={publicacion.estadoPublicacion} />
+                        <Pago estado={publicacion.estadoPago} />
+                        <span className="text-xs text-muted-foreground">
+                          {numero(publicacion.vistas)} {publicacion.vistas === 1 ? 'vista' : 'vistas'}
                         </span>
                       </div>
-                    </TableCell>
-                    <TableCell className="max-w-[150px] truncate" title={publicacion.vendedor}>{publicacion.vendedor}</TableCell>
-                    <TableCell>{publicacion.categoria}</TableCell>
-                    <TableCell className="whitespace-nowrap text-right">{precio(publicacion.precio)}</TableCell>
-                    <TableCell><Estado estado={publicacion.estadoPublicacion} /></TableCell>
-                    <TableCell><Pago estado={publicacion.estadoPago} /></TableCell>
-                    <TableCell className="text-right">{numero(publicacion.vistas)}</TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">{fecha(publicacion.publicadaEn)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" aria-label={`Eliminar ${publicacion.titulo}`}
-                        onClick={() => setPorEliminar(publicacion)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs text-muted-foreground">{fecha(publicacion.publicadaEn)}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive-text hover:text-destructive-text"
+                          disabled={eliminandoId === publicacion.id}
+                          onClick={() => setPorEliminar(publicacion)}
+                        >
+                          {eliminandoId === publicacion.id ? (
+                            <>
+                              <Spinner /> Eliminando…
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 className="h-4 w-4" aria-hidden="true" /> Eliminar
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </li>
                 ))}
-              </TableBody>
-            </Table>
-          )}
+              </ul>
+
+              <div className="hidden xl:block">
+                <Table className="table-fixed">
+                  <colgroup>
+                    <col className="w-[27%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-[11%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[17%]" />
+                    <col className="w-[6%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[6%]" />
+                  </colgroup>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Publicación</TableHead>
+                      <TableHead>Vendedor</TableHead>
+                      <TableHead>Categoría</TableHead>
+                      <TableHead className="text-right">Precio</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-right">Vistas</TableHead>
+                      <TableHead>Publicada</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {vacio ? (
+                      <TableRow>
+                        <TableCell colSpan={TOTAL_COLUMNAS} className="py-8 text-center text-muted-foreground">
+                          No hay publicaciones con esos filtros.
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                    {datos.contenido.map((publicacion) => (
+                      <TableRow key={publicacion.id}>
+                        <TableCell>
+                          <div className="flex min-w-0 items-center gap-3">
+                            <Miniatura publicacion={publicacion} />
+                            <span className="truncate font-medium" title={publicacion.titulo}>{publicacion.titulo}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="block truncate" title={publicacion.vendedor}>{publicacion.vendedor}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="block truncate" title={publicacion.categoria}>{publicacion.categoria}</span>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right tabular-nums">{precio(publicacion.precio)}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col items-start gap-1">
+                            <Estado estado={publicacion.estadoPublicacion} />
+                            <Pago estado={publicacion.estadoPago} />
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{numero(publicacion.vistas)}</TableCell>
+                        <TableCell>
+                          <span className="block truncate whitespace-nowrap text-xs text-muted-foreground" title={fecha(publicacion.publicadaEn)}>
+                            {fechaCorta(publicacion.publicadaEn)}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-end">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              aria-label={`Eliminar ${publicacion.titulo}`}
+                              title={eliminandoId === publicacion.id ? 'Eliminando…' : 'Eliminar'}
+                              disabled={eliminandoId === publicacion.id}
+                              onClick={() => setPorEliminar(publicacion)}
+                            >
+                              {eliminandoId === publicacion.id ? (
+                                <Spinner />
+                              ) : (
+                                <Trash2 className="h-4 w-4 text-destructive-text" aria-hidden="true" />
+                              )}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          ) : null}
           <div className="flex items-center justify-between border-t p-4">
             <Button variant="outline" size="sm" disabled={consulta.pagina <= 1}
               onClick={() => setConsulta({ ...consulta, pagina: consulta.pagina - 1 })}>
@@ -277,7 +373,13 @@ export default function Publicaciones() {
             <AlertDialogCancel disabled={eliminando}>Cancelar</AlertDialogCancel>
             <AlertDialogAction disabled={eliminando} onClick={() => void eliminar()}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {eliminando ? 'Eliminando…' : 'Eliminar'}
+              {eliminando ? (
+                <>
+                  <Spinner /> Eliminando…
+                </>
+              ) : (
+                'Eliminar'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

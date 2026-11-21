@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { BarChart3, CreditCard, ExternalLink, LogOut, Package, Tags, Users } from 'lucide-react'
+import { BarChart3, CreditCard, ExternalLink, LogOut, Moon, Package, Sun, Tags, Users } from 'lucide-react'
+import { alternarTema, useTema } from '../lib/tema'
 import { cn } from '../lib/utils'
 import { Button } from './ui/button'
 
@@ -12,8 +13,26 @@ const enlaces = [
 ]
 
 export function Layout({ usuario, onSalir }: { usuario: string; onSalir: () => void }) {
+  const tema = useTema()
+  const oscuro = tema === 'oscuro'
+
   return (
     <div className="min-h-screen bg-background">
+      <header className="border-b">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2 md:px-6">
+          <p className="text-sm text-muted-foreground">Panel de administración</p>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={alternarTema}
+            aria-label={oscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+            aria-pressed={oscuro}
+            title={oscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          >
+            {oscuro ? <Sun className="h-4 w-4" aria-hidden="true" /> : <Moon className="h-4 w-4" aria-hidden="true" />}
+          </Button>
+        </div>
+      </header>
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 md:flex-row md:px-6">
         <aside className="md:w-60 md:shrink-0">
           <div className="mb-6 flex items-start justify-between gap-3 md:block">

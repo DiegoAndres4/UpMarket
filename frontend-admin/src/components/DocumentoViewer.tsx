@@ -3,6 +3,7 @@ import { Download, ExternalLink } from 'lucide-react'
 import { contenidoDocumento, descargarDocumento } from '../lib/api'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog'
+import { Spinner } from './ui/spinner'
 
 /** Documento que el panel puede mostrar en línea, sin descargarlo. Solo los PDF se previsualizan. */
 export type DocumentoVista = {
@@ -26,11 +27,14 @@ export function DocumentoViewer({ documento, onCerrar }: {
   const [estado, setEstado] = useState<Estado>('cargando')
   const [url, setUrl] = useState<string | null>(null)
   const [intento, setIntento] = useState(0)
+  const [descargando, setDescargando] = useState(false)
+  const [errorDescarga, setErrorDescarga] = useState<string | null>(null)
 
   useEffect(() => {
     if (!documento) {
       setEstado('cargando')
       setUrl(null)
+      setErrorDescarga(null)
       return
     }
     let vigente = true
@@ -56,9 +60,17 @@ export function DocumentoViewer({ documento, onCerrar }: {
     }
   }, [documento, intento])
 
-  const descargar = () => {
-    if (!documento) return
-    void descargarDocumento({ id: documento.id, nombreArchivo: documento.nombreArchivo })
+  const descargar = async () => {
+    if (!documento || descargando) return
+    setDescargando(true)
+    setErrorDescarga(null)
+    try {
+      await descargarDocumento({ id: documento.id, nombreArchivo: documento.nombreArchivo })
+    } catch (e) {
+      setErrorDescarga(e instanceof Error ? e.message : 'No se pudo descargar el documento')
+    } finally {
+      setDescargando(false)
+    }
   }
 
   const abrirEnPestana = () => {
@@ -77,27 +89,31 @@ export function DocumentoViewer({ documento, onCerrar }: {
               <DialogDescription className="text-xs">
                 Vista previa del documento generado. No hace falta descargarlo.
               </DialogDescription>
+              {errorDescarga ? (
+                <p className="text-xs text-destructive-text" role="alert">{errorDescarga}</p>
+              ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={abrirEnPestana} disabled={estado !== 'listo' || !url}>
-                <ExternalLink className="h-4 w-4" /> Abrir en pestaña nueva
+                <ExternalLink className="h-4 w-4" aria-hidden="true" /> Abrir en pestaña nueva
               </Button>
-              <Button variant="outline" size="sm" onClick={descargar}>
-                <Download className="h-4 w-4" /> Descargar
+              <Button variant="outline" size="sm" onClick={() => void descargar()} disabled={descargando}>
+                {descargando ? <Spinner /> : <Download className="h-4 w-4" aria-hidden="true" />}
+                {descargando ? 'Descargando…' : 'Descargar'}
               </Button>
             </div>
           </div>
 
           <div className="relative min-h-0 flex-1 bg-secondary/40">
             {estado === 'cargando' ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground" role="status">
-                Cargando documento…
+              <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
+                <Spinner /> Cargando documento…
               </div>
             ) : null}
 
             {estado === 'error' ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-                <p className="text-sm text-destructive" role="alert">No pudimos abrir el documento.</p>
+                <p className="text-sm text-destructive-text" role="alert">No pudimos abrir el documento.</p>
                 <Button variant="outline" size="sm" onClick={() => setIntento((valor) => valor + 1)}>
                   Reintentar
                 </Button>

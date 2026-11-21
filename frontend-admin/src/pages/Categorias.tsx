@@ -5,7 +5,8 @@ import { numero } from '../lib/formato'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
-import { Skeleton } from '../components/ui/skeleton'
+import { SkeletonFilas } from '../components/ui/skeleton'
+import { Spinner } from '../components/ui/spinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 
 type Categoria = {
@@ -98,10 +99,11 @@ export default function Categorias() {
               />
             </div>
             <Button type="submit" disabled={creando}>
-              <Tags className="h-4 w-4" /> {creando ? 'Agregando…' : 'Agregar categoría'}
+              {creando ? <Spinner /> : <Tags className="h-4 w-4" aria-hidden="true" />}
+              {creando ? 'Agregando…' : 'Agregar categoría'}
             </Button>
           </form>
-          {errorFormulario ? <p id="categoria-error" className="mt-3 text-sm text-destructive" role="alert">{errorFormulario}</p> : null}
+          {errorFormulario ? <p id="categoria-error" className="mt-3 text-sm text-destructive-text" role="alert">{errorFormulario}</p> : null}
           {aviso ? <p className="mt-3 text-sm" role="status">{aviso}</p> : null}
         </CardContent>
       </Card>
@@ -115,12 +117,10 @@ export default function Categorias() {
         </CardHeader>
         <CardContent className="p-0">
           {cargando ? (
-            <div className="space-y-2 p-6">
-              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10" />)}
-            </div>
+            <SkeletonFilas filas={5} />
           ) : error ? (
             <div className="space-y-3 p-6">
-              <p className="text-sm text-destructive" role="alert">{error}</p>
+              <p className="text-sm text-destructive-text" role="alert">{error}</p>
               <Button variant="outline" size="sm" onClick={() => setRecarga((actual) => actual + 1)}>
                 Reintentar
               </Button>

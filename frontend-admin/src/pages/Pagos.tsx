@@ -1,21 +1,72 @@
 import { useEffect, useState } from 'react'
 import { Download, Eye, FileText } from 'lucide-react'
 import { api, descargarDocumento } from '../lib/api'
-import { fecha, numero, precio } from '../lib/formato'
+import { fecha, fechaCorta, numero, precio } from '../lib/formato'
 import type { DocumentoAdmin, EstadoPago, Pagina, PagoAdmin } from '../lib/tipos'
 import { DocumentoViewer, type DocumentoVista } from '../components/DocumentoViewer'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Skeleton } from '../components/ui/skeleton'
+import { SkeletonFilas } from '../components/ui/skeleton'
+import { Spinner } from '../components/ui/spinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 
 const TAMANO = 10
+const TOTAL_COLUMNAS = 7
 
 function Estado({ estado }: { estado: EstadoPago }) {
   if (estado === 'APROBADO') return <Badge variant="exito">Aprobado</Badge>
   if (estado === 'PENDIENTE') return <Badge variant="alerta">Pendiente</Badge>
   return <Badge variant="destructive">Rechazado</Badge>
+}
+
+function AccionesRecibo({
+  pago,
+  generando,
+  descargando,
+  onVer,
+  onDescargar,
+  onGenerar,
+}: {
+  pago: PagoAdmin
+  generando: number | null
+  descargando: number | null
+  onVer: (pago: PagoAdmin) => void
+  onDescargar: (pago: PagoAdmin) => Promise<void>
+  onGenerar: (pago: PagoAdmin) => Promise<void>
+}) {
+  if (pago.estado !== 'APROBADO') return <span className="text-muted-foreground">—</span>
+  const recibo = pago.recibo
+  if (!recibo.existe || !recibo.documentoId) {
+    const pendiente = generando === pago.id
+    return (
+      <Button size="sm" disabled={pendiente} onClick={() => void onGenerar(pago)}>
+        {pendiente ? <Spinner /> : <FileText className="h-4 w-4" aria-hidden="true" />}
+        {pendiente ? 'Generando…' : 'Generar recibo'}
+      </Button>
+    )
+  }
+  const bajando = descargando === pago.id
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" onClick={() => onVer(pago)} aria-label={`Ver recibo ${recibo.numero ?? ''}`}>
+          <Eye className="h-4 w-4" aria-hidden="true" /> Ver
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={bajando}
+          onClick={() => void onDescargar(pago)}
+          aria-label={`Descargar recibo ${recibo.numero ?? ''}`}
+        >
+          {bajando ? <Spinner /> : <Download className="h-4 w-4" aria-hidden="true" />}
+          {bajando ? 'Descargando…' : 'Descargar'}
+        </Button>
+      </div>
+      {recibo.numero ? <span className="text-xs text-muted-foreground">{recibo.numero}</span> : null}
+    </div>
+  )
 }
 
 export default function Pagos() {
@@ -25,6 +76,7 @@ export default function Pagos() {
   const [error, setError] = useState<string | null>(null)
   const [recarga, setRecarga] = useState(0)
   const [generando, setGenerando] = useState<number | null>(null)
+  const [descargando, setDescargando] = useState<number | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
   const [vista, setVista] = useState<DocumentoVista | null>(null)
@@ -69,6 +121,7 @@ export default function Pagos() {
     if (!recibo.documentoId) return
     setAviso(null)
     setErrorAccion(null)
+    setDescargando(pago.id)
     try {
       await descargarDocumento({
         id: recibo.documentoId,
@@ -76,6 +129,8 @@ export default function Pagos() {
       })
     } catch (e) {
       setErrorAccion(e instanceof Error ? e.message : 'No se pudo descargar el recibo')
+    } finally {
+      setDescargando(null)
     }
   }
 
@@ -92,6 +147,7 @@ export default function Pagos() {
   }
 
   const totalPaginas = datos ? Math.max(1, Math.ceil(datos.total / datos.tamano)) : 1
+  const vacio = datos?.contenido.length === 0
 
   return (
     <div className="space-y-6">
@@ -108,7 +164,7 @@ export default function Pagos() {
         </p>
       ) : null}
       {errorAccion ? (
-        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive-text" role="alert">
           {errorAccion}
         </p>
       ) : null}
@@ -116,7 +172,7 @@ export default function Pagos() {
       {error ? (
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-destructive">{error}</p>
+            <p className="text-sm text-destructive-text">{error}</p>
             <Button className="mt-3" variant="outline" onClick={() => setRecarga((valor) => valor + 1)}>
               Reintentar
             </Button>
@@ -135,77 +191,128 @@ export default function Pagos() {
         </CardHeader>
         <CardContent className="p-0">
           {cargando ? (
-            <div className="space-y-2 p-6">
-              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-10" />)}
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Publicación</TableHead>
-                  <TableHead>Comprador</TableHead>
-                  <TableHead className="text-right">Monto</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Creado</TableHead>
-                  <TableHead>Aprobado</TableHead>
-                  <TableHead className="text-right">Recibo</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {datos?.contenido.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
-                      Aún no hay pagos. Los pagos aparecen cuando un estudiante paga su publicación.
-                    </TableCell>
-                  </TableRow>
+            <SkeletonFilas filas={6} />
+          ) : datos ? (
+            <>
+              <ul className="divide-y xl:hidden">
+                {vacio ? (
+                  <li className="px-4 py-10 text-center text-muted-foreground">
+                    Aún no hay pagos. Los pagos aparecen cuando un estudiante paga su publicación.
+                  </li>
                 ) : null}
-                {datos?.contenido.map((pago) => (
-                  <TableRow key={pago.id}>
-                    <TableCell>
-                      <span className="font-medium">{pago.publicacion?.titulo ?? 'Publicación eliminada'}</span>
-                      {pago.publicacion ? (
-                        <span className="ml-2 text-xs text-muted-foreground">#{pago.publicacion.id}</span>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium">{pago.comprador?.nombre ?? '—'}</div>
-                      <div className="max-w-[180px] truncate text-xs text-muted-foreground" title={pago.comprador?.usuario}>
-                        {pago.comprador?.usuario ?? ''}
+                {datos.contenido.map((pago) => (
+                  <li key={pago.id} className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">
+                          {pago.publicacion?.titulo ?? 'Publicación eliminada'}
+                          {pago.publicacion ? <span className="ml-2 text-xs text-muted-foreground">#{pago.publicacion.id}</span> : null}
+                        </p>
+                        <p className="truncate text-sm text-muted-foreground">
+                          {pago.comprador?.nombre ?? '—'}
+                          {pago.comprador ? ` · ${pago.comprador.usuario}` : ''}
+                        </p>
                       </div>
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-right">{precio(pago.monto)}</TableCell>
-                    <TableCell><Estado estado={pago.estado} /></TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">{fecha(pago.creadoEn)}</TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {pago.aprobadoEn ? fecha(pago.aprobadoEn) : '—'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {pago.estado !== 'APROBADO' ? (
-                        <span className="text-muted-foreground">—</span>
-                      ) : pago.recibo.existe && pago.recibo.documentoId ? (
-                        <div className="flex flex-col items-end gap-1">
-                          <div className="flex flex-wrap justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={() => ver(pago)}>
-                              <Eye className="h-4 w-4" /> Ver
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => void descargar(pago)}>
-                              <Download className="h-4 w-4" /> Descargar recibo
-                            </Button>
-                          </div>
-                          <span className="text-xs text-muted-foreground">{pago.recibo.numero}</span>
-                        </div>
-                      ) : (
-                        <Button size="sm" disabled={generando === pago.id} onClick={() => void generar(pago)}>
-                          <FileText className="h-4 w-4" />
-                          {generando === pago.id ? 'Generando…' : 'Generar recibo'}
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                      <Estado estado={pago.estado} />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                      <span className="font-semibold tabular-nums">{precio(pago.monto)}</span>
+                      <span className="text-muted-foreground">Creado {fechaCorta(pago.creadoEn)}</span>
+                      {pago.aprobadoEn ? (
+                        <span className="text-muted-foreground">Aprobado {fechaCorta(pago.aprobadoEn)}</span>
+                      ) : null}
+                    </div>
+                    <AccionesRecibo
+                      pago={pago}
+                      generando={generando}
+                      descargando={descargando}
+                      onVer={ver}
+                      onDescargar={descargar}
+                      onGenerar={generar}
+                    />
+                  </li>
                 ))}
-              </TableBody>
-            </Table>
-          )}
+              </ul>
+
+              <div className="hidden xl:block">
+                <Table className="table-fixed">
+                  <colgroup>
+                    <col className="w-[22%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[9%]" />
+                    <col className="w-[11%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[22%]" />
+                  </colgroup>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Publicación</TableHead>
+                      <TableHead>Comprador</TableHead>
+                      <TableHead className="text-right">Monto</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Creado</TableHead>
+                      <TableHead>Aprobado</TableHead>
+                      <TableHead className="text-right">Recibo</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {vacio ? (
+                      <TableRow>
+                        <TableCell colSpan={TOTAL_COLUMNAS} className="py-10 text-center text-muted-foreground">
+                          Aún no hay pagos. Los pagos aparecen cuando un estudiante paga su publicación.
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                    {datos.contenido.map((pago) => (
+                      <TableRow key={pago.id}>
+                        <TableCell>
+                          <span className="block truncate font-medium" title={pago.publicacion?.titulo ?? 'Publicación eliminada'}>
+                            {pago.publicacion?.titulo ?? 'Publicación eliminada'}
+                          </span>
+                          {pago.publicacion ? (
+                            <span className="text-xs text-muted-foreground">#{pago.publicacion.id}</span>
+                          ) : null}
+                        </TableCell>
+                        <TableCell>
+                          <div className="min-w-0">
+                            <p className="truncate font-medium" title={pago.comprador?.nombre}>{pago.comprador?.nombre ?? '—'}</p>
+                            <p className="truncate text-xs text-muted-foreground" title={pago.comprador?.usuario}>
+                              {pago.comprador?.usuario ?? ''}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right tabular-nums">{precio(pago.monto)}</TableCell>
+                        <TableCell><Estado estado={pago.estado} /></TableCell>
+                        <TableCell>
+                          <span className="block truncate whitespace-nowrap text-xs text-muted-foreground" title={fecha(pago.creadoEn)}>
+                            {fechaCorta(pago.creadoEn)}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="block truncate whitespace-nowrap text-xs text-muted-foreground">
+                            {pago.aprobadoEn ? fechaCorta(pago.aprobadoEn) : '—'}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-end text-right">
+                            <AccionesRecibo
+                              pago={pago}
+                              generando={generando}
+                              descargando={descargando}
+                              onVer={ver}
+                              onDescargar={descargar}
+                              onGenerar={generar}
+                            />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          ) : null}
           <div className="flex items-center justify-between border-t p-4">
             <Button variant="outline" size="sm" disabled={pagina <= 1} onClick={() => setPagina(pagina - 1)}>
               Anterior

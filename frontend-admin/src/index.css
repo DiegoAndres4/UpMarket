@@ -4,7 +4,7 @@
 
 /*
  * Tema del panel: hereda los tokens del sitio público (frontend/css/styles.css).
- * Solo modo claro, como el sitio público. Sin identidad visual nueva.
+ * Modo claro y oscuro con los mismos valores que el sitio público. Sin identidad visual nueva.
  */
 @font-face {
   font-family: 'Archivo';
@@ -29,6 +29,7 @@
 
 @layer base {
   :root {
+    color-scheme: light;
     --background: 0 0% 100%;
     --foreground: 0 0% 10%;
     --card: 0 0% 100%;
@@ -43,12 +44,41 @@
     --accent-foreground: 0 0% 10%;
     --destructive: 0 69% 50%;
     --destructive-foreground: 0 0% 100%;
+    --destructive-text: 0 71.3% 42.4%;
     --border: 41 24% 87%;
     --input: 41 24% 87%;
     --ring: 0 0% 10%;
     --radius: 8px;
     --radius-panel: 16px;
     --brand-red: 0 69% 50%;
+  }
+
+  /*
+   * Modo oscuro del panel: mismos valores que los tokens oscuros del sitio público
+   * (S1). Se aplica con la clase `.dark` en <html>, decidida por `localStorage['upmarket.tema']`
+   * o por la preferencia del sistema. La preferencia es compartida con el sitio público.
+   */
+  .dark {
+    color-scheme: dark;
+    --background: 40 8.1% 7.3%;
+    --foreground: 42 35.1% 92.7%;
+    --card: 40 5.7% 10.4%;
+    --card-foreground: 42 35.1% 92.7%;
+    --primary: 45 100% 48%;
+    --primary-foreground: 0 0% 10%;
+    --secondary: 43 10.1% 13.5%;
+    --secondary-foreground: 42 35.1% 92.7%;
+    --muted: 40 5.7% 10.4%;
+    --muted-foreground: 39 14.1% 72.2%;
+    --accent: 43 10.1% 13.5%;
+    --accent-foreground: 42 35.1% 92.7%;
+    --destructive: 0 69% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-text: 5 100% 71.6%;
+    --border: 44 10.5% 20.6%;
+    --input: 44 10.5% 20.6%;
+    --ring: 45 100% 48%;
+    --brand-red: 5 100% 71.6%;
   }
 
   * {
@@ -63,5 +93,13 @@
   :focus-visible {
     outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
+  }
+}
+
+/* Con movimiento reducido los indicadores de espera quedan estáticos; el texto sigue explicando. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin,
+  .animate-pulse {
+    animation: none;
   }
 }
