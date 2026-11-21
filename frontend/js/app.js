@@ -245,7 +245,8 @@ function alternarTema() {
 
 /* ---------- navegación ---------- */
 function pintarNav() {
-  const s = leerSesion(); const nav = document.getElementById('nav'); const menu = document.getElementById('menu'); const ruta = location.hash || '#/';
+  const s = leerSesion(); const nav = document.getElementById('nav'); const menu = document.getElementById('menu');
+  const ruta = (location.hash || '#/').split('?')[0];
   nav.classList.remove('abierto');
   menu.setAttribute('aria-expanded', 'false');
   // Sin sesión solo hay dos salidas: ingresar o crear cuenta (la landing las muestra en la barra).
@@ -323,11 +324,40 @@ document.querySelector('.salto')?.addEventListener('click', (ev) => {
   ev.preventDefault();
   document.getElementById('app').focus();
 });
+/* ---------- filtros en la URL (S9) ----------
+   Catálogo y cartelera guardan sus filtros en el hash para que la vista sobreviva a
+   recargas, enlaces compartidos y a los botones Atrás/Adelante. */
+function partesHash(hash) {
+  const valor = hash || location.hash || '#/';
+  const corte = valor.indexOf('?');
+  return {
+    ruta: corte >= 0 ? valor.slice(0, corte) : valor,
+    parametros: new URLSearchParams(corte >= 0 ? valor.slice(corte + 1) : ''),
+  };
+}
+function hashConParametros(ruta, parametros) {
+  const consulta = parametros.toString();
+  return consulta ? ruta + '?' + consulta : ruta;
+}
+function escribirHash(hash, reemplazar) {
+  try {
+    const url = location.pathname + location.search + hash;
+    if (reemplazar) history.replaceState(history.state, '', url);
+    else history.pushState(history.state, '', url);
+  } catch { /* sin history: la vista sigue funcionando sin URL */ }
+}
+const esEnteroPositivo = (valor) => (/^\d+$/.test(valor || '') ? Number(valor) : null);
+
+/* Vistas que viven en la raíz (`#/`). Al volver con Atrás/Adelante a la misma raíz
+   se reaplican los filtros sin remontar la vista (no se pierde el scroll ni el foco). */
+let vistaRaiz = null;
+let rutaMontada = null;
+
 const rutas = [
   [/^#\/login$/, vistaLogin], [/^#\/registro$/, vistaRegistro],
   [/^#\/confirma-tu-correo$/, vistaConfirmaCorreo],
   [/^#\/verificar(?:\?.*)?$/, vistaVerificar],
-  [/^#\/?$/, () => (leerSesion() ? vistaCatalogo() : vistaLanding())],
+  [/^#\/?(?:\?.*)?$/, () => (leerSesion() ? vistaCatalogo() : vistaLanding())],
   [/^#\/publicar$/, () => (leerSesion() && leerSesion().esAdmin ? vistaSoloEstudiantes() : vistaFormulario(null))],
   [/^#\/mias$/, () => (leerSesion() && leerSesion().esAdmin ? vistaSoloEstudiantes() : vistaMias())],
   [/^#\/perfil$/, vistaPerfil],
@@ -350,19 +380,27 @@ function tituloDe(hash) {
 }
 async function enrutar() {
   const hash = location.hash || '#/';
-  const raiz = hash === '#/' || hash === '#/?';
+  const { ruta } = partesHash(hash);
+  const raiz = ruta === '#/' || ruta === '#';
   const sesion = leerSesion();
-  const acceso = hash === '#/login' || hash === '#/registro' || hash === '#/confirma-tu-correo' || /^#\/verificar(?:\?|$)/.test(hash);
+  const acceso = ruta === '#/login' || ruta === '#/registro' || ruta === '#/confirma-tu-correo' || /^#\/verificar(?:\?|$)/.test(ruta);
   const publica = acceso || (raiz && !sesion);
   limpiarTemporizadores();
   document.body.classList.toggle('pantalla-acceso', acceso);
   document.body.classList.toggle('pantalla-landing', raiz && !sesion);
   pintarNav();
   pintarPie();
-  const titulo = tituloDe(hash);
+  const titulo = tituloDe(ruta);
   document.title = raiz && !sesion ? 'UPMarket · La cartelera de la sede'
     : titulo ? titulo + ' · UPMarket' : 'UPMarket · Mercado de estudiantes';
   if (!publica && !sesion) { location.hash = '#/login'; return; }
+  // Atrás/Adelante entre dos estados de la misma raíz: solo se reaplican los filtros.
+  if (raiz && rutaMontada === ruta && vistaRaiz && vistaRaiz.tipo === (sesion ? 'catalogo' : 'landing')) {
+    try { await vistaRaiz.aplicar(); } catch (e) { aviso(e.message, true); }
+    return;
+  }
+  if (!raiz) vistaRaiz = null;
+  rutaMontada = ruta;
   if (!publica && !perfilActual) await cargarPerfil();
   for (const [patron, vista] of rutas) {
     const m = hash.match(patron);
@@ -756,12 +794,37 @@ function vistaLanding() {
   const sinMovimiento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const estado = { texto: '', categoria: '' };
   let categorias = [];
+  let categoriasListas = false;
   let turno = 0;
 
   const entrada = h('input', { id: 'cartelera-texto', type: 'search', maxlength: 80, placeholder: 'Busca un libro, un portátil, unas arepas…', autocomplete: 'off', 'aria-describedby': 'cartelera-ayuda' });
   const cuenta = h('p', { class: 'cartelera__cuenta', 'aria-live': 'polite' });
   const tablero = h('ul', { class: 'cartelera__avisos' });
   const chips = h('div', { class: 'cartelera__chips', role: 'group', 'aria-label': 'Categorías de la cartelera' });
+
+  /* S9: q y categoria viven en la URL de la cartelera. */
+  function hashConFiltros() {
+    const ps = new URLSearchParams();
+    if (estado.texto) ps.set('q', estado.texto);
+    if (estado.categoria) ps.set('categoria', estado.categoria);
+    return hashConParametros('#/', ps);
+  }
+  function sincronizarUrl() {
+    const destino = hashConFiltros();
+    if (destino === location.hash) return false;
+    escribirHash(destino, false);
+    return true;
+  }
+  function aplicarDesdeUrl() {
+    const { parametros } = partesHash(location.hash);
+    const cat = parametros.get('categoria') || '';
+    estado.texto = (parametros.get('q') || '').slice(0, 80);
+    estado.categoria = (!cat || !categoriasListas || categorias.includes(cat)) ? cat : '';
+    entrada.value = estado.texto;
+    pintarChips();
+    const limpia = hashConFiltros();
+    if (limpia !== location.hash) escribirHash(limpia, true);
+  }
 
   const lupa = h('span', { class: 'cartelera-buscar__lupa', 'aria-hidden': 'true' });
   lupa.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" focusable="false"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16.5 16.5 21 21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
@@ -770,6 +833,7 @@ function vistaLanding() {
   const formulario = h('form', { class: 'cartelera-buscar', role: 'search', onsubmit: (ev) => {
     ev.preventDefault();
     estado.texto = entrada.value.trim();
+    sincronizarUrl();
     const restaurar = cargandoEn(botonBuscarLanding, 'Buscando…');
     buscar().finally(restaurar);
   } },
@@ -785,6 +849,7 @@ function vistaLanding() {
       const activa = estado.categoria === valor;
       return h('button', { type: 'button', class: 'chip', 'aria-pressed': String(activa), onclick: () => {
         estado.categoria = valor;
+        sincronizarUrl();
         pintarChips();
         // El repintado reemplaza los botones: devolver el foco al chip elegido.
         const elegido = Array.from(chips.querySelectorAll('.chip')).find((b) => b.textContent === nombre);
@@ -885,7 +950,7 @@ function vistaLanding() {
 
   const verTodo = h('a', { class: 'cartelera__ver', href: '#/login', onclick: (ev) => {
     ev.preventDefault();
-    irAIngreso('#/');
+    irAIngreso(hashConFiltros());
   } }, 'Ver todo el catálogo');
 
   const secciones = [];
@@ -961,10 +1026,22 @@ function vistaLanding() {
     for (const s of secciones) s.classList.add('entra');
   }
 
-  pintarChips();
+  vistaRaiz = { tipo: 'landing', aplicar: async () => { aplicarDesdeUrl(); await buscar(); } };
+  aplicarDesdeUrl();
   buscar();
   api('GET', '/api/publico/categorias')
-    .then((lista) => { categorias = Array.isArray(lista) ? lista : []; if (estado.categoria === '') pintarChips(); })
+    .then((lista) => {
+      categorias = Array.isArray(lista) ? lista : [];
+      categoriasListas = true;
+      const antes = estado.categoria;
+      if (estado.categoria && !categorias.includes(estado.categoria)) estado.categoria = '';
+      pintarChips();
+      if (estado.categoria !== antes) {
+        const limpia = hashConFiltros();
+        if (limpia !== location.hash) escribirHash(limpia, true);
+        buscar();
+      }
+    })
     .catch(() => { /* la cartelera sigue funcionando sin chips de categoría */ });
 }
 
@@ -990,14 +1067,18 @@ function esqueletoCatalogo() {
         h('span', { class: 'hueso mini' })))));
 }
 /* Catálogo (#/): búsqueda grande, chips de categoría y filtros secundarios en una fila.
-   Los chips, el estado y el orden aplican al instante; el texto, al enviar o con Enter. */
+   Los chips, el estado y el orden aplican al instante; el texto, al enviar o con Enter.
+   S9: todos los filtros viven en la URL (`#/?q=…&categoria=…&min=…&max=…&estado=…&orden=…`). */
 async function vistaCatalogo() {
   const estado = { texto: '', categoria: '', min: '', max: '', articulo: '', orden: 'recientes' };
   const miles = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
   const soloNumero = (valor) => (valor || '').replace(/\D/g, '');
   const numero = (valor) => { const d = soloNumero(valor); return d ? Number(d) : null; };
   const formatoMiles = (valor) => { const n = soloNumero(valor); return n ? miles.format(Number(n)) : ''; };
+  const ORDEN_HASH = { recientes: 'recientes', menor: 'precio-asc', mayor: 'precio-desc' };
+  const ORDEN_ESTADO = { recientes: 'recientes', 'precio-asc': 'menor', 'precio-desc': 'mayor' };
   let cats = [];
+  let catsListas = false;
   let turno = 0;
 
   const lupa = h('span', { class: 'catalogo-buscar__lupa', 'aria-hidden': 'true' });
@@ -1007,11 +1088,61 @@ async function vistaCatalogo() {
   const formulario = h('form', { class: 'catalogo-buscar', role: 'search', onsubmit: (ev) => {
     ev.preventDefault();
     estado.texto = entrada.value.trim();
+    sincronizarUrl();
     const restaurar = cargandoEn(botonBuscar, 'Buscando…');
     buscar().finally(restaurar);
   } },
     h('label', { class: 'sr-only', for: 'q' }, 'Buscar en el catálogo'),
     h('div', { class: 'catalogo-buscar__fila' }, lupa, entrada, botonBuscar));
+
+  /* S9: la URL es la fuente de verdad de los filtros. */
+  function paramsDeEstado() {
+    const ps = new URLSearchParams();
+    if (estado.texto) ps.set('q', estado.texto);
+    if (estado.categoria) ps.set('categoria', estado.categoria);
+    const minV = numero(estado.min);
+    const maxV = numero(estado.max);
+    if (minV !== null) ps.set('min', String(minV));
+    if (maxV !== null) ps.set('max', String(maxV));
+    if (estado.articulo) ps.set('estado', estado.articulo);
+    if (estado.orden !== 'recientes') ps.set('orden', ORDEN_HASH[estado.orden] || 'recientes');
+    return ps;
+  }
+  function hashDeEstado() { return hashConParametros('#/', paramsDeEstado()); }
+  function sincronizarUrl() {
+    const destino = hashDeEstado();
+    if (destino === location.hash) return false;
+    escribirHash(destino, false);
+    return true;
+  }
+  function reflejarControles() {
+    entrada.value = estado.texto;
+    min.value = estado.min ? formatoMiles(estado.min) : '';
+    max.value = estado.max ? formatoMiles(estado.max) : '';
+    orden.value = estado.orden;
+    errorFiltros.hidden = true;
+    pintarChips();
+    actualizarPanel();
+  }
+  /* Lee la URL, descarta valores inválidos y normaliza la dirección con replaceState.
+     `min > max` descarta el máximo; una categoría desconocida se ignora cuando ya cargaron. */
+  function aplicarDesdeUrl() {
+    const { parametros } = partesHash(location.hash);
+    const cat = parametros.get('categoria') || '';
+    const minV = esEnteroPositivo(parametros.get('min'));
+    let maxV = esEnteroPositivo(parametros.get('max'));
+    if (minV !== null && maxV !== null && minV > maxV) maxV = null;
+    const est = (parametros.get('estado') || '').toUpperCase();
+    estado.texto = (parametros.get('q') || '').slice(0, 100);
+    estado.categoria = (!cat || !catsListas || cats.some((c) => c.nombre === cat)) ? cat : '';
+    estado.min = minV === null ? '' : String(minV);
+    estado.max = maxV === null ? '' : String(maxV);
+    estado.articulo = est === 'NUEVO' || est === 'USADO' ? est : '';
+    estado.orden = ORDEN_ESTADO[parametros.get('orden')] || 'recientes';
+    reflejarControles();
+    const limpia = hashDeEstado();
+    if (limpia !== location.hash) escribirHash(limpia, true);
+  }
 
   const chips = h('div', { class: 'catalogo-chips', role: 'group', 'aria-label': 'Categorías' });
   function pintarChips() {
@@ -1019,7 +1150,7 @@ async function vistaCatalogo() {
     chips.replaceChildren(...opciones.map((nombre) => {
       const valor = nombre === 'Todas' ? '' : nombre;
       return h('button', { type: 'button', class: 'chip', 'aria-pressed': String(estado.categoria === valor),
-        onclick: () => { estado.categoria = valor; pintarChips(); buscar(); } }, nombre);
+        onclick: () => { estado.categoria = valor; pintarChips(); sincronizarUrl(); buscar(); } }, nombre);
     }));
   }
 
@@ -1028,14 +1159,23 @@ async function vistaCatalogo() {
   const max = h('input', { id: 'max', type: 'text', inputmode: 'numeric', autocomplete: 'off', placeholder: 'Sin tope', 'aria-label': 'Precio máximo', 'aria-describedby': 'error-filtros' });
   min.addEventListener('input', () => { estado.min = min.value; errorFiltros.hidden = true; });
   max.addEventListener('input', () => { estado.max = max.value; errorFiltros.hidden = true; });
-  min.addEventListener('blur', () => { min.value = formatoMiles(min.value); estado.min = min.value; });
-  max.addEventListener('blur', () => { max.value = formatoMiles(max.value); estado.max = max.value; });
+  // El precio se aplica al salir del campo o con Enter (una sola entrada de historial).
+  const aplicarPrecio = () => {
+    const minV = numero(estado.min);
+    const maxV = numero(estado.max);
+    if (!(minV !== null && maxV !== null && minV > maxV)) sincronizarUrl();
+    buscar();
+  };
+  min.addEventListener('blur', () => { min.value = formatoMiles(min.value); estado.min = min.value; aplicarPrecio(); });
+  max.addEventListener('blur', () => { max.value = formatoMiles(max.value); estado.max = max.value; aplicarPrecio(); });
+  min.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); min.blur(); } });
+  max.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); max.blur(); } });
 
   const segmentos = [
     { valor: '', texto: 'Cualquiera' }, { valor: 'NUEVO', texto: 'Nuevo' }, { valor: 'USADO', texto: 'Usado' },
   ].map((opcion) => ({ ...opcion,
     boton: h('button', { type: 'button', class: 'segmentado__op', 'aria-pressed': 'false',
-      onclick: () => { estado.articulo = opcion.valor; buscar(); } }, opcion.texto) }));
+      onclick: () => { estado.articulo = opcion.valor; sincronizarUrl(); buscar(); } }, opcion.texto) }));
   const selectorEstado = h('div', { class: 'segmentado', role: 'group', 'aria-label': 'Estado del artículo' },
     segmentos.map((s) => s.boton));
 
@@ -1043,7 +1183,7 @@ async function vistaCatalogo() {
     h('option', { value: 'recientes' }, 'Más recientes'),
     h('option', { value: 'menor' }, 'Menor precio'),
     h('option', { value: 'mayor' }, 'Mayor precio'));
-  orden.addEventListener('change', () => { estado.orden = orden.value; buscar(); });
+  orden.addEventListener('change', () => { estado.orden = orden.value; sincronizarUrl(); buscar(); });
 
   const limpiar = h('button', { class: 'enlace-filtro', type: 'button', hidden: true, onclick: () => limpiarFiltros() }, 'Limpiar filtros');
   const panel = h('div', { class: 'catalogo-panel', id: 'filtros-catalogo' },
@@ -1073,7 +1213,7 @@ async function vistaCatalogo() {
   }
   function pintarActivos() {
     const quitar = (etiqueta, limpiarFiltro) => h('button', { class: 'chip-activo', type: 'button',
-      onclick: () => { limpiarFiltro(); buscar(); } }, etiqueta, iconoSvg('M6 6l12 12M18 6L6 18', 12));
+      onclick: () => { limpiarFiltro(); sincronizarUrl(); buscar(); } }, etiqueta, iconoSvg('M6 6l12 12M18 6L6 18', 12));
     const items = [];
     if (estado.texto) items.push(quitar('«' + estado.texto + '»', () => { estado.texto = ''; entrada.value = ''; }));
     if (estado.categoria) items.push(quitar(estado.categoria, () => { estado.categoria = ''; pintarChips(); }));
@@ -1095,6 +1235,7 @@ async function vistaCatalogo() {
     entrada.value = ''; min.value = ''; max.value = ''; orden.value = 'recientes';
     errorFiltros.hidden = true;
     pintarChips();
+    sincronizarUrl();
     buscar();
   }
   function ordenar(lista) {
@@ -1166,14 +1307,16 @@ async function vistaCatalogo() {
     info,
     resultados);
 
+  vistaRaiz = { tipo: 'catalogo', aplicar: async () => { aplicarDesdeUrl(); await buscar(); } };
   pintarChips();
-  actualizarPanel();
   try {
     cats = await api('GET', '/api/categorias');
+    catsListas = true;
     pintarChips();
   } catch (e) {
     aviso('No se pudieron cargar las categorías: ' + e.message, true);
   }
+  aplicarDesdeUrl();
   await buscar();
 }
 
