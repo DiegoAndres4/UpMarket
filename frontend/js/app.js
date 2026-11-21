@@ -1008,7 +1008,7 @@ function vistaLanding() {
           h('span', { class: 'cartelera-rol__chincheta', 'aria-hidden': 'true' }),
           h('span', { class: 'cartelera-rol__tab' }, '$3.000'),
           h('h3', {}, 'Si vendes algo'),
-          h('p', {}, 'Publicar cuesta $3.000 por aviso (por ahora el pago es simulado). Tu aviso queda visible hasta que lo marques como vendido, y ves cuántas personas lo abrieron.')))),
+          h('p', {}, 'Publicar cuesta $3.000 por aviso. Tu aviso queda visible hasta que lo marques como vendido, y ves cuántas personas lo abrieron.')))),
     seccion('cartelera-porque',
       h('h2', {}, 'Por qué no el grupo de WhatsApp'),
       h('ul', { class: 'cartelera-motivos' },
@@ -1664,7 +1664,7 @@ async function vistaDetalle(id) {
 
   /* El autor gestiona (pagar, editar, vender, recibo, borrar); el ADMIN solo modera. */
   const notaPago = esMia && p.estadoPago === 'PENDIENTE'
-    ? h('p', { class: 'meta pago-nota', role: 'status' }, 'Publicar cuesta $3.000 (pago simulado).')
+    ? h('p', { class: 'meta pago-nota', role: 'status' }, 'Publicar cuesta $3.000.')
     : null;
 
   const pagar = esMia && p.estadoPago === 'PENDIENTE'
