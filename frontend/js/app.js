@@ -427,16 +427,17 @@ function crearReenviar(correo) {
   };
   boton.addEventListener('click', async () => {
     if (boton.disabled) return;
-    boton.disabled = true;
-    boton.textContent = 'Enviando…';
+    const restaurar = cargandoEn(boton, 'Enviando…');
     try {
       await api('POST', '/api/auth/resend-verification', { username: correo });
       estado.textContent = 'Te enviamos otro enlace a ' + correo + '.';
       estado.hidden = false;
+      restaurar();
       esperar();
     } catch {
       estado.textContent = 'No pudimos reenviar el correo. Intenta de nuevo.';
       estado.hidden = false;
+      restaurar();
       pintar();
     }
   });
@@ -489,7 +490,7 @@ function vistaVerificar() {
         error.hidden = false; correo.focus();
         return;
       }
-      boton.disabled = true; boton.textContent = 'Enviando…';
+      const restaurarBoton = cargandoEn(boton, 'Enviando…');
       try {
         await api('POST', '/api/auth/resend-verification', { username: c });
         estado.textContent = 'Te enviamos un enlace nuevo a ' + c + '.';
@@ -498,8 +499,7 @@ function vistaVerificar() {
       } catch {
         error.textContent = 'No pudimos enviar el enlace. Intenta de nuevo.';
         error.hidden = false;
-      }
-      boton.disabled = false; boton.textContent = 'Enviar un enlace nuevo';
+      } finally { restaurarBoton(); }
     } },
       h('label', { for: 'correo-verificar' }, 'Correo'),
       correo,
@@ -596,7 +596,7 @@ function vistaLogin() {
       ayuda.hidden = true;
       ayuda.replaceChildren();
       limpiarTemporizadores();
-      boton.disabled = true; boton.setAttribute('aria-busy', 'true'); boton.textContent = 'Ingresando…';
+      const restaurar = cargandoEn(boton, 'Ingresando…');
       try { await iniciarSesion(c, clave.value); }
       catch (e) {
         if (e.estado === 403 && e.codigo === 'EMAIL_NO_VERIFICADO') {
@@ -610,7 +610,7 @@ function vistaLogin() {
           fallar(e.message, clave);
         }
       }
-      finally { boton.disabled = false; boton.removeAttribute('aria-busy'); boton.textContent = 'Ingresar'; }
+      finally { restaurar(); }
     } },
       h('a', { class: 'marca acceso__volver', href: '#/', 'aria-label': 'UPMarket, volver al inicio' }, 'UP', h('span', {}, 'Market')),
       h('h1', {}, 'Ingresar a UPMarket'),
@@ -688,14 +688,14 @@ function vistaRegistro() {
         fallos[0][0].focus();
         return;
       }
-      boton.disabled = true; boton.setAttribute('aria-busy', 'true'); boton.textContent = 'Creando cuenta…';
+      const restaurar = cargandoEn(boton, 'Creando cuenta…');
       try {
         await api('POST', '/api/auth/register', { username: c, password: clave.value });
       } catch (e) {
         if (e.estado === 409) { marcar(correo, errCorreo, 'Ese correo ya está registrado. Ingresa o usa otro.'); correo.focus(); }
         else if (e.estado === 400) fallar('Hay un dato que no cumple el formato. Revísalo e intenta de nuevo.');
         else fallar(e.message);
-        boton.disabled = false; boton.removeAttribute('aria-busy'); boton.textContent = 'Crear cuenta';
+        restaurar();
         return;
       }
       // Sin sesión todavía no se puede crear el perfil: se guarda hasta el primer ingreso.
@@ -735,15 +735,16 @@ function vistaLanding() {
   const lupa = h('span', { class: 'cartelera-buscar__lupa', 'aria-hidden': 'true' });
   lupa.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" focusable="false"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16.5 16.5 21 21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
 
+  const botonBuscarLanding = h('button', { class: 'btn', type: 'submit' }, 'Buscar');
   const formulario = h('form', { class: 'cartelera-buscar', role: 'search', onsubmit: (ev) => {
     ev.preventDefault();
     estado.texto = entrada.value.trim();
-    buscar();
+    const restaurar = cargandoEn(botonBuscarLanding, 'Buscando…');
+    buscar().finally(restaurar);
   } },
     h('label', { for: 'cartelera-texto' }, 'Buscar en la cartelera'),
     h('div', { class: 'cartelera-buscar__fila' },
-      lupa, entrada,
-      h('button', { class: 'btn', type: 'submit' }, 'Buscar')),
+      lupa, entrada, botonBuscarLanding),
     h('p', { class: 'cartelera-buscar__ayuda', id: 'cartelera-ayuda' }, 'Puedes buscar por palabra y filtrar por categoría.'));
 
   function pintarChips() {
@@ -1057,11 +1058,16 @@ async function vistaCatalogo() {
     }
   }
 
-  const filtros = h('form', { class: 'tarjeta filtros', onsubmit: (ev) => { ev.preventDefault(); buscar(); } },
+  const botonBuscar = h('button', { class: 'btn', type: 'submit' }, 'Buscar');
+  const filtros = h('form', { class: 'tarjeta filtros', onsubmit: (ev) => {
+    ev.preventDefault();
+    const restaurar = cargandoEn(botonBuscar, 'Buscando…');
+    buscar().finally(restaurar);
+  } },
     h('div', { class: 'buscar' }, h('label', { for: 'q' }, 'Buscar'), q),
     campo('cat', 'Categoría', cat), campo('min', 'Precio mínimo', min), campo('max', 'Precio máximo', max),
     campo('est', 'Estado', est),
-    h('button', { class: 'btn', type: 'submit' }, 'Buscar'),
+    botonBuscar,
     errorFiltros);
   montar(h('h1', {}, 'Catálogo'), h('p', { class: 'sub' }, 'Lo que tus compañeros están vendiendo, ordenado y en un solo lugar.'),
     filtros, limpiarCaja, info, resultados);
@@ -1086,9 +1092,7 @@ async function vistaPago(id) {
     h('p', { class: 'sub' }, '«' + p.titulo + '» quedará visible en el catálogo apenas se apruebe el pago.'),
     h('button', { class: 'btn', type: 'button', onclick: async (ev) => {
       const boton = ev.currentTarget;
-      boton.disabled = true;
-      boton.setAttribute('aria-busy', 'true');
-      boton.textContent = 'Pagando…';
+      const restaurar = cargandoEn(boton, 'Pagando…');
       try {
         await api('POST', `/api/publicaciones/${id}/pago`);
         aviso('Pago aprobado');
@@ -1100,7 +1104,7 @@ async function vistaPago(id) {
           h('div', { class: 'acciones' }, h('a', { class: 'btn sec', href: '#/p/' + id }, 'Ver publicación')));
       } catch (e) {
         aviso(e.message, true);
-        if (boton.isConnected) { boton.disabled = false; boton.removeAttribute('aria-busy'); boton.textContent = 'Pagar'; }
+        restaurar();
       }
     } }, 'Pagar'));
   montar(
@@ -1110,7 +1114,21 @@ async function vistaPago(id) {
 }
 
 /* ---------- detalle y contacto (HU-11) ---------- */
+function esqueletoDetalle() {
+  return h('div', { class: 'detalle-esqueleto', 'aria-hidden': 'true' },
+    h('span', { class: 'hueso detalle-esqueleto__titulo' }),
+    h('span', { class: 'hueso detalle-esqueleto__linea' }),
+    h('div', { class: 'detalle' },
+      h('span', { class: 'hueso detalle-esqueleto__foto' }),
+      h('div', { class: 'panel' },
+        h('span', { class: 'hueso' }),
+        h('span', { class: 'hueso' }),
+        h('span', { class: 'hueso corto' }),
+        h('span', { class: 'hueso detalle-esqueleto__bloque' }))));
+}
+
 async function vistaDetalle(id) {
+  montar(esqueletoDetalle());
   const p = await api('GET', '/api/publicaciones/' + id);
   document.title = p.titulo + ' · UPMarket';
   const s = leerSesion();
@@ -1198,25 +1216,26 @@ async function vistaDetalle(id) {
         h('p', { class: 'sin-fotos__nota' }, 'El vendedor no subió imágenes de este artículo.'));
 
   const zonaContacto = h('div', { class: 'zona-contacto' });
-  const btnContacto = disponible ? h('button', { class: 'btn', type: 'button', onclick: async () => {
-    btnContacto.disabled = true;
-    try {
-      const c = await api('GET', `/api/publicaciones/${id}/contacto`);
-      const medios = [];
-      if (c.whatsapp) {
-        medios.push(h('p', {}, h('strong', {}, 'Celular: '), h('a', { href: 'tel:+57' + soloDigitos(c.whatsapp) }, '+57 ' + formatoCel(c.whatsapp))));
-        medios.push(h('p', { class: 'contacto__accion' },
-          h('a', { class: 'btn sec', href: enlaceWhatsApp(c.whatsapp), target: '_blank', rel: 'noopener' }, 'Abrir WhatsApp'),
-          h('span', { class: 'meta' }, 'Se abre en una pestaña nueva.')));
-      }
-      if (c.correo) medios.push(h('p', {}, h('strong', {}, 'Correo: '), h('a', { href: 'mailto:' + c.correo }, c.correo)));
-      if (!medios.length) medios.push(h('p', {}, 'El vendedor no registró datos de contacto.'));
-      zonaContacto.replaceChildren(h('div', { class: 'contacto' },
-        h('strong', { class: 'contacto__titulo' }, 'Contacta a ' + vend.nombre),
-        ...medios,
-        h('p', { class: 'confianza' }, 'Acuerden la entrega en un lugar público del campus y revisen el artículo antes de pagar.')));
-      btnContacto.remove();
-    } catch (e) { btnContacto.disabled = false; aviso(e.message, true); }
+  const btnContacto = disponible ? h('button', { class: 'btn', type: 'button', onclick: () => {
+    conBotonCargando(btnContacto, 'Cargando…', async () => {
+      try {
+        const c = await api('GET', `/api/publicaciones/${id}/contacto`);
+        const medios = [];
+        if (c.whatsapp) {
+          medios.push(h('p', {}, h('strong', {}, 'Celular: '), h('a', { href: 'tel:+57' + soloDigitos(c.whatsapp) }, '+57 ' + formatoCel(c.whatsapp))));
+          medios.push(h('p', { class: 'contacto__accion' },
+            h('a', { class: 'btn sec', href: enlaceWhatsApp(c.whatsapp), target: '_blank', rel: 'noopener' }, 'Abrir WhatsApp'),
+            h('span', { class: 'meta' }, 'Se abre en una pestaña nueva.')));
+        }
+        if (c.correo) medios.push(h('p', {}, h('strong', {}, 'Correo: '), h('a', { href: 'mailto:' + c.correo }, c.correo)));
+        if (!medios.length) medios.push(h('p', {}, 'El vendedor no registró datos de contacto.'));
+        zonaContacto.replaceChildren(h('div', { class: 'contacto' },
+          h('strong', { class: 'contacto__titulo' }, 'Contacta a ' + vend.nombre),
+          ...medios,
+          h('p', { class: 'confianza' }, 'Acuerden la entrega en un lugar público del campus y revisen el artículo antes de pagar.')));
+        btnContacto.remove();
+      } catch (e) { aviso(e.message, true); }
+    });
   } }, 'Ver WhatsApp o correo del vendedor') : null;
 
   const estadoVendido = disponible ? null : h('div', { class: 'estado-vendido', role: 'status' },
@@ -1229,16 +1248,19 @@ async function vistaDetalle(id) {
     : null;
 
   const pagar = esMia && p.estadoPago === 'PENDIENTE'
-    ? h('button', { class: 'btn', type: 'button', onclick: () => accion(() => api('POST', `/api/publicaciones/${id}/pago`), 'Pago aprobado', () => vistaDetalle(id)) }, 'Pagar')
+    ? h('button', { class: 'btn', type: 'button', onclick: (ev) => accionEn(ev.currentTarget, 'Pagando…',
+        () => api('POST', `/api/publicaciones/${id}/pago`), 'Pago aprobado', () => vistaDetalle(id)) }, 'Pagar')
     : null;
   const editar = esMia && disponible
     ? h('a', { class: 'btn' + (pagar ? ' sec' : ''), href: '#/editar/' + id }, 'Editar') : null;
   const vender = esMia && disponible
-    ? h('button', { class: 'btn sec', onclick: () => accion(() => api('POST', `/api/publicaciones/${id}/sold`), 'Marcada como vendida', () => vistaDetalle(id)) }, 'Marcar como vendido') : null;
-  const eliminar = (esMia || esAdmin) ? h('button', { class: 'btn-texto-peligro', onclick: () => {
+    ? h('button', { class: 'btn sec', onclick: (ev) => accionEn(ev.currentTarget, 'Guardando…',
+        () => api('POST', `/api/publicaciones/${id}/sold`), 'Marcada como vendida', () => vistaDetalle(id)) }, 'Marcar como vendido') : null;
+  const eliminar = (esMia || esAdmin) ? h('button', { class: 'btn-texto-peligro', onclick: (ev) => {
     const pregunta = esMia ? '¿Eliminar esta publicación?' : '¿Eliminar «' + p.titulo + '» como moderador?';
     if (confirm(pregunta + ' No se puede deshacer.'))
-      accion(() => api('DELETE', '/api/publicaciones/' + id), 'Publicación eliminada', () => { location.hash = esMia ? '#/mias' : '#/'; });
+      accionEn(ev.currentTarget, 'Eliminando…', () => api('DELETE', '/api/publicaciones/' + id),
+        'Publicación eliminada', () => { location.hash = esMia ? '#/mias' : '#/'; });
   } }, 'Eliminar') : null;
 
   const acciones = (esMia || esAdmin) ? h('div', { class: 'acciones' },
@@ -1369,14 +1391,14 @@ function formularioResena(usuario, enc, alPublicar = () => vistaVendedor(usuario
     }
     error.hidden = true;
     const boton = ev.submitter || ev.target.querySelector('button[type="submit"]');
-    if (boton) boton.disabled = true;
+    const restaurar = boton ? cargandoEn(boton, 'Publicando…') : () => {};
     try {
       await api('POST', '/api/perfil/' + enc + '/resenas', { estrellas: estrellasElegidas, comentario });
       aviso('Gracias por tu reseña');
       await alPublicar();
     } catch (e) {
       error.textContent = e.message; error.hidden = false;
-      if (boton) boton.disabled = false;
+      restaurar();
     }
   } },
     h('h3', {}, 'Califica a este vendedor'),
@@ -1391,6 +1413,52 @@ function formularioResena(usuario, enc, alPublicar = () => vistaVendedor(usuario
 
 async function accion(fn, exito, despues) {
   try { await fn(); aviso(exito); await despues(); } catch (e) { aviso(e.message, true); }
+}
+
+/* ---------- estados de carga ----------
+   Todo botón asíncrono muestra un spinner y un verbo mientras espera. El spinner es una animación
+   CSS sobre transform; con prefers-reduced-motion queda quieto y el texto sigue explicando. */
+function cargandoEn(boton, etiqueta) {
+  const originales = Array.from(boton.childNodes);
+  boton.disabled = true;
+  boton.setAttribute('aria-busy', 'true');
+  boton.replaceChildren(h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('span', {}, etiqueta));
+  return () => {
+    if (!boton.isConnected) return;
+    boton.disabled = false;
+    boton.removeAttribute('aria-busy');
+    boton.replaceChildren(...originales);
+  };
+}
+
+async function accionEn(boton, etiqueta, fn, exito, despues) {
+  const restaurar = cargandoEn(boton, etiqueta);
+  try { await fn(); aviso(exito); await despues(); }
+  catch (e) { aviso(e.message, true); }
+  finally { restaurar(); }
+}
+
+/** Subida con progreso real: fetch no informa el avance de subida, XMLHttpRequest sí. */
+function subirArchivo(archivo, ruta, alProgreso) {
+  return new Promise((resolve, reject) => {
+    const s = leerSesion();
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', API + ruta);
+    if (s) xhr.setRequestHeader('Authorization', 'Bearer ' + s.token);
+    xhr.upload.onprogress = (ev) => {
+      if (ev.lengthComputable && alProgreso) alProgreso(Math.round((ev.loaded / ev.total) * 100));
+    };
+    xhr.onload = () => {
+      let datos = null; try { datos = JSON.parse(xhr.responseText); } catch { /* sin cuerpo */ }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(datos);
+      else reject(new Error(mensajeDeError(xhr.status, datos, ruta)));
+    };
+    xhr.onerror = () => reject(new Error('No hay conexión con el servidor'));
+    xhr.onabort = () => reject(new Error('La subida se canceló'));
+    const fd = new FormData();
+    fd.append('archivo', archivo);
+    xhr.send(fd);
+  });
 }
 
 /* ---------- recibo de pago (autor y ADMIN) ----------
@@ -1416,17 +1484,8 @@ async function solicitarRecibo(publicacionId, descargar) {
 }
 
 function conBotonCargando(boton, etiqueta, tarea) {
-  const original = boton.textContent;
-  boton.disabled = true;
-  boton.setAttribute('aria-busy', 'true');
-  boton.textContent = etiqueta;
-  return tarea().finally(() => {
-    if (boton.isConnected) {
-      boton.disabled = false;
-      boton.removeAttribute('aria-busy');
-      boton.textContent = original;
-    }
-  });
+  const restaurar = cargandoEn(boton, etiqueta);
+  return tarea().finally(restaurar);
 }
 
 function descargarArchivo(blob, nombre) {
@@ -1525,21 +1584,46 @@ async function vistaFormulario(id) {
   function refrescarCuentas() { cTit.textContent = titulo.value.length + '/100'; cDesc.textContent = desc.value.length + '/2000'; }
 
   let zona = null, cuenta = null, archivo = null, zonaTitulo = null, zonaAyuda = null;
+  let idSubida = 0;
+  const subidas = [];
   async function subirArchivos(lista) {
     for (const a of Array.from(lista)) {
-      if (fotos.length >= 5) { aviso('Máximo 5 fotos por publicación', true); break; }
+      if (fotos.length + subidas.length >= 5) { aviso('Máximo 5 fotos por publicación', true); break; }
       if (!/^image\/(jpeg|png)$/.test(a.type)) { aviso(a.name + ': usa JPG o PNG', true); continue; }
       if (a.size > 5 * 1024 * 1024) { aviso(a.name + ' pesa más de 5 MB', true); continue; }
-      const fd = new FormData(); fd.append('archivo', a);
-      try { fotos.push(await api('POST', '/api/fotos', fd, true)); pintarPrevias(); } catch (e) { aviso(e.message, true); }
+      const enCurso = { id: ++idSubida, nombre: a.name, progreso: 0 };
+      subidas.push(enCurso);
+      pintarPrevias();
+      try {
+        const foto = await subirArchivo(a, '/api/fotos', (p) => { enCurso.progreso = p; pintarPrevias(); });
+        const i = subidas.indexOf(enCurso); if (i >= 0) subidas.splice(i, 1);
+        fotos.push(foto);
+        pintarPrevias();
+      } catch (e) {
+        const i = subidas.indexOf(enCurso); if (i >= 0) subidas.splice(i, 1);
+        pintarPrevias();
+        aviso(e.message, true);
+      }
     }
   }
   function pintarPrevias() {
-    previas.replaceChildren(...fotos.map((f, i) => h('figure', {}, h('img', { src: urlFoto(f.url), alt: 'Foto ' + (i + 1) }),
-      h('button', { type: 'button', 'aria-label': 'Quitar foto ' + (i + 1), onclick: () => { fotos.splice(i, 1); pintarPrevias(); } }, iconoQuitar()))));
+    previas.replaceChildren(
+      ...fotos.map((f, i) => h('figure', {}, h('img', { src: urlFoto(f.url), alt: 'Foto ' + (i + 1) }),
+        h('button', { type: 'button', 'aria-label': 'Quitar foto ' + (i + 1), onclick: () => { fotos.splice(i, 1); pintarPrevias(); } }, iconoQuitar()))),
+      ...subidas.map((subida) => h('figure', { class: 'previa-carga' },
+        h('div', { class: 'previa-carga__marco' },
+          h('span', { class: 'hueso previa-carga__hueso' }),
+          h('span', { class: 'carga-overlay', role: 'status' },
+            h('span', { class: 'spinner', 'aria-hidden': 'true' }),
+            h('span', {}, 'Subiendo imagen…'),
+            h('span', { class: 'carga-overlay__pct' }, subida.progreso + '%'))))));
     if (cuenta) {
-      cuenta.replaceChildren(h('strong', {}, fotos.length + ' de 5'), fotos.length === 1 ? ' · foto agregada' : ' · fotos agregadas');
-      const llena = fotos.length >= 5;
+      const enCurso = subidas.length;
+      const total = fotos.length + enCurso;
+      cuenta.replaceChildren(h('strong', {}, total + ' de 5'),
+        enCurso ? ' · subiendo ' + enCurso + (enCurso === 1 ? ' foto' : ' fotos')
+          : (fotos.length === 1 ? ' · foto agregada' : ' · fotos agregadas'));
+      const llena = total >= 5;
       zona.classList.toggle('llena', llena);
       archivo.disabled = llena;
       zonaTitulo.textContent = llena ? 'Máximo 5 fotos alcanzado' : 'Arrastra tus fotos aquí o elige archivos';
@@ -1675,7 +1759,7 @@ async function vistaFormulario(id) {
       if (usarTel.checked && !esCelularCO(tel.value)) return mostrar(MSG_CEL, tel);
       if (usarMail.checked && !esCorreo(mail.value.trim())) return mostrar('Escribe un correo de contacto válido', mail);
     }
-    boton.disabled = true; boton.setAttribute('aria-busy', 'true'); boton.textContent = actual ? 'Guardando…' : 'Publicando…';
+    const restaurar = cargandoEn(boton, actual ? 'Guardando…' : 'Publicando…');
     try {
       if (actual) { await api('PUT', '/api/publicaciones/' + id, base); aviso('Cambios guardados'); location.hash = '#/p/' + id; }
       else {
@@ -1684,7 +1768,7 @@ async function vistaFormulario(id) {
         aviso('¡Publicación creada!'); location.hash = '#/pagar/' + nueva.id;
       }
     } catch (e) { mostrar(e.message); }
-    finally { boton.disabled = false; boton.removeAttribute('aria-busy'); boton.textContent = etiquetaBoton; }
+    finally { restaurar(); }
   } },
     h('h1', {}, actual ? 'Editar publicación' : 'Publicar un artículo'),
     h('p', { class: 'publicar__sub' }, actual
@@ -1736,9 +1820,8 @@ function filaMia(p) {
     : 'Publicada el ' + fecha(p.publicadaEn);
   const principal = p.estadoPago === 'PENDIENTE'
     ? h('button', { class: 'btn-mini btn-mini--primario', type: 'button', 'aria-label': 'Pagar ' + p.titulo,
-        onclick: (ev) => { const boton = ev.currentTarget; boton.disabled = true;
-          accion(() => api('POST', `/api/publicaciones/${p.id}/pago`), 'Pago aprobado', () => vistaMias(true))
-            .finally(() => { if (boton.isConnected) boton.disabled = false; }); } }, 'Pagar')
+        onclick: (ev) => accionEn(ev.currentTarget, 'Pagando…',
+          () => api('POST', `/api/publicaciones/${p.id}/pago`), 'Pago aprobado', () => vistaMias(true)) }, 'Pagar')
     : h('a', { class: 'btn-mini btn-mini--primario', href: '#/p/' + p.id, 'aria-label': 'Ver ' + p.titulo }, 'Ver');
   return h('li', { class: 'mias-fila' + (vendida ? ' mias-fila--vendida' : '') },
     h('a', { class: 'mias-fila__principal', href: '#/p/' + p.id },
@@ -1754,19 +1837,20 @@ function filaMia(p) {
       !vendida ? h('button', { class: 'btn-mini', type: 'button', 'aria-label': 'Editar ' + p.titulo,
         onclick: () => { location.hash = '#/editar/' + p.id; } }, 'Editar') : null,
       !vendida ? h('button', { class: 'btn-mini', type: 'button', 'aria-label': 'Marcar como vendido ' + p.titulo,
-        onclick: (ev) => { const boton = ev.currentTarget; boton.disabled = true;
-          accion(() => api('POST', '/api/publicaciones/' + p.id + '/sold'), 'Publicación marcada como vendida', () => vistaMias(true))
-            .finally(() => { if (boton.isConnected) boton.disabled = false; }); } }, 'Marcar como vendido') : null,
+        onclick: (ev) => accionEn(ev.currentTarget, 'Guardando…',
+          () => api('POST', '/api/publicaciones/' + p.id + '/sold'), 'Publicación marcada como vendida', () => vistaMias(true)) }, 'Marcar como vendido') : null,
       p.estadoPago === 'APROBADO' ? accionesRecibo(p.id) : null,
       h('button', { class: 'btn-mini btn-mini--peligro', type: 'button', 'aria-label': 'Eliminar ' + p.titulo,
-        onclick: () => { if (confirm('¿Eliminar «' + p.titulo + '»? Esta acción no se puede deshacer.')) accion(() => api('DELETE', '/api/publicaciones/' + p.id), 'Publicación eliminada', () => vistaMias(true)); } }, 'Eliminar')));
+        onclick: (ev) => { if (confirm('¿Eliminar «' + p.titulo + '»? Esta acción no se puede deshacer.'))
+          accionEn(ev.currentTarget, 'Eliminando…', () => api('DELETE', '/api/publicaciones/' + p.id),
+            'Publicación eliminada', () => vistaMias(true)); } }, 'Eliminar')));
 }
 
 function esqueletoMias() {
   return h('ul', { class: 'mias-esqueleto', 'aria-hidden': 'true' },
     Array.from({ length: 3 }, () => h('li', {},
       h('span', { class: 'bloque bloque--foto' }),
-      h('span', {}, h('span', { class: 'bloque bloque--titulo' }), h('span', { class: 'bloque bloque--meta' })),
+      h('span', {}, h('span', { class: 'bloque bloque--titulo' }), h('span', { class: 'bloque bloque--meta' }), h('span', { class: 'bloque bloque--estado' })),
       h('span', { class: 'bloque bloque--precio' }))));
 }
 
@@ -1836,9 +1920,20 @@ async function vistaMias(enfocar) {
 }
 
 /* ---------- perfil y ajustes de cuenta ---------- */
+function esqueletoPerfil() {
+  return h('div', { class: 'perfil-esqueleto', 'aria-hidden': 'true' },
+    h('div', { class: 'avatar esqueleto-avatar' }),
+    h('div', { class: 'perfil-esqueleto__campos' },
+      h('span', { class: 'hueso' }),
+      h('span', { class: 'hueso corto' }),
+      h('span', { class: 'hueso' }),
+      h('span', { class: 'hueso mini' })));
+}
+
 async function vistaPerfil() {
   const s = leerSesion();
   let p;
+  montar(h('h1', {}, 'Mi perfil'), h('p', { class: 'sub' }, 'Cargando tu perfil…'), esqueletoPerfil());
   try { p = await api('GET', '/api/perfil'); }
   catch (e) {
     montar(h('h1', {}, 'Mi perfil'),
@@ -1861,13 +1956,20 @@ async function vistaPerfil() {
     nombre.removeAttribute('aria-invalid'); tel.removeAttribute('aria-invalid');
   };
 
-  const foto = h('div');
+  const foto = h('div', { class: 'perfil-foto' });
   const previaFoto = h('div');
   const previaNombre = h('span', { class: 'nombre-previa' }, p.nombre);
   const previaTel = h('span', { class: 'meta' });
+  let subiendo = null;
+  const errorFoto = h('p', { class: 'error', role: 'alert', tabindex: '-1', hidden: true });
   const nombreVisible = () => nombre.value.trim() || p.nombre;
   const pintarFoto = () => {
-    foto.replaceChildren(avatar(fotoUrl, nombreVisible(), 'grande', 'Foto de perfil de ' + nombreVisible()));
+    const retrato = avatar(fotoUrl, nombreVisible(), 'grande', 'Foto de perfil de ' + nombreVisible());
+    foto.replaceChildren(subiendo == null ? retrato : h('span', { class: 'avatar-envoltura' }, retrato,
+      h('span', { class: 'carga-overlay carga-overlay--avatar', role: 'status' },
+        h('span', { class: 'spinner', 'aria-hidden': 'true' }),
+        h('span', {}, 'Subiendo imagen…'),
+        h('span', { class: 'carga-overlay__pct' }, subiendo + '%'))));
     previaFoto.replaceChildren(avatar(fotoUrl, nombreVisible(), 'mediano'));
     previaNombre.textContent = nombreVisible();
     const d = soloDigitos(tel.value);
@@ -1880,24 +1982,33 @@ async function vistaPerfil() {
   const subir = h('input', { id: 'pf', type: 'file', accept: 'image/jpeg,image/png', hidden: true, onchange: async (ev) => {
     const a = ev.target.files[0]; ev.target.value = '';
     if (!a) return;
-    if (a.size > 5 * 1024 * 1024) { aviso('La foto pesa más de 5 MB', true); return; }
-    const fd = new FormData(); fd.append('archivo', a);
-    try {
-      const r = await api('POST', '/api/perfil/foto', fd, true);
-      fotoUrl = r.fotoUrl; perfilActual = r; pintarFoto(); pintarNav(); aviso('Foto de perfil actualizada');
+    errorFoto.hidden = true;
+    if (a.size > 5 * 1024 * 1024) {
+      errorFoto.textContent = 'La foto pesa más de 5 MB.';
+      errorFoto.hidden = false; errorFoto.focus();
+      return;
     }
-    catch (e) { aviso(e.message, true); }
+    const anterior = fotoUrl;
+    subiendo = 0; subir.disabled = true; pintarFoto();
+    try {
+      const r = await subirArchivo(a, '/api/perfil/foto', (progreso) => { subiendo = progreso; pintarFoto(); });
+      fotoUrl = r.fotoUrl; perfilActual = r; subiendo = null; pintarFoto(); pintarNav(); aviso('Foto de perfil actualizada');
+    } catch (e) {
+      fotoUrl = anterior; subiendo = null; pintarFoto();
+      errorFoto.textContent = e.message || 'No pudimos subir la foto. Intenta de nuevo.';
+      errorFoto.hidden = false; errorFoto.focus();
+    } finally { subir.disabled = false; }
   } });
 
   const confirmacion = h('input', { id: 'conf', autocomplete: 'off', placeholder: 'ELIMINAR', 'aria-describedby': 'ayuda-conf' });
-  const borrar = h('button', { class: 'btn peligro', type: 'button', disabled: true, onclick: async () => {
-    borrar.disabled = true; borrar.textContent = 'Eliminando…';
+  const borrar = h('button', { class: 'btn peligro', type: 'button', disabled: true, onclick: async (ev) => {
+    const restaurar = cargandoEn(ev.currentTarget, 'Eliminando…');
     try {
       await api('DELETE', '/api/perfil');
       localStorage.removeItem(CLAVE_TOKEN); perfilActual = null; location.hash = '#/login';
       aviso('Tu cuenta fue eliminada');
     } catch (e) {
-      aviso(e.message, true); borrar.disabled = false; borrar.textContent = 'Eliminar mi cuenta definitivamente';
+      aviso(e.message, true); restaurar();
     }
   } }, 'Eliminar mi cuenta definitivamente');
   confirmacion.addEventListener('input', () => { borrar.disabled = confirmacion.value.trim() !== 'ELIMINAR'; });
@@ -1923,21 +2034,22 @@ async function vistaPerfil() {
           ev.preventDefault(); ocultarError();
           if (nombre.value.trim().length < 2) { mostrarError('Escribe tu nombre', nombre); return; }
           if (soloDigitos(tel.value) && !esCelularCO(tel.value)) { mostrarError(MSG_CEL, tel); return; }
-          guardar.disabled = true; guardar.setAttribute('aria-busy', 'true'); guardar.textContent = 'Guardando…';
+          const restaurar = cargandoEn(guardar, 'Guardando…');
           try {
             perfilActual = await api('PUT', '/api/perfil', { nombre: nombre.value.trim(), telefono: telParaApi(tel.value), fotoUrl });
             fotoUrl = perfilActual.fotoUrl; error.hidden = true; pintarFoto(); pintarNav(); aviso('Perfil actualizado');
           } catch (e) { mostrarError(e.message); }
-          finally { guardar.disabled = false; guardar.removeAttribute('aria-busy'); guardar.textContent = 'Guardar cambios'; }
+          finally { restaurar(); }
         } },
           h('div', { class: 'perfil-cab' }, foto,
             h('div', { class: 'acciones', style: 'margin:0' },
               h('button', { class: 'btn sec', type: 'button', onclick: () => subir.click() }, 'Cambiar foto'),
-              h('button', { class: 'btn sec', type: 'button', onclick: async () => {
+              h('button', { class: 'btn sec', type: 'button', onclick: (ev) => conBotonCargando(ev.currentTarget, 'Eliminando…', async () => {
                 try { perfilActual = await api('DELETE', '/api/perfil/foto'); fotoUrl = perfilActual.fotoUrl; pintarFoto(); pintarNav(); aviso('Foto de perfil eliminada'); }
                 catch (e) { aviso(e.message, true); }
-              } }, 'Quitar foto'), subir)),
+              }) }, 'Quitar foto'), subir)),
           h('p', { class: 'ayuda' }, 'JPG o PNG, hasta 5 MB. La foto se aplica de inmediato.'),
+          errorFoto,
           h('label', { for: 'pn' }, 'Nombre'), nombre,
           h('label', { for: 'pc' }, 'Correo'),
           h('input', { id: 'pc', value: s.usuario, readonly: true, 'aria-readonly': 'true', 'aria-describedby': 'ayuda-correo' }),

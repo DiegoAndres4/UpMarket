@@ -31,6 +31,7 @@
   --caret:#D62828;
   --selection-bg:#1A1A1A;
   --selection-fg:#FFFFFF;
+  --overlay-ink:rgba(14,13,11,.78);
   --radius-control:8px;
   --radius-panel:16px;
   --radius-pill:999px;
@@ -74,6 +75,7 @@
     --caret:#F5B700;
     --selection-bg:#F5B700;
     --selection-fg:#1A1A1A;
+    --overlay-ink:rgba(0,0,0,.8);
     --shadow-float:0 6px 24px rgba(0,0,0,.6);
     color-scheme:dark;
     scrollbar-color:var(--border-strong) var(--bg);
@@ -110,6 +112,7 @@
   --caret:#F5B700;
   --selection-bg:#F5B700;
   --selection-fg:#1A1A1A;
+  --overlay-ink:rgba(0,0,0,.8);
   --shadow-float:0 6px 24px rgba(0,0,0,.6);
   color-scheme:dark;
   scrollbar-color:var(--border-strong) var(--bg);
@@ -529,6 +532,7 @@ a{text-decoration:underline;text-underline-offset:2px}
 .mias-esqueleto .bloque--foto{width:56px;height:56px;border-radius:var(--radius-control)}
 .mias-esqueleto .bloque--titulo{width:min(100%,320px);height:16px;margin-bottom:8px}
 .mias-esqueleto .bloque--meta{width:min(100%,220px)}
+.mias-esqueleto .bloque--estado{width:min(100%,170px);height:12px}
 .mias-esqueleto .bloque--precio{margin-left:auto;width:100%;height:20px}
 
 @media(max-width:860px){
@@ -725,6 +729,32 @@ body.pantalla-landing .pie{margin-top:0}
   .cartelera__precio{font-size:.92rem}
 }
 .acceso input{caret-color:var(--caret)}
+
+/* ---------- estados de carga ---------- */
+.spinner{display:inline-block;width:1em;height:1em;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:girar .7s linear infinite;flex:none}
+@keyframes girar{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.spinner{animation:none;border-top-color:currentColor;opacity:.65}}
+.btn,.btn-mini{gap:8px}
+.avatar-envoltura{position:relative;display:inline-flex;flex:none}
+.carga-overlay{position:absolute;inset:0;border-radius:inherit;background:var(--overlay-ink);color:var(--on-ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center;font-size:11px;line-height:1.15;padding:6px;overflow:hidden}
+.carga-overlay--avatar{border-radius:50%;font-size:9px;gap:1px;padding:4px}
+.carga-overlay .spinner{width:18px;height:18px;border-width:2px}
+.carga-overlay--avatar .spinner{width:15px;height:15px}
+.carga-overlay__pct{font-variant-numeric:tabular-nums;font-weight:700}
+.previa-carga{margin:0}
+.previa-carga__marco{position:relative;width:96px;height:96px;border-radius:var(--radius-control);border:1px solid var(--border);overflow:hidden;background:var(--surface-2);display:grid;place-items:center}
+.previa-carga__hueso{position:absolute;inset:0;height:auto;border-radius:0;background:var(--surface-2)}
+.perfil-foto{flex:none}
+.perfil-esqueleto{display:flex;gap:20px;align-items:flex-start;max-width:1000px}
+.esqueleto-avatar{width:96px;height:96px;flex:none}
+.perfil-esqueleto__campos{flex:1;display:flex;flex-direction:column;gap:14px;max-width:420px;padding-top:8px}
+.perfil-esqueleto__campos .hueso{height:18px}
+.detalle-esqueleto{display:flex;flex-direction:column;gap:10px}
+.detalle-esqueleto__titulo{width:min(70%,520px);height:32px}
+.detalle-esqueleto__linea{width:min(40%,300px);height:14px}
+.detalle-esqueleto__foto{display:block;aspect-ratio:4/3;border-radius:var(--radius-panel);height:auto}
+.detalle-esqueleto .panel{display:flex;flex-direction:column;gap:10px}
+.detalle-esqueleto__bloque{height:100px}
 
 /* ---------- recibo de pago: diálogo en línea ---------- */
 .recibo-acciones{display:inline-flex;gap:10px;flex-wrap:wrap;margin:0}
