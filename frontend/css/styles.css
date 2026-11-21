@@ -568,6 +568,15 @@ a{text-decoration:underline;text-underline-offset:2px}
 .item__estado{margin-top:2px}
 .pago-nota{margin:16px 0 0}
 
+/* ---------- pago de publicación ----------
+   Los botones de PayPal viven en un iframe con su propio esquema de color; si heredara el esquema
+   oscuro de la página se pinta un lienzo claro detrás. Solo el contenedor de PayPal fija "light";
+   el resto de la vista usa los tokens del tema. */
+.pago-pasarela{margin-top:12px;max-width:420px;background-color:transparent;color:var(--text)}
+.pago-pasarela--paypal{color-scheme:light}
+.pago-verificacion{margin-top:16px}
+.pago-verificacion .meta{margin-top:0}
+
 /* ---------- reseñas del vendedor ---------- */
 .estrellas{color:var(--star);font-weight:700;letter-spacing:.5px;white-space:nowrap;display:inline-flex;align-items:center;gap:2px}
 .estrellas svg{display:block;vertical-align:-2px}

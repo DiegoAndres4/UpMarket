@@ -202,6 +202,17 @@ function temaEfectivo() {
   if (t) return t;
   return prefiereOscuro() ? 'oscuro' : 'claro';
 }
+/* El tema que está pintado ahora mismo: manda el atributo aplicado, luego la preferencia. */
+function esTemaOscuro() {
+  const marca = document.documentElement.getAttribute('data-tema');
+  if (marca === 'oscuro') return true;
+  if (marca === 'claro') return false;
+  return prefiereOscuro();
+}
+/* Avisa a las vistas que se pintan fuera del DOM propio (por ejemplo los botones de PayPal). */
+function anunciarTema() {
+  window.dispatchEvent(new CustomEvent('upmarket:tema', { detail: { oscuro: esTemaOscuro() } }));
+}
 function iconoTema(nombre) {
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
@@ -226,9 +237,7 @@ function botonTema() {
     'aria-pressed': 'false', onclick: alternarTema }, iconoTema('luna'), iconoTema('sol'));
 }
 function actualizarBotonesTema() {
-  const raiz = document.documentElement;
-  const oscuro = raiz.getAttribute('data-tema') === 'oscuro'
-    || (!raiz.hasAttribute('data-tema') && prefiereOscuro());
+  const oscuro = esTemaOscuro();
   const etiqueta = oscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro';
   document.querySelectorAll('.boton-tema').forEach((boton) => {
     boton.setAttribute('aria-pressed', String(oscuro));
@@ -241,6 +250,7 @@ function alternarTema() {
   try { localStorage.setItem(CLAVE_TEMA, destino); } catch { /* sin almacenamiento: solo esta sesión */ }
   document.documentElement.setAttribute('data-tema', destino);
   actualizarBotonesTema();
+  anunciarTema();
 }
 
 /* ---------- navegación ---------- */
@@ -314,7 +324,11 @@ function pintarPie() {
 document.getElementById('tema').addEventListener('click', alternarTema);
 actualizarBotonesTema();
 if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').addEventListener) {
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', actualizarBotonesTema);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    actualizarBotonesTema();
+    // Sin preferencia guardada el cambio del sistema sí cambia el tema pintado.
+    if (!temaGuardado()) anunciarTema();
+  });
 }
 document.getElementById('menu').addEventListener('click', () => {
   const nav = document.getElementById('nav'); const abierto = nav.classList.toggle('abierto');
@@ -1372,6 +1386,7 @@ async function vistaPago(id) {
   if (config.proveedor === 'paypal') {
     /* Un pago que PayPal ya cobró puede quedar pendiente si la captura no se confirma. La orden
        se guarda en la publicación, así que se puede verificar sin volver a pagar. */
+    zonaPago.classList.add('pago-pasarela--paypal');
     const zonaVerificacion = h('div', { class: 'pago-verificacion' });
     panel.append(
       h('p', { class: 'meta' }, 'PayPal cobra el equivalente en dólares: USD ' + montoUsd + '.'),
@@ -1421,26 +1436,45 @@ async function vistaPago(id) {
 
     try {
       const paypal = await cargarPaypalSdk(config.clientId);
-      paypal.Buttons({
-        style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'paypal' },
-        createOrder: async () => {
-          const orden = await api('POST', `/api/publicaciones/${id}/pago/paypal/orden`);
-          return orden.orderId;
-        },
-        onApprove: async (datos) => {
-          try {
-            await api('POST', `/api/publicaciones/${id}/pago/paypal/captura`, { orderId: datos.orderID });
-            aviso('Pago aprobado');
-            pintarPagoAprobado(panel, p, id);
-          } catch (e) {
-            // Se conserva el orderId: el botón reintenta la captura sin obligar a pagar de nuevo.
-            aviso('No pudimos confirmar tu pago. No pagues otra vez.', true);
-            mostrarReintento(datos.orderID);
-          }
-        },
-        onCancel: () => aviso('Cancelaste el pago. Tu publicación sigue pendiente.'),
-        onError: () => aviso('No se pudo completar el pago con PayPal. Intenta de nuevo.', true),
-      }).render(zonaPago);
+      let instancia = null;
+      /* El SDK pinta los botones en un iframe con su propio lienzo claro. En modo oscuro se vuelven a
+         montar con el estilo negro (PayPal no permite cambiar el estilo de una instancia ya creada). */
+      const pintarBotonesPaypal = () => {
+        if (instancia) {
+          try { instancia.close(); } catch { /* la instancia ya estaba cerrada */ }
+          instancia = null;
+        }
+        zonaPago.replaceChildren();
+        const oscuro = esTemaOscuro();
+        instancia = paypal.Buttons({
+          style: { layout: 'vertical', shape: 'rect', label: 'pay', color: oscuro ? 'black' : 'gold', height: 45 },
+          createOrder: async () => {
+            const orden = await api('POST', `/api/publicaciones/${id}/pago/paypal/orden`);
+            return orden.orderId;
+          },
+          onApprove: async (datos) => {
+            try {
+              await api('POST', `/api/publicaciones/${id}/pago/paypal/captura`, { orderId: datos.orderID });
+              aviso('Pago aprobado');
+              pintarPagoAprobado(panel, p, id);
+            } catch (e) {
+              // Se conserva el orderId: el botón reintenta la captura sin obligar a pagar de nuevo.
+              aviso('No pudimos confirmar tu pago. No pagues otra vez.', true);
+              mostrarReintento(datos.orderID);
+            }
+          },
+          onCancel: () => aviso('Cancelaste el pago. Tu publicación sigue pendiente.'),
+          onError: () => aviso('No se pudo completar el pago con PayPal. Intenta de nuevo.', true),
+        });
+        Promise.resolve(instancia.render(zonaPago))
+          .catch(() => aviso('No se pudo mostrar PayPal. Intenta de nuevo.', true));
+      };
+      const alCambiarTema = () => {
+        if (!zonaPago.isConnected) { window.removeEventListener('upmarket:tema', alCambiarTema); return; }
+        pintarBotonesPaypal();
+      };
+      window.addEventListener('upmarket:tema', alCambiarTema);
+      pintarBotonesPaypal();
     } catch (e) {
       aviso(e.message, true);
     }
