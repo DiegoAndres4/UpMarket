@@ -253,19 +253,77 @@ function alternarTema() {
   anunciarTema();
 }
 
-/* ---------- navegación ---------- */
+/* ---------- navegación ----------
+   En escritorio la nav vive en la barra; hasta 960px es un panel bajo el encabezado,
+   con scrim, bloqueo de scroll, cierre por Esc/scrim/ruta y foco atrapado dentro. */
+const CLAVE_MENU = 'menu-abierto';
+const barraEl = document.querySelector('.barra');
+const menuBoton = document.getElementById('menu');
+const menuPanel = document.getElementById('menu-panel');
+const menuScrim = document.getElementById('menu-scrim');
+let menuAbierto = false;
+let menuFocoPrevio = null;
+const menuEsMovil = () => window.matchMedia('(max-width: 960px)').matches;
+
+function medirBarra() {
+  if (barraEl) document.documentElement.style.setProperty('--barra-alto', barraEl.offsetHeight + 'px');
+}
+function focoDelMenu() {
+  return Array.from(menuPanel.querySelectorAll('a[href], button:not([disabled])'))
+    .filter((el) => el.getClientRects().length > 0);
+}
+function tecladoMenu(ev) {
+  if (ev.key === 'Escape') { ev.preventDefault(); cerrarMenu(true); return; }
+  if (ev.key !== 'Tab') return;
+  const destinos = focoDelMenu();
+  if (!destinos.length) return;
+  const primero = destinos[0]; const ultimo = destinos[destinos.length - 1];
+  if (ev.shiftKey && document.activeElement === primero) { ev.preventDefault(); ultimo.focus(); }
+  else if (!ev.shiftKey && document.activeElement === ultimo) { ev.preventDefault(); primero.focus(); }
+}
+function cerrarMenu(devolverFoco) {
+  if (!menuAbierto) return;
+  menuAbierto = false;
+  menuPanel.classList.remove('abierto');
+  menuPanel.hidden = true;
+  menuScrim.hidden = true;
+  document.body.classList.remove(CLAVE_MENU);
+  menuBoton.setAttribute('aria-expanded', 'false');
+  menuBoton.setAttribute('aria-label', 'Abrir menú');
+  document.removeEventListener('keydown', tecladoMenu);
+  if (devolverFoco && menuFocoPrevio && menuFocoPrevio.focus) menuFocoPrevio.focus();
+  menuFocoPrevio = null;
+}
+function abrirMenu() {
+  if (!menuEsMovil() || menuAbierto) return;
+  medirBarra();
+  menuFocoPrevio = document.activeElement;
+  menuAbierto = true;
+  menuPanel.hidden = false;
+  menuScrim.hidden = false;
+  document.body.classList.add(CLAVE_MENU);
+  menuBoton.setAttribute('aria-expanded', 'true');
+  menuBoton.setAttribute('aria-label', 'Cerrar menú');
+  requestAnimationFrame(() => menuPanel.classList.add('abierto'));
+  document.addEventListener('keydown', tecladoMenu);
+  const destinos = focoDelMenu();
+  if (destinos.length) destinos[0].focus();
+}
+
 function pintarNav() {
-  const s = leerSesion(); const nav = document.getElementById('nav'); const menu = document.getElementById('menu');
+  cerrarMenu(false);
+  const s = leerSesion();
+  const nav = document.getElementById('nav');
   const ruta = (location.hash || '#/').split('?')[0];
-  nav.classList.remove('abierto');
-  menu.setAttribute('aria-expanded', 'false');
   // Sin sesión solo hay dos salidas: ingresar o crear cuenta (la landing las muestra en la barra).
-  menu.hidden = false;
   if (!s) {
     nav.hidden = false;
     nav.replaceChildren(
       h('a', { href: '#/login' }, 'Ingresar'),
       h('a', { class: 'btn', href: '#/registro' }, 'Crear cuenta'));
+    menuPanel.replaceChildren(h('div', { class: 'menu-panel__interior' },
+      h('a', { class: 'menu-panel__enlace', href: '#/login' }, 'Ingresar'),
+      h('a', { class: 'btn menu-panel__cta', href: '#/registro' }, 'Crear cuenta')));
     return;
   }
   nav.hidden = false;
@@ -279,6 +337,23 @@ function pintarNav() {
     h('a', { href: '#/perfil', class: ruta === '#/perfil' ? 'activo' : '' },
       avatar(perfilActual && perfilActual.fotoUrl, nombre, ''), 'Mi perfil'),
     h('button', { onclick: cerrarSesion }, 'Salir')].filter(Boolean));
+
+  const filaPanel = (href, texto) => h('a', {
+    href, 'aria-current': ruta === href ? 'page' : null,
+    class: 'menu-panel__enlace' + (ruta === href ? ' activo' : '') }, texto);
+  const filas = [
+    h('a', { href: '#/perfil', class: 'menu-panel__perfil' + (ruta === '#/perfil' ? ' activo' : '') },
+      avatar(perfilActual && perfilActual.fotoUrl, nombre, 'mediano'),
+      h('span', { class: 'menu-panel__perfil-texto' },
+        h('span', { class: 'menu-panel__perfil-nombre' }, nombre),
+        h('span', { class: 'menu-panel__perfil-nota' }, 'Mi perfil'))),
+    s.esAdmin ? null : h('a', { class: 'btn menu-panel__cta', href: '#/publicar' }, 'Publicar'),
+    filaPanel('#/', 'Catálogo'),
+    s.esAdmin ? null : filaPanel('#/mias', 'Mis publicaciones'),
+    s.esAdmin ? h('a', { class: 'menu-panel__enlace', href: '/admin/' }, 'Admin') : null,
+    h('button', { class: 'menu-panel__salir', type: 'button', onclick: cerrarSesion }, 'Salir'),
+  ];
+  menuPanel.replaceChildren(h('div', { class: 'menu-panel__interior' }, filas));
 }
 
 /* ---------- pie de página ----------
@@ -330,10 +405,14 @@ if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').addEv
     if (!temaGuardado()) anunciarTema();
   });
 }
-document.getElementById('menu').addEventListener('click', () => {
-  const nav = document.getElementById('nav'); const abierto = nav.classList.toggle('abierto');
-  document.getElementById('menu').setAttribute('aria-expanded', String(abierto));
+menuBoton.addEventListener('click', () => { if (menuAbierto) cerrarMenu(true); else abrirMenu(); });
+menuScrim.addEventListener('click', () => cerrarMenu(true));
+menuPanel.addEventListener('click', (ev) => { if (ev.target.closest('a, button')) cerrarMenu(false); });
+window.addEventListener('resize', () => {
+  medirBarra();
+  if (menuAbierto && !menuEsMovil()) cerrarMenu(false);
 });
+medirBarra();
 document.querySelector('.salto')?.addEventListener('click', (ev) => {
   ev.preventDefault();
   document.getElementById('app').focus();
@@ -436,10 +515,12 @@ window.addEventListener('load', enrutar);
 
 /* ---------- pantallas de acceso compartidas (ingreso, registro, verificación) ---------- */
 let temporizadoresVista = [];
+let cerrarFiltrosVista = null;
 function registrarTemporizador(id) { temporizadoresVista.push(id); return id; }
 function limpiarTemporizadores() {
   for (const id of temporizadoresVista) clearInterval(id);
   temporizadoresVista = [];
+  if (cerrarFiltrosVista) { cerrarFiltrosVista(); cerrarFiltrosVista = null; }
 }
 function panelMarca() {
   return h('aside', { class: 'acceso__marca', 'aria-label': 'UPMarket' },
@@ -1164,7 +1245,7 @@ async function vistaCatalogo() {
     chips.replaceChildren(...opciones.map((nombre) => {
       const valor = nombre === 'Todas' ? '' : nombre;
       return h('button', { type: 'button', class: 'chip', 'aria-pressed': String(estado.categoria === valor),
-        onclick: () => { estado.categoria = valor; pintarChips(); sincronizarUrl(); buscar(); } }, nombre);
+        onclick: () => { estado.categoria = valor; pintarChips(); aplicarCambio(); } }, nombre);
     }));
   }
 
@@ -1175,6 +1256,7 @@ async function vistaCatalogo() {
   max.addEventListener('input', () => { estado.max = max.value; errorFiltros.hidden = true; });
   // El precio se aplica al salir del campo o con Enter (una sola entrada de historial).
   const aplicarPrecio = () => {
+    if (panelAbierto) { actualizarPanel(); return; }
     const minV = numero(estado.min);
     const maxV = numero(estado.max);
     if (!(minV !== null && maxV !== null && minV > maxV)) sincronizarUrl();
@@ -1189,7 +1271,7 @@ async function vistaCatalogo() {
     { valor: '', texto: 'Cualquiera' }, { valor: 'NUEVO', texto: 'Nuevo' }, { valor: 'USADO', texto: 'Usado' },
   ].map((opcion) => ({ ...opcion,
     boton: h('button', { type: 'button', class: 'segmentado__op', 'aria-pressed': 'false',
-      onclick: () => { estado.articulo = opcion.valor; sincronizarUrl(); buscar(); } }, opcion.texto) }));
+      onclick: () => { estado.articulo = opcion.valor; aplicarCambio(); } }, opcion.texto) }));
   const selectorEstado = h('div', { class: 'segmentado', role: 'group', 'aria-label': 'Estado del artículo' },
     segmentos.map((s) => s.boton));
 
@@ -1197,11 +1279,19 @@ async function vistaCatalogo() {
     h('option', { value: 'recientes' }, 'Más recientes'),
     h('option', { value: 'menor' }, 'Menor precio'),
     h('option', { value: 'mayor' }, 'Mayor precio'));
-  orden.addEventListener('change', () => { estado.orden = orden.value; sincronizarUrl(); buscar(); });
+  orden.addEventListener('change', () => { estado.orden = orden.value; aplicarCambio(); });
 
   const limpiar = h('button', { class: 'enlace-filtro', type: 'button', hidden: true, onclick: () => limpiarFiltros() }, 'Limpiar filtros');
+  const cerrarHojaBtn = h('button', { class: 'filtros-hoja__cerrar', type: 'button', 'aria-label': 'Cerrar filtros',
+    onclick: () => cerrarPanel(false) }, iconoSvg('M6 6l12 12M18 6L6 18', 20));
+  const cabHoja = h('div', { class: 'filtros-hoja__cab' },
+    h('h2', { id: 'filtros-titulo' }, 'Filtros'), cerrarHojaBtn);
+  const limpiarHoja = h('button', { class: 'enlace-filtro', type: 'button', onclick: () => limpiarEstado() }, 'Limpiar');
+  const aplicarHoja = h('button', { class: 'btn', type: 'button', onclick: () => aplicarPanel() }, 'Aplicar');
+  const pieHoja = h('div', { class: 'filtros-hoja__pie' }, limpiarHoja, aplicarHoja);
   const panel = h('div', { class: 'catalogo-panel', id: 'filtros-catalogo' },
-    h('div', { class: 'filtro-grupo' },
+    cabHoja,
+    h('div', { class: 'filtro-grupo filtro-grupo--precio' },
       h('span', { class: 'filtro-grupo__titulo' }, 'Precio'),
       h('div', { class: 'filtro-precio' },
         h('span', { class: 'precio-campo' }, h('span', { class: 'prefijo', 'aria-hidden': 'true' }, '$'), min),
@@ -1209,14 +1299,92 @@ async function vistaCatalogo() {
     h('div', { class: 'filtro-grupo' }, h('span', { class: 'filtro-grupo__titulo' }, 'Estado'), selectorEstado),
     h('div', { class: 'filtro-grupo' }, h('label', { for: 'orden' }, 'Ordenar'), orden),
     h('div', { class: 'filtro-grupo filtro-grupo--fin' }, limpiar),
-    errorFiltros);
+    errorFiltros,
+    pieHoja);
+  const scrimFiltros = h('div', { class: 'filtros-scrim', hidden: true, onclick: () => cerrarPanel(false) });
+
+  let panelAbierto = false;
+  let focoPanelPrevio = null;
+  let retratoPanel = null;
+  const filtrosMovil = () => window.matchMedia('(max-width: 639px)').matches;
+  function focoDelPanel() {
+    return Array.from(panel.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled])'))
+      .filter((el) => el.getClientRects().length > 0);
+  }
+  function tecladoPanel(ev) {
+    if (ev.key === 'Escape') { ev.preventDefault(); cerrarPanel(false); return; }
+    if (ev.key !== 'Tab') return;
+    const destinos = focoDelPanel();
+    if (!destinos.length) return;
+    const primero = destinos[0]; const ultimo = destinos[destinos.length - 1];
+    if (ev.shiftKey && document.activeElement === primero) { ev.preventDefault(); ultimo.focus(); }
+    else if (!ev.shiftKey && document.activeElement === ultimo) { ev.preventDefault(); primero.focus(); }
+  }
+  function retratoDeEstado() {
+    return { texto: estado.texto, categoria: estado.categoria, min: estado.min, max: estado.max,
+      articulo: estado.articulo, orden: estado.orden };
+  }
+  function abrirPanel() {
+    if (!filtrosMovil() || panelAbierto) return;
+    retratoPanel = retratoDeEstado();
+    focoPanelPrevio = document.activeElement;
+    panelAbierto = true;
+    panel.classList.add('abierto');
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
+    panel.setAttribute('aria-labelledby', 'filtros-titulo');
+    scrimFiltros.hidden = false;
+    document.body.classList.add('filtros-abiertos');
+    botonFiltros.setAttribute('aria-expanded', 'true');
+    document.addEventListener('keydown', tecladoPanel);
+    const destinos = focoDelPanel();
+    if (destinos.length) destinos[0].focus();
+  }
+  function cerrarPanel(aplicar) {
+    if (!panelAbierto) return;
+    panelAbierto = false;
+    panel.classList.remove('abierto');
+    panel.removeAttribute('role');
+    panel.removeAttribute('aria-modal');
+    panel.removeAttribute('aria-labelledby');
+    scrimFiltros.hidden = true;
+    document.body.classList.remove('filtros-abiertos');
+    botonFiltros.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('keydown', tecladoPanel);
+    if (!aplicar && retratoPanel) { Object.assign(estado, retratoPanel); reflejarControles(); }
+    retratoPanel = null;
+    if (focoPanelPrevio && focoPanelPrevio.focus) focoPanelPrevio.focus();
+    focoPanelPrevio = null;
+  }
+  function aplicarPanel() {
+    const minV = numero(estado.min);
+    const maxV = numero(estado.max);
+    if (minV !== null && maxV !== null && minV > maxV) {
+      errorFiltros.textContent = 'El precio mínimo no puede ser mayor que el máximo.';
+      errorFiltros.hidden = false;
+      min.focus();
+      return;
+    }
+    sincronizarUrl();
+    cerrarPanel(true);
+    buscar();
+  }
+  /* En el celular los cambios se preparan dentro de la hoja; "Aplicar" los confirma y empuja una entrada. */
+  function aplicarCambio() {
+    if (panelAbierto) { actualizarPanel(); return; }
+    sincronizarUrl();
+    buscar();
+  }
+  const mqPanel = window.matchMedia('(max-width: 639px)');
+  const alCambiarPanel = (ev) => { if (!ev.matches && panelAbierto) { sincronizarUrl(); cerrarPanel(true); buscar(); } };
+  if (mqPanel.addEventListener) mqPanel.addEventListener('change', alCambiarPanel);
+  const limpiarVistaFiltros = () => {
+    if (mqPanel.removeEventListener) mqPanel.removeEventListener('change', alCambiarPanel);
+    cerrarPanel(true);
+  };
 
   const botonFiltros = h('button', { class: 'btn sec catalogo-filtros__toggle', type: 'button',
-    'aria-expanded': 'false', 'aria-controls': 'filtros-catalogo', onclick: () => {
-      const abierto = botonFiltros.getAttribute('aria-expanded') === 'true';
-      botonFiltros.setAttribute('aria-expanded', String(!abierto));
-      panel.classList.toggle('abierto', !abierto);
-    } }, 'Filtros');
+    'aria-expanded': 'false', 'aria-controls': 'filtros-catalogo', onclick: () => abrirPanel() }, 'Filtros');
 
   const chipsActivos = h('div', { class: 'chips-activos', 'aria-label': 'Filtros activos' });
   const info = h('p', { class: 'catalogo-cuenta', role: 'status', 'aria-live': 'polite' });
@@ -1239,16 +1407,20 @@ async function vistaCatalogo() {
   }
   function actualizarPanel() {
     const total = activos();
-    botonFiltros.replaceChildren('Filtros', total ? h('span', { class: 'cuenta' }, String(total)) : '');
+    botonFiltros.textContent = total ? 'Filtros (' + total + ')' : 'Filtros';
     limpiar.hidden = total === 0;
     segmentos.forEach((s) => s.boton.setAttribute('aria-pressed', String(estado.articulo === s.valor)));
     pintarActivos();
   }
-  function limpiarFiltros() {
+  function limpiarEstado() {
     estado.texto = ''; estado.categoria = ''; estado.min = ''; estado.max = ''; estado.articulo = ''; estado.orden = 'recientes';
     entrada.value = ''; min.value = ''; max.value = ''; orden.value = 'recientes';
     errorFiltros.hidden = true;
     pintarChips();
+    actualizarPanel();
+  }
+  function limpiarFiltros() {
+    limpiarEstado();
     sincronizarUrl();
     buscar();
   }
@@ -1319,7 +1491,10 @@ async function vistaCatalogo() {
     panel,
     chipsActivos,
     info,
-    resultados);
+    resultados,
+    scrimFiltros);
+
+  cerrarFiltrosVista = limpiarVistaFiltros;
 
   vistaRaiz = { tipo: 'catalogo', aplicar: async () => { aplicarDesdeUrl(); await buscar(); } };
   pintarChips();
