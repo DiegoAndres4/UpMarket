@@ -477,6 +477,10 @@ a{text-decoration:underline;text-underline-offset:2px}
 .acceso__form .acciones .btn{width:100%}
 .acceso__pie{margin:16px 0 0;color:var(--text-muted);font-size:var(--text-sm)}
 .acceso__pie a{font-weight:600}
+.acceso__icono{display:inline-flex;margin:0 0 12px;color:var(--primary-ink)}
+.acceso__icono svg{display:block}
+.acceso__pistas{margin:4px 0 12px;padding-left:20px;display:grid;gap:6px;color:var(--text-muted);font-size:var(--text-sm);line-height:1.5}
+.acceso__pistas li::marker{color:var(--primary-ink)}
 .ver-clave{display:flex;justify-content:flex-end;margin-top:4px}
 .ver-clave button{font:inherit;font-size:var(--text-sm);font-weight:600;min-height:32px;padding:4px 2px;border:0;border-radius:0;background:none;color:var(--text-muted);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .ver-clave button:hover{color:var(--text)}

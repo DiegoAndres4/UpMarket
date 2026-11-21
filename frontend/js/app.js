@@ -6,8 +6,10 @@
 const API = '';           // mismo origen. Para desarrollo local se puede cambiar (ver README).
 const CLAVE_TOKEN = 'upmarket.token';
 const CLAVE_PERFIL_PENDIENTE = 'upmarket.perfilPendiente';
+const CLAVE_CORREO_PENDIENTE = 'upmarket.correoPendiente';
 const SOPORTE_CORREO = '';  // correo de soporte; si está vacío, no se muestra "Contactar soporte" en el pie
 let perfilActual = null;
+let correoRecienEnviado = false;
 
 /* ---------- utilidades ---------- */
 function h(etiqueta, atributos, ...hijos) {
@@ -323,6 +325,7 @@ document.querySelector('.salto')?.addEventListener('click', (ev) => {
 });
 const rutas = [
   [/^#\/login$/, vistaLogin], [/^#\/registro$/, vistaRegistro],
+  [/^#\/confirma-tu-correo$/, vistaConfirmaCorreo],
   [/^#\/verificar(?:\?.*)?$/, vistaVerificar],
   [/^#\/?$/, () => (leerSesion() ? vistaCatalogo() : vistaLanding())],
   [/^#\/publicar$/, () => (leerSesion() && leerSesion().esAdmin ? vistaSoloEstudiantes() : vistaFormulario(null))],
@@ -335,7 +338,7 @@ const rutas = [
 const TITULOS = {
   '#/': 'Catálogo', '#/login': 'Ingresar', '#/registro': 'Crear cuenta', '#/publicar': 'Publicar',
   '#/mias': 'Mis publicaciones', '#/perfil': 'Mi perfil',
-  '#/verificar': 'Confirmar correo',
+  '#/verificar': 'Confirmar correo', '#/confirma-tu-correo': 'Confirma tu correo',
 };
 function tituloDe(hash) {
   if (/^#\/verificar/.test(hash)) return 'Confirmar correo';
@@ -349,7 +352,7 @@ async function enrutar() {
   const hash = location.hash || '#/';
   const raiz = hash === '#/' || hash === '#/?';
   const sesion = leerSesion();
-  const acceso = hash === '#/login' || hash === '#/registro' || /^#\/verificar(?:\?|$)/.test(hash);
+  const acceso = hash === '#/login' || hash === '#/registro' || hash === '#/confirma-tu-correo' || /^#\/verificar(?:\?|$)/.test(hash);
   const publica = acceso || (raiz && !sesion);
   limpiarTemporizadores();
   document.body.classList.toggle('pantalla-acceso', acceso);
@@ -405,8 +408,22 @@ function panelAcceso(...hijos) {
   return h('div', { class: 'acceso' }, panelMarca(), h('div', { class: 'acceso__form' }, volverInicio(), ...hijos));
 }
 
-/* Botón «Reenviar correo» con cuenta atrás de 60 s para no saturar el envío. */
-function crearReenviar(correo) {
+/* Correo pendiente de confirmar: se recuerda entre pantallas de acceso. */
+function guardarCorreoPendiente(correo) {
+  try { sessionStorage.setItem(CLAVE_CORREO_PENDIENTE, correo); } catch { /* sin sessionStorage */ }
+}
+function leerCorreoPendiente() {
+  try { return sessionStorage.getItem(CLAVE_CORREO_PENDIENTE) || ''; } catch { return ''; }
+}
+function olvidarCorreoPendiente() {
+  try { sessionStorage.removeItem(CLAVE_CORREO_PENDIENTE); } catch { /* sin sessionStorage */ }
+}
+
+/* Botón «Reenviar correo» con cuenta atrás de 60 s para no saturar el envío.
+   `correo` puede ser el texto ya conocido o una función que lo lea de un campo. */
+function crearReenviar(correo, mensajeExito) {
+  const esCampo = typeof correo === 'function';
+  const obtenerCorreo = esCampo ? correo : () => correo;
   const boton = h('button', { class: 'btn sec', type: 'button' }, 'Reenviar correo');
   const estado = h('p', { class: 'acceso__pie', role: 'status', 'aria-live': 'polite', hidden: true });
   let restante = 0;
@@ -427,10 +444,16 @@ function crearReenviar(correo) {
   };
   boton.addEventListener('click', async () => {
     if (boton.disabled) return;
+    const destino = String(obtenerCorreo() || '').trim().toLowerCase();
+    if (esCampo && !esCorreo(destino)) {
+      estado.textContent = 'Escribe un correo válido.';
+      estado.hidden = false;
+      return;
+    }
     const restaurar = cargandoEn(boton, 'Enviando…');
     try {
-      await api('POST', '/api/auth/resend-verification', { username: correo });
-      estado.textContent = 'Te enviamos otro enlace a ' + correo + '.';
+      await api('POST', '/api/auth/resend-verification', { username: destino });
+      estado.textContent = mensajeExito || ('Te enviamos otro enlace a ' + destino + '.');
       estado.hidden = false;
       restaurar();
       esperar();
@@ -444,16 +467,38 @@ function crearReenviar(correo) {
   return { boton, estado, esperar };
 }
 
-/* Tras registrarse no se inicia sesión: primero hay que confirmar el correo. */
-function vistaCorreoEnviado(correo) {
-  const reenviar = crearReenviar(correo);
-  montar(panelAcceso(
-    h('h1', {}, 'Revisa tu correo'),
-    h('p', { class: 'acceso__sub' }, 'Te enviamos un enlace a ' + correo + ' para confirmar tu cuenta. El enlace vence en 24 horas.'),
+/* #/confirma-tu-correo: cuenta creada pero el correo aún no está confirmado. */
+function vistaConfirmaCorreo() {
+  const pendiente = leerCorreoPendiente();
+  const entrada = pendiente ? null : h('input', {
+    id: 'correo-pendiente', type: 'email', inputmode: 'email', autocapitalize: 'none',
+    spellcheck: 'false', autocomplete: 'username', maxlength: 120, placeholder: 'tucorreo@ejemplo.com',
+  });
+  const reenviar = crearReenviar(
+    pendiente || (() => entrada.value),
+    'Te enviamos un enlace nuevo.');
+  const icono = iconoSvg('M3.5 5.5h17v13h-17zM3.5 6.5l8.5 6.5 8.5-6.5', 32);
+  const hijos = [
+    h('span', { class: 'acceso__icono' }, icono),
+    h('h1', {}, 'Confirma tu correo'),
+    h('p', { class: 'acceso__sub' }, pendiente
+      ? 'Te enviamos un enlace a ' + pendiente + '. Ábrelo para activar tu cuenta y poder ingresar.'
+      : 'Escribe tu correo y te enviamos un enlace. Ábrelo para activar tu cuenta y poder ingresar.'),
+    h('ul', { class: 'acceso__pistas' },
+      h('li', {}, 'Revisa también la carpeta de spam o promociones.'),
+      h('li', {}, 'El enlace vence en 24 horas.'),
+      h('li', {}, 'Si no te llegó, puedes pedir uno nuevo.')),
+  ];
+  if (entrada) hijos.push(h('label', { for: 'correo-pendiente' }, 'Tu correo'), entrada);
+  hijos.push(
     h('div', { class: 'acciones' }, reenviar.boton),
     reenviar.estado,
-    h('p', { class: 'acceso__pie' }, h('a', { href: '#/login' }, 'Ir a ingresar'))));
-  reenviar.esperar();
+    h('p', { class: 'acceso__pie' },
+      h('a', { href: '#/login' }, 'Ir a ingresar'),
+      ' · ',
+      h('a', { href: '#/registro', onclick: () => { olvidarCorreoPendiente(); } }, 'Usar otra cuenta')));
+  montar(panelAcceso(...hijos));
+  if (pendiente && correoRecienEnviado) { correoRecienEnviado = false; reenviar.esperar(); }
 }
 
 /* #/verificar?token=…: confirma el correo y limpia el token de la dirección. */
@@ -479,9 +524,8 @@ function vistaVerificar() {
     const correo = h('input', { id: 'correo-verificar', type: 'email', inputmode: 'email', autocapitalize: 'none', spellcheck: 'false', required: true, autocomplete: 'username', maxlength: 120, placeholder: 'tucorreo@ejemplo.com' });
     const error = h('p', { class: 'error', id: 'error-verificar', role: 'alert', hidden: true });
     correo.setAttribute('aria-describedby', 'error-verificar');
-    const estado = h('p', { class: 'acceso__pie', role: 'status', 'aria-live': 'polite', hidden: true });
     const boton = h('button', { class: 'btn', type: 'submit' }, 'Enviar un enlace nuevo');
-    return h('form', { novalidate: true, onsubmit: async (ev) => {
+    return h('form', { novalidate: true, onsubmit: (ev) => {
       ev.preventDefault();
       error.hidden = true;
       const c = correo.value.trim().toLowerCase();
@@ -490,22 +534,13 @@ function vistaVerificar() {
         error.hidden = false; correo.focus();
         return;
       }
-      const restaurarBoton = cargandoEn(boton, 'Enviando…');
-      try {
-        await api('POST', '/api/auth/resend-verification', { username: c });
-        estado.textContent = 'Te enviamos un enlace nuevo a ' + c + '.';
-        estado.hidden = false;
-        correo.value = '';
-      } catch {
-        error.textContent = 'No pudimos enviar el enlace. Intenta de nuevo.';
-        error.hidden = false;
-      } finally { restaurarBoton(); }
+      guardarCorreoPendiente(c);
+      location.hash = '#/confirma-tu-correo';
     } },
       h('label', { for: 'correo-verificar' }, 'Correo'),
       correo,
       error,
-      h('div', { class: 'acciones' }, boton),
-      estado);
+      h('div', { class: 'acciones' }, boton));
   };
 
   api('POST', '/api/auth/verify-email', { token })
@@ -565,7 +600,6 @@ function destinoPendiente() {
 }
 function vistaLogin() {
   const error = h('p', { class: 'error', id: 'error-login', role: 'alert', hidden: true });
-  const ayuda = h('div', { class: 'acciones', hidden: true });
   const correo = h('input', { id: 'correo', type: 'text', inputmode: 'email', autocapitalize: 'none', spellcheck: 'false', required: true, autocomplete: 'username', maxlength: 120, placeholder: 'tucorreo@ejemplo.com o admin', 'aria-describedby': 'error-login' });
   const [lblClave, clave] = campoClave('clave', 'Contraseña', null, 'current-password');
   clave.setAttribute('aria-describedby', 'error-login');
@@ -593,17 +627,13 @@ function vistaLogin() {
         : clave.value.length < 6 ? 'La contraseña debe tener al menos 6 caracteres' : null;
       if (problema) { fallar(problema, !c || !esUsuarioLogin(c) ? correo : clave); return; }
       error.hidden = true;
-      ayuda.hidden = true;
-      ayuda.replaceChildren();
       limpiarTemporizadores();
       const restaurar = cargandoEn(boton, 'Ingresando…');
       try { await iniciarSesion(c, clave.value); }
       catch (e) {
         if (e.estado === 403 && e.codigo === 'EMAIL_NO_VERIFICADO') {
-          fallar('Tu correo aún no está confirmado.', clave);
-          const reenviar = crearReenviar(c);
-          ayuda.replaceChildren(reenviar.boton, reenviar.estado);
-          ayuda.hidden = false;
+          guardarCorreoPendiente(c);
+          location.hash = '#/confirma-tu-correo';
         } else if (e.estado === 403 && e.codigo === 'CUENTA_BLOQUEADA') {
           fallar('Tu cuenta está bloqueada. Escríbenos si crees que es un error.', clave);
         } else {
@@ -619,7 +649,6 @@ function vistaLogin() {
       lblClave, clave,
       h('div', { class: 'ver-clave' }, ver),
       error,
-      ayuda,
       h('div', { class: 'acciones' }, boton),
       h('p', { class: 'acceso__pie' }, '¿No tienes cuenta? ', h('a', { href: '#/registro' }, 'Crea tu cuenta')))));
   if (window.matchMedia('(pointer:fine)').matches) correo.focus();
@@ -704,7 +733,9 @@ function vistaRegistro() {
           usuario: c, nombre: nombre.value.trim(), telefono: telParaApi(tel.value),
         }));
       } catch { /* sin localStorage: el perfil se completa después */ }
-      vistaCorreoEnviado(c);
+      correoRecienEnviado = true;
+      guardarCorreoPendiente(c);
+      location.hash = '#/confirma-tu-correo';
     } },
       h('a', { class: 'marca acceso__volver', href: '#/', 'aria-label': 'UPMarket, volver al inicio' }, 'UP', h('span', {}, 'Market')),
       h('h1', {}, 'Crea tu cuenta'),
