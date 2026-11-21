@@ -572,8 +572,10 @@ a{text-decoration:underline;text-underline-offset:2px}
    Los botones de PayPal viven en un iframe con su propio esquema de color; si heredara el esquema
    oscuro de la página se pinta un lienzo claro detrás. Solo el contenedor de PayPal fija "light";
    el resto de la vista usa los tokens del tema. */
-.pago-pasarela{margin-top:12px;max-width:420px;background-color:transparent;color:var(--text)}
+.pago-panel{max-width:720px}
+.pago-pasarela{margin-top:12px;background-color:transparent;color:var(--text)}
 .pago-pasarela--paypal{color-scheme:light}
+.pago-btn{width:100%}
 .pago-verificacion{margin-top:16px}
 .pago-verificacion .meta{margin-top:0}
 

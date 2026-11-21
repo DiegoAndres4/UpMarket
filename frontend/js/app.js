@@ -1377,7 +1377,7 @@ async function vistaPago(id) {
   const montoUsd = Number(config.montoUsd).toLocaleString('es-CO', {
     minimumFractionDigits: 2, maximumFractionDigits: 2,
   });
-  const panel = h('div', { class: 'panel' },
+  const panel = h('div', { class: 'panel pago-panel' },
     h('p', {}, 'Publicar cuesta:'),
     h('p', { class: 'detalle-precio' }, precio(3000) + ' COP'),
     h('p', { class: 'sub' }, '«' + p.titulo + '» quedará visible en el catálogo apenas se apruebe el pago.'));
@@ -1483,7 +1483,7 @@ async function vistaPago(id) {
 
   panel.append(
     h('p', { class: 'meta' }, 'Pago simulado: no se cobra dinero real.'),
-    h('button', { class: 'btn', type: 'button', onclick: async (ev) => {
+    h('button', { class: 'btn pago-btn', type: 'button', onclick: async (ev) => {
       const boton = ev.currentTarget;
       const restaurar = cargandoEn(boton, 'Pagando…');
       try {
