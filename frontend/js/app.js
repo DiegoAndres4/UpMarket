@@ -934,7 +934,7 @@ function vistaLanding() {
   } },
     h('label', { for: 'cartelera-texto' }, 'Buscar en la cartelera'),
     h('div', { class: 'cartelera-buscar__fila' },
-      lupa, entrada, botonBuscarLanding),
+      h('div', { class: 'buscar-campo' }, lupa, entrada), botonBuscarLanding),
     h('p', { class: 'cartelera-buscar__ayuda', id: 'cartelera-ayuda' }, 'Puedes buscar por palabra y filtrar por categoría.'));
 
   function pintarChips() {
@@ -1188,7 +1188,8 @@ async function vistaCatalogo() {
     buscar().finally(restaurar);
   } },
     h('label', { class: 'sr-only', for: 'q' }, 'Buscar en el catálogo'),
-    h('div', { class: 'catalogo-buscar__fila' }, lupa, entrada, botonBuscar));
+    h('div', { class: 'catalogo-buscar__fila' },
+      h('div', { class: 'buscar-campo' }, lupa, entrada), botonBuscar));
 
   /* S9: la URL es la fuente de verdad de los filtros. */
   function paramsDeEstado() {

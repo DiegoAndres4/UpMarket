@@ -677,9 +677,11 @@ body.pantalla-landing #app{max-width:none;padding:0}
 
 .cartelera-buscar{margin:clamp(28px,4vw,44px) 0 0;max-width:760px}
 .cartelera-buscar label{display:block;margin:0 0 8px;font-size:var(--text-md);font-weight:600;color:var(--text)}
-.cartelera-buscar__fila{position:relative;display:flex;gap:10px;align-items:stretch}
+.cartelera-buscar__fila{display:flex;gap:10px;align-items:stretch}
+/* Contenedor compartido de la lupa y el input: la lupa se centra sobre el campo, no sobre la fila. */
+.buscar-campo{position:relative;display:flex;flex:1 1 240px;min-width:0}
 .cartelera-buscar__lupa{position:absolute;left:14px;top:50%;display:flex;transform:translateY(-50%);color:var(--text-muted);pointer-events:none}
-.cartelera-buscar input{flex:1 1 auto;min-width:0;font:inherit;font-size:var(--text-md);min-height:48px;padding:10px 14px 10px 44px;border:2px solid var(--text);border-radius:var(--radius-control);background:var(--bg);color:var(--text)}
+.cartelera-buscar input{width:100%;min-width:0;font:inherit;font-size:var(--text-md);min-height:48px;padding:10px 14px 10px 44px;border:2px solid var(--text);border-radius:var(--radius-control);background:var(--bg);color:var(--text)}
 .cartelera-buscar input::placeholder{color:var(--placeholder);opacity:1}
 .cartelera-buscar .btn{flex:0 0 auto;min-height:48px}
 .cartelera-buscar__ayuda{margin:8px 0 0;font-size:var(--text-sm);color:var(--text-muted);line-height:1.5}
@@ -793,7 +795,7 @@ body.pantalla-landing .pie__accion{display:none}
 }
 @media(max-width:520px){
   .cartelera-buscar__fila{flex-wrap:wrap}
-  .cartelera-buscar input{flex:1 1 100%}
+  .cartelera-buscar .buscar-campo{flex:1 1 100%}
   .cartelera-buscar .btn{width:100%}
   .cartelera-cierre{grid-template-columns:minmax(0,1fr);text-align:left}
   .cartelera-cierre__mascota{height:clamp(160px,48vw,220px);margin-top:clamp(-120px,-22vw,-56px)}
@@ -844,9 +846,9 @@ body.pantalla-landing .pie__accion{display:none}
 
 /* ---------- catálogo: búsqueda, chips y filtros ---------- */
 .catalogo-buscar{margin:0 0 16px}
-.catalogo-buscar__fila{position:relative;display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
+.catalogo-buscar__fila{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
 .catalogo-buscar__lupa{position:absolute;left:14px;top:50%;display:flex;transform:translateY(-50%);color:var(--text-muted);pointer-events:none}
-.catalogo-buscar input{flex:1 1 240px;min-width:0;font:inherit;font-size:var(--text-md);min-height:48px;padding:10px 14px 10px 44px;border:2px solid var(--text);border-radius:var(--radius-control);background:var(--bg);color:var(--text)}
+.catalogo-buscar input{width:100%;min-width:0;font:inherit;font-size:var(--text-md);min-height:48px;padding:10px 14px 10px 44px;border:2px solid var(--text);border-radius:var(--radius-control);background:var(--bg);color:var(--text)}
 .catalogo-buscar input::placeholder{color:var(--placeholder);opacity:1}
 .catalogo-buscar .btn{flex:0 0 auto;min-height:48px}
 .catalogo-chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px;padding:0}
@@ -892,7 +894,7 @@ body.filtros-abiertos{overflow:hidden}
 }
 /* < 640: hoja inferior para los filtros secundarios. */
 @media(max-width:639px){
-  .catalogo-buscar input{flex:1 1 100%}
+  .catalogo-buscar .buscar-campo{flex:1 1 100%}
   .catalogo-buscar .btn{width:100%}
   .catalogo-chips{flex-wrap:nowrap;overflow-x:auto;scroll-snap-type:x proximity;scroll-padding-inline:16px;margin-inline:-16px;padding-inline:16px;padding-bottom:8px;scrollbar-width:thin;overscroll-behavior-inline:contain}
   .catalogo-chips .chip{scroll-snap-align:start}
