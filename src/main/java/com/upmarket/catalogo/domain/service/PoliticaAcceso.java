@@ -37,4 +37,11 @@ public class PoliticaAcceso {
             asegurarEsAutor(publicacion, actor);
         }
     }
+
+    /** El recibo de pago lo ve quien publicó (y pagó) o un ADMIN. */
+    public void asegurarPuedeVerRecibo(Publicacion publicacion, Actor actor) {
+        if (!actor.esAdmin()) {
+            asegurarEsAutor(publicacion, actor);
+        }
+    }
 }

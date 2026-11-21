@@ -241,4 +241,70 @@ class ReciboRestTest {
                 .andExpect(jsonPath("$.contenido[0].recibo.existe").value(true))
                 .andExpect(jsonPath("$.contenido[0].recibo.numero").value(org.hamcrest.Matchers.startsWith("REC-")));
     }
+
+    @Test
+    @DisplayName("El autor ve su recibo en línea; se genera una sola vez y el PDF es real")
+    void elAutorVeSuRecibo() throws Exception {
+        long publicacion = publicarPendiente("sofia.recibo", "Silla de prueba");
+        pagar("sofia.recibo", publicacion);
+
+        MvcResult primera = mvc.perform(con(get("/api/publicaciones/" + publicacion + "/recibo"),
+                        estudiante("sofia.recibo"), null))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(header().string("Content-Disposition", startsWith("inline")))
+                .andExpect(header().string("Content-Disposition", containsString("recibo-REC-")))
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andReturn();
+        assertThat(new String(primera.getResponse().getContentAsByteArray(), 0, 4)).isEqualTo("%PDF");
+        assertThat(documentos.count()).isEqualTo(1);
+
+        mvc.perform(con(get("/api/publicaciones/" + publicacion + "/recibo"),
+                        estudiante("sofia.recibo"), null))
+                .andExpect(status().isOk());
+        assertThat(documentos.count()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Con ?descargar=true el recibo llega como adjunto")
+    void elAutorDescargaSuRecibo() throws Exception {
+        long publicacion = publicarPendiente("tomas.recibo", "Escritorio de prueba");
+        pagar("tomas.recibo", publicacion);
+
+        mvc.perform(con(get("/api/publicaciones/" + publicacion + "/recibo?descargar=true"),
+                        estudiante("tomas.recibo"), null))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(header().string("Content-Disposition", startsWith("attachment")))
+                .andExpect(header().string("Content-Disposition", containsString("recibo-REC-")));
+    }
+
+    @Test
+    @DisplayName("Otro usuario no ve el recibo ajeno (403); el ADMIN sí (200)")
+    void permisosDelReciboPropio() throws Exception {
+        long publicacion = publicarPendiente("ursula.recibo", "Nevera de prueba");
+        pagar("ursula.recibo", publicacion);
+
+        mvc.perform(con(get("/api/publicaciones/" + publicacion + "/recibo"),
+                        estudiante("vicente.recibo"), null))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(con(get("/api/publicaciones/" + publicacion + "/recibo"), admin(), null))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF));
+    }
+
+    @Test
+    @DisplayName("Una publicación sin pago aprobado no tiene recibo (409) y una desconocida 404")
+    void reciboDePublicacionSinPago() throws Exception {
+        long publicacion = publicarPendiente("walter.recibo", "Artículo sin pagar");
+
+        mvc.perform(con(get("/api/publicaciones/" + publicacion + "/recibo"),
+                        estudiante("walter.recibo"), null))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje", containsString("pago aprobado")));
+
+        mvc.perform(con(get("/api/publicaciones/999999/recibo"), estudiante("walter.recibo"), null))
+                .andExpect(status().isNotFound());
+    }
 }

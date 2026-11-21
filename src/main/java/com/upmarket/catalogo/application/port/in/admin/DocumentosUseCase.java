@@ -13,6 +13,12 @@ public interface DocumentosUseCase {
     /** Idempotente: si el recibo ya existe lo devuelve con {@code nuevo=false}. */
     ResultadoRecibo generarRecibo(Actor actor, long pagoId);
 
+    /**
+     * Recibo de una publicación visto por su autor (o un ADMIN). Si aún no existe se genera con el
+     * mismo servicio idempotente del panel; nunca se genera dentro de la transacción del pago.
+     */
+    ContenidoDocumento reciboDePublicacion(Actor actor, long publicacionId);
+
     DescargaDocumento descargar(Actor actor, long documentoId);
 
     /** Bytes para ver el documento en línea; el backend los entrega siempre, sin enlaces. */

@@ -967,19 +967,33 @@ async function vistaPago(id) {
   const p = await api('GET', '/api/publicaciones/' + id);
   document.title = 'Pagar publicación · UPMarket';
   if (p.estadoPago === 'APROBADO') { location.hash = '#/p/' + id; return; }
+  const panel = h('div', { class: 'panel' },
+    h('p', {}, 'Publicar cuesta $3.000 (pago simulado).'),
+    h('p', { class: 'detalle-precio' }, precio(3000)),
+    h('p', { class: 'sub' }, '«' + p.titulo + '» quedará visible en el catálogo apenas se apruebe el pago.'),
+    h('button', { class: 'btn', type: 'button', onclick: async (ev) => {
+      const boton = ev.currentTarget;
+      boton.disabled = true;
+      boton.setAttribute('aria-busy', 'true');
+      boton.textContent = 'Pagando…';
+      try {
+        await api('POST', `/api/publicaciones/${id}/pago`);
+        aviso('Pago aprobado');
+        document.title = 'Pago aprobado · UPMarket';
+        panel.replaceChildren(
+          h('h2', { class: 'detalle-sub' }, 'Pago aprobado'),
+          h('p', { class: 'sub' }, '«' + p.titulo + '» ya está visible en el catálogo.'),
+          accionesRecibo(id),
+          h('div', { class: 'acciones' }, h('a', { class: 'btn sec', href: '#/p/' + id }, 'Ver publicación')));
+      } catch (e) {
+        aviso(e.message, true);
+        if (boton.isConnected) { boton.disabled = false; boton.removeAttribute('aria-busy'); boton.textContent = 'Pagar'; }
+      }
+    } }, 'Pagar'));
   montar(
     h('a', { class: 'volver', href: '#/mias' }, '← Volver a mis publicaciones'),
     h('h1', {}, 'Pagar publicación'),
-    h('div', { class: 'panel' },
-      h('p', {}, 'Publicar cuesta $3.000 (pago simulado).'),
-      h('p', { class: 'detalle-precio' }, precio(3000)),
-      h('p', { class: 'sub' }, '«' + p.titulo + '» quedará visible en el catálogo apenas se apruebe el pago.'),
-      h('button', { class: 'btn', type: 'button', onclick: (ev) => {
-        const boton = ev.currentTarget;
-        boton.disabled = true;
-        accion(() => api('POST', `/api/publicaciones/${id}/pago`), 'Pago aprobado', () => { location.hash = '#/p/' + id; })
-          .finally(() => { if (boton.isConnected) boton.disabled = false; });
-      } }, 'Pagar')));
+    panel);
 }
 
 /* ---------- detalle y contacto (HU-11) ---------- */
@@ -1102,6 +1116,7 @@ async function vistaDetalle(id) {
   const acciones = (esMia || esAdmin) ? h('div', { class: 'acciones' },
     esMia && disponible ? h('a', { class: 'btn', href: '#/editar/' + id }, 'Editar') : null,
     esMia && disponible ? h('button', { class: 'btn sec', onclick: () => accion(() => api('POST', `/api/publicaciones/${id}/sold`), 'Marcada como vendida', () => vistaDetalle(id)) }, 'Marcar como vendido') : null,
+    esMia && p.estadoPago === 'APROBADO' ? accionesRecibo(id) : null,
     (esMia || esAdmin) ? h('button', { class: 'btn peligro', onclick: () => {
       const pregunta = esMia ? '¿Eliminar esta publicación?' : '¿Eliminar «' + p.titulo + '» como moderador?';
       if (confirm(pregunta + ' No se puede deshacer.'))
@@ -1256,6 +1271,114 @@ function formularioResena(usuario, enc, alPublicar = () => vistaVendedor(usuario
 
 async function accion(fn, exito, despues) {
   try { await fn(); aviso(exito); await despues(); } catch (e) { aviso(e.message, true); }
+}
+
+/* ---------- recibo de pago (autor y ADMIN) ----------
+   El token viaja en la cabecera, nunca en la URL. El PDF llega como Blob y se revoca al cerrar. */
+async function solicitarRecibo(publicacionId, descargar) {
+  const s = leerSesion();
+  const ruta = '/api/publicaciones/' + publicacionId + '/recibo' + (descargar ? '?descargar=true' : '');
+  let r;
+  try {
+    r = await fetch(API + ruta, { headers: s ? { Authorization: 'Bearer ' + s.token } : {} });
+  } catch { throw new Error('No hay conexión con el servidor'); }
+  if (!r.ok) {
+    let datos = null; try { datos = await r.json(); } catch { /* sin cuerpo */ }
+    const error = new Error('No pudimos obtener el recibo. Intenta de nuevo.');
+    error.estado = r.status;
+    error.detalle = mensajeDeError(r.status, datos, ruta);
+    throw error;
+  }
+  const cabecera = r.headers.get('Content-Disposition') || '';
+  const encontrado = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cabecera);
+  const nombre = encontrado ? decodeURIComponent(encontrado[1]) : 'recibo.pdf';
+  return { blob: await r.blob(), nombre };
+}
+
+function conBotonCargando(boton, etiqueta, tarea) {
+  const original = boton.textContent;
+  boton.disabled = true;
+  boton.setAttribute('aria-busy', 'true');
+  boton.textContent = etiqueta;
+  return tarea().finally(() => {
+    if (boton.isConnected) {
+      boton.disabled = false;
+      boton.removeAttribute('aria-busy');
+      boton.textContent = original;
+    }
+  });
+}
+
+function descargarArchivo(blob, nombre) {
+  const url = URL.createObjectURL(blob);
+  const enlace = h('a', { href: url, download: nombre || 'recibo.pdf' });
+  document.body.append(enlace);
+  enlace.click();
+  enlace.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Diálogo nativo con el PDF en un iframe; al cerrar se libera el Blob y vuelve el foco. */
+function dialogoRecibo(publicacionId, blob, origen) {
+  const url = URL.createObjectURL(blob);
+  const botonDescargar = h('button', { class: 'btn sec', type: 'button' }, 'Descargar');
+  botonDescargar.addEventListener('click', () => {
+    conBotonCargando(botonDescargar, 'Generando recibo…', async () => {
+      try {
+        const recibo = await solicitarRecibo(publicacionId, true);
+        descargarArchivo(recibo.blob, recibo.nombre);
+      } catch (e) { aviso(e.message, true); }
+    });
+  });
+  const dialogo = h('dialog', { class: 'recibo-dialogo', 'aria-labelledby': 'recibo-titulo' },
+    h('div', { class: 'recibo-dialogo__cab' },
+      h('h2', { id: 'recibo-titulo' }, 'Recibo de pago'),
+      h('div', { class: 'acciones recibo-dialogo__acciones' },
+        botonDescargar,
+        h('button', { class: 'btn sec', type: 'button', onclick: () => dialogo.close() }, 'Cerrar'))),
+    h('iframe', { class: 'recibo-dialogo__marco', title: 'Recibo de pago', src: url }));
+  dialogo.addEventListener('close', () => {
+    URL.revokeObjectURL(url);
+    dialogo.remove();
+    if (origen && origen.isConnected) origen.focus();
+  });
+  document.body.append(dialogo);
+  dialogo.showModal();
+}
+
+function botonVerRecibo(publicacionId) {
+  const boton = h('button', { class: 'btn-mini', type: 'button' }, 'Ver recibo');
+  boton.addEventListener('click', () => {
+    conBotonCargando(boton, 'Generando recibo…', async () => {
+      try {
+        const recibo = await solicitarRecibo(publicacionId, false);
+        if (window.matchMedia('(max-width: 639px)').matches) {
+          window.location.assign(URL.createObjectURL(recibo.blob));
+        } else {
+          dialogoRecibo(publicacionId, recibo.blob, boton);
+        }
+      } catch (e) { aviso(e.message, true); }
+    });
+  });
+  return boton;
+}
+
+function botonDescargarRecibo(publicacionId) {
+  const boton = h('button', { class: 'btn-mini', type: 'button' }, 'Descargar recibo');
+  boton.addEventListener('click', () => {
+    conBotonCargando(boton, 'Generando recibo…', async () => {
+      try {
+        const recibo = await solicitarRecibo(publicacionId, true);
+        descargarArchivo(recibo.blob, recibo.nombre);
+      } catch (e) { aviso(e.message, true); }
+    });
+  });
+  return boton;
+}
+
+function accionesRecibo(publicacionId) {
+  return h('div', { class: 'acciones recibo-acciones' },
+    botonVerRecibo(publicacionId), botonDescargarRecibo(publicacionId));
 }
 
 /* ---------- publicar y editar (HU-8, HU-12) ---------- */
@@ -1511,6 +1634,7 @@ function filaMia(p) {
         onclick: (ev) => { const boton = ev.currentTarget; boton.disabled = true;
           accion(() => api('POST', '/api/publicaciones/' + p.id + '/sold'), 'Publicación marcada como vendida', () => vistaMias(true))
             .finally(() => { if (boton.isConnected) boton.disabled = false; }); } }, 'Marcar vendida'),
+      p.estadoPago === 'APROBADO' ? accionesRecibo(p.id) : null,
       h('button', { class: 'btn-mini btn-mini--peligro', type: 'button', 'aria-label': 'Eliminar ' + p.titulo,
         onclick: () => { if (confirm('¿Eliminar «' + p.titulo + '»? Esta acción no se puede deshacer.')) accion(() => api('DELETE', '/api/publicaciones/' + p.id), 'Publicación eliminada', () => vistaMias(true)); } }, 'Eliminar')));
 }

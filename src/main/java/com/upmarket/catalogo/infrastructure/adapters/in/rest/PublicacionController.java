@@ -2,10 +2,16 @@ package com.upmarket.catalogo.infrastructure.adapters.in.rest;
 
 import com.upmarket.catalogo.application.port.in.PagoUseCase;
 import com.upmarket.catalogo.application.port.in.PublicacionUseCase;
+import com.upmarket.catalogo.application.port.in.admin.ContenidoDocumento;
+import com.upmarket.catalogo.application.port.in.admin.DocumentosUseCase;
 import com.upmarket.catalogo.application.port.in.command.*;
 import com.upmarket.catalogo.infrastructure.adapters.in.rest.dto.*;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,10 +22,13 @@ public class PublicacionController {
 
     private final PublicacionUseCase publicaciones;
     private final PagoUseCase pagos;
+    private final DocumentosUseCase documentos;
 
-    public PublicacionController(PublicacionUseCase publicaciones, PagoUseCase pagos) {
+    public PublicacionController(PublicacionUseCase publicaciones, PagoUseCase pagos,
+                                 DocumentosUseCase documentos) {
         this.publicaciones = publicaciones;
         this.pagos = pagos;
+        this.documentos = documentos;
     }
 
     @PostMapping
@@ -72,6 +81,24 @@ public class PublicacionController {
     @PostMapping("/{id}/pago")
     public PagoResponse pagar(@PathVariable long id) {
         return PagoResponse.de(pagos.pagar(ActorActual.obtener(), id));
+    }
+
+    /**
+     * Recibo del pago aprobado, para el autor o un ADMIN. Se muestra en línea (iframe) salvo con
+     * {@code ?descargar=true}, que lo entrega como adjunto. Si el recibo no existe se genera aquí.
+     */
+    @GetMapping("/{id}/recibo")
+    public ResponseEntity<byte[]> recibo(@PathVariable long id,
+                                         @RequestParam(defaultValue = "false") boolean descargar) {
+        ContenidoDocumento documento = documentos.reciboDePublicacion(ActorActual.obtener(), id);
+        ContentDisposition disposicion = (descargar ? ContentDisposition.attachment()
+                : ContentDisposition.inline())
+                .filename(documento.nombreArchivo(), StandardCharsets.UTF_8).build();
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(documento.contentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposicion.toString())
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(documento.contenido());
     }
 
     @PutMapping("/{id}")

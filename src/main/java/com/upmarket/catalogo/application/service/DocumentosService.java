@@ -145,7 +145,30 @@ public class DocumentosService implements DocumentosUseCase {
     @Override
     public ResultadoRecibo generarRecibo(Actor actor, long pagoId) {
         acceso.asegurarAdmin(actor, "generar recibos de pago");
+        return generarReciboInterno(pagoId, actor.username());
+    }
 
+    @Override
+    public ContenidoDocumento reciboDePublicacion(Actor actor, long publicacionId) {
+        Publicacion publicacion = publicaciones.buscarPorId(publicacionId)
+                .orElseThrow(() -> new PublicacionNoEncontradaException(publicacionId));
+        // Primero el permiso: quien no es el autor ni ADMIN no debe saber si hay pago o no.
+        acceso.asegurarPuedeVerRecibo(publicacion, actor);
+        Pago pago = pagos.buscarPorPublicacion(publicacionId)
+                .filter(aprobado -> aprobado.getEstado() == EstadoPago.APROBADO)
+                .orElseThrow(() -> new EstadoInvalidoException("Esta publicación aún no tiene un pago aprobado."));
+
+        ResultadoRecibo resultado = generarReciboInterno(pago.getId(), actor.username());
+        DocumentoGenerado fila = documentos.buscarPorId(resultado.documento().id())
+                .orElseThrow(() -> new DocumentoNoEncontradoException(resultado.documento().id()));
+        DocumentoAlmacenado guardado = new DocumentoAlmacenado(fila.proveedor(), fila.referencia(),
+                fila.nombreArchivo(), tipoContenido(fila.formato()), fila.tamanoBytes());
+        return new ContenidoDocumento(almacen.leer(guardado), "recibo-" + fila.numero() + ".pdf",
+                "application/pdf");
+    }
+
+    /** Generación idempotente compartida por el panel y el autor; quien llama ya validó el permiso. */
+    private ResultadoRecibo generarReciboInterno(long pagoId, String generadoPor) {
         Optional<DocumentoGenerado> existente = documentos.buscarRecibo(pagoId);
         if (existente.isPresent() && existente.get().almacenado()) {
             return new ResultadoRecibo(false, DocumentoAdmin.de(existente.get()));
@@ -166,7 +189,7 @@ public class DocumentosService implements DocumentosUseCase {
         if (fila == null) {
             try {
                 fila = documentos.guardar(DocumentoGenerado.nuevo(TipoDocumento.RECIBO_PAGO,
-                        FormatoDocumento.PDF, pagoId, actor.username(), reloj.instant()));
+                        FormatoDocumento.PDF, pagoId, generadoPor, reloj.instant()));
             } catch (DocumentoDuplicadoException e) {
                 // Otra petición ganó la carrera: se devuelve (o se completa) su fila.
                 nuevo = false;
