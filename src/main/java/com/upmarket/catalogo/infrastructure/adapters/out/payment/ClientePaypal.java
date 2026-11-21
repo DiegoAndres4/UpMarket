@@ -15,6 +15,9 @@ public interface ClientePaypal {
 
     Captura capturar(String token, String orderId, String requestId);
 
+    /** Consulta una orden ya creada (Orders v2 GET), sin capturarla. */
+    Captura obtenerOrden(String token, String orderId);
+
     record Orden(String id, String status) { }
 
     record Captura(String orderStatus, String captureStatus, String captureId, BigDecimal monto, String moneda,

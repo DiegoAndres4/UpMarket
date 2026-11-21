@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import com.upmarket.catalogo.application.port.out.PagoRepositoryPort;
 import com.upmarket.catalogo.application.port.out.PasarelaPaypalPort;
+import com.upmarket.catalogo.application.port.out.PasarelaPaypalPort.ResultadoOrden;
 import com.upmarket.catalogo.application.port.out.PublicacionRepositoryPort;
 import com.upmarket.catalogo.domain.model.EstadoPago;
 import com.upmarket.catalogo.domain.model.Pago;
@@ -242,5 +243,96 @@ class PagoPaypalRestTest {
         // El cobro simulado tampoco es una puerta trasera con proveedor=paypal.
         mvc.perform(post("/api/publicaciones/" + id + "/pago").header("Authorization", autorizacion))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    @DisplayName("Verificar una orden ya capturada aprueba una vez y expone tieneOrdenPaypal al dueño")
+    void verificarOrdenCapturadaEsIdempotente() throws Exception {
+        String vendedor = persona();
+        long id = publicarPendiente(vendedor, UUID.randomUUID().toString());
+        when(paypal.crearOrden(anyLong(), anyString(), any(BigDecimal.class))).thenReturn("ORDER-" + id);
+        when(paypal.consultarOrden("ORDER-" + id)).thenReturn(new ResultadoOrden(
+                "COMPLETED", "COMPLETED", "CAP-" + id, new BigDecimal("0.75"), "USD", String.valueOf(id)));
+
+        String autorizacion = "Bearer " + token(vendedor);
+        mvc.perform(get("/api/publicaciones/" + id).header("Authorization", autorizacion))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tieneOrdenPaypal").value(false));
+        mvc.perform(post("/api/publicaciones/" + id + "/pago/paypal/orden").header("Authorization", autorizacion))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/publicaciones/" + id).header("Authorization", autorizacion))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tieneOrdenPaypal").value(true));
+
+        String primero = mvc.perform(post("/api/publicaciones/" + id + "/pago/paypal/verificar")
+                        .header("Authorization", autorizacion))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("APROBADO"))
+                .andReturn().getResponse().getContentAsString();
+        String segundo = mvc.perform(post("/api/publicaciones/" + id + "/pago/paypal/verificar")
+                        .header("Authorization", autorizacion))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("APROBADO"))
+                .andReturn().getResponse().getContentAsString();
+
+        assertEquals(((Number) JsonPath.read(primero, "$.id")).longValue(),
+                ((Number) JsonPath.read(segundo, "$.id")).longValue());
+        assertEquals(1, pagos.todos().stream()
+                .filter(pago -> pago.getPublicacionId() == id && pago.getEstado() == EstadoPago.APROBADO)
+                .count());
+        assertTrue(publicaciones.buscarPorId(id).orElseThrow().estaPagada());
+    }
+
+    @Test
+    @DisplayName("Verificar una orden aprobada sin capturar la captura ahora")
+    void verificarOrdenAprobadaCaptura() throws Exception {
+        String vendedor = persona();
+        long id = publicarPendiente(vendedor, UUID.randomUUID().toString());
+        when(paypal.crearOrden(anyLong(), anyString(), any(BigDecimal.class))).thenReturn("ORDER-" + id);
+        when(paypal.consultarOrden("ORDER-" + id))
+                .thenReturn(new ResultadoOrden("APPROVED", null, null, null, null, null));
+        when(paypal.capturar("ORDER-" + id)).thenReturn(new PasarelaPaypalPort.ResultadoCaptura(
+                "COMPLETED", "CAP-" + id, new BigDecimal("0.75"), "USD", String.valueOf(id)));
+
+        String autorizacion = "Bearer " + token(vendedor);
+        mvc.perform(post("/api/publicaciones/" + id + "/pago/paypal/orden").header("Authorization", autorizacion))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/publicaciones/" + id + "/pago/paypal/verificar").header("Authorization", autorizacion))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("APROBADO"))
+                .andExpect(jsonPath("$.referencia").value("CAP-" + id));
+    }
+
+    @Test
+    @DisplayName("Verificar con custom_id de otra publicación: 409 y nada aprobado")
+    void verificarCustomIdAjeno() throws Exception {
+        String vendedor = persona();
+        long id = publicarPendiente(vendedor, UUID.randomUUID().toString());
+        when(paypal.crearOrden(anyLong(), anyString(), any(BigDecimal.class))).thenReturn("ORDER-" + id);
+        when(paypal.consultarOrden("ORDER-" + id)).thenReturn(new ResultadoOrden(
+                "COMPLETED", "COMPLETED", "CAP", new BigDecimal("0.75"), "USD", "999999"));
+
+        String autorizacion = "Bearer " + token(vendedor);
+        mvc.perform(post("/api/publicaciones/" + id + "/pago/paypal/orden").header("Authorization", autorizacion))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/publicaciones/" + id + "/pago/paypal/verificar").header("Authorization", autorizacion))
+                .andExpect(status().isConflict());
+
+        assertTrue(pagos.buscarPorPublicacion(id).isEmpty());
+        assertTrue(publicaciones.buscarPorId(id).orElseThrow().getEstadoPago() == EstadoPago.PENDIENTE);
+    }
+
+    @Test
+    @DisplayName("Verificar es solo del autor: otra persona recibe 403")
+    void verificarSoloDelAutor() throws Exception {
+        String vendedor = persona();
+        long id = publicarPendiente(vendedor, UUID.randomUUID().toString());
+        when(paypal.crearOrden(anyLong(), anyString(), any(BigDecimal.class))).thenReturn("ORDER-" + id);
+
+        mvc.perform(post("/api/publicaciones/" + id + "/pago/paypal/orden")
+                .header("Authorization", "Bearer " + token(vendedor))).andExpect(status().isOk());
+        mvc.perform(post("/api/publicaciones/" + id + "/pago/paypal/verificar")
+                        .header("Authorization", "Bearer " + token("intruso@correo.com")))
+                .andExpect(status().isForbidden());
     }
 }

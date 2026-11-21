@@ -11,6 +11,7 @@ public class PasarelaPaypalFalsa implements PasarelaPaypalPort {
     private String ultimoInvoiceId;
     private String ultimaOrden;
     private ResultadoCaptura respuesta;
+    private ResultadoOrden ordenConsultada;
 
     @Override
     public String crearOrden(long publicacionId, String invoiceId, BigDecimal montoUsd) {
@@ -31,9 +32,25 @@ public class PasarelaPaypalFalsa implements PasarelaPaypalPort {
                 ? new BigDecimal("0.75") : ultimoMontoUsd, "USD", String.valueOf(publicacionId));
     }
 
+    @Override
+    public ResultadoOrden consultarOrden(String orderId) {
+        if (ordenConsultada != null) {
+            return ordenConsultada;
+        }
+        long publicacionId = Long.parseLong(orderId.substring("ORDER-".length()));
+        return new ResultadoOrden("COMPLETED", "COMPLETED", "CAP-" + orderId,
+                ultimoMontoUsd == null ? new BigDecimal("0.75") : ultimoMontoUsd, "USD",
+                String.valueOf(publicacionId));
+    }
+
     /** Fija la respuesta de la próxima captura (para probar montos, monedas o custom_id erróneos). */
     public void responder(ResultadoCaptura captura) {
         this.respuesta = captura;
+    }
+
+    /** Fija la respuesta de la consulta de orden (para probar verificación y recuperación). */
+    public void responderOrden(ResultadoOrden orden) {
+        this.ordenConsultada = orden;
     }
 
     public BigDecimal getUltimoMontoUsd() { return ultimoMontoUsd; }

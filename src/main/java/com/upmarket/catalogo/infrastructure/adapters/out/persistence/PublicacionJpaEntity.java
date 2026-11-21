@@ -90,6 +90,10 @@ public class PublicacionJpaEntity {
     @Column(name = "archivada_en")
     private Instant archivadaEn;
 
+    /** Última orden de PayPal del intento de pago: permite verificar un cobro ya hecho. */
+    @Column(name = "orden_paypal", length = 80)
+    private String ordenPaypal;
+
     protected PublicacionJpaEntity() {
     }
 
@@ -113,12 +117,13 @@ public class PublicacionJpaEntity {
         this.estadoPago = p.getEstadoPago();
         this.vistas = p.getVistas();
         this.archivadaEn = p.getArchivadaEn();
+        this.ordenPaypal = p.getOrdenPaypal();
     }
 
     public Publicacion aDominio() {
         List<Foto> listaFotos = fotos.stream().map(FotoEmbeddable::aDominio).toList();
         return Publicacion.reconstruir(id, titulo, descripcion, precio, estadoArticulo, categoria, listaFotos,
                 Contacto.rehidratar(whatsapp, correo), vendedor, publicadaEn, estado, vendidaEn, estadoPago, vistas,
-                archivadaEn);
+                archivadaEn, ordenPaypal);
     }
 }

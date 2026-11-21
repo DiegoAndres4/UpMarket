@@ -95,12 +95,17 @@ public class PagoService implements PagoUseCase {
         if (!esPaypal()) {
             throw new EstadoInvalidoException("El proveedor de pagos configurado es simulado; no hay PayPal");
         }
-        Publicacion publicacion = publicaciones.buscarPorId(publicacionId)
-                .orElseThrow(() -> new PublicacionNoEncontradaException(publicacionId));
-        acceso.asegurarEsAutor(publicacion, actor);
-        exigirSinPago(publicacion);
-        String invoiceId = "UPM-" + publicacionId + "-" + UUID.randomUUID();
-        return paypal.crearOrden(publicacionId, invoiceId, montoUsd);
+        return transaccion.ejecutar(() -> {
+            Publicacion publicacion = cargarBloqueando(publicacionId);
+            acceso.asegurarEsAutor(publicacion, actor);
+            exigirSinPago(publicacion);
+            String invoiceId = "UPM-" + publicacionId + "-" + UUID.randomUUID();
+            String orderId = paypal.crearOrden(publicacionId, invoiceId, montoUsd);
+            // Se guarda en la publicación pendiente: si la captura se pierde, el pago se puede verificar.
+            publicacion.registrarOrdenPaypal(orderId);
+            publicaciones.guardar(publicacion);
+            return orderId;
+        });
     }
 
     @Override
@@ -118,14 +123,63 @@ public class PagoService implements PagoUseCase {
 
             PasarelaPaypalPort.ResultadoCaptura captura = paypal.capturar(orderId.trim());
             exigirCapturaValida(captura, publicacionId);
-
-            Pago pago = Pago.pendiente(publicacionId, tarifa, reloj.instant());
-            pago.aprobarPaypal(captura.referencia(), montoUsd, reloj.instant());
-            Pago guardado = pagos.guardar(pago);
-            publicacion.activarPago();
-            publicaciones.guardar(publicacion);
-            return guardado;
+            return aprobarPaypal(publicacion, captura);
         });
+    }
+
+    /**
+     * Recupera un pago que PayPal ya cobró aunque la captura no se haya confirmado. Consulta la orden
+     * guardada: si está capturada la aprueba; si está aprobada sin capturar, la captura ahora. Es
+     * idempotente: una publicación ya pagada devuelve su pago sin cobrar ni aprobar otra vez.
+     */
+    @Override
+    public Pago verificarPaypal(Actor actor, long publicacionId) {
+        if (!esPaypal()) {
+            throw new EstadoInvalidoException("El proveedor de pagos configurado es simulado; no hay PayPal");
+        }
+        return transaccion.ejecutar(() -> {
+            Publicacion publicacion = cargarBloqueando(publicacionId);
+            acceso.asegurarEsAutor(publicacion, actor);
+            if (publicacion.estaPagada()) {
+                return pagos.buscarPorPublicacion(publicacionId)
+                        .filter(pago -> pago.getEstado() == EstadoPago.APROBADO)
+                        .orElseThrow(() -> new EstadoInvalidoException(
+                                "La publicación " + publicacionId + " ya está pagada"));
+            }
+            exigirSinPago(publicacion);
+            String orderId = publicacion.getOrdenPaypal();
+            if (orderId == null || orderId.isBlank()) {
+                throw new EstadoInvalidoException("No hay una orden de PayPal guardada para esta publicación");
+            }
+
+            PasarelaPaypalPort.ResultadoOrden orden = paypal.consultarOrden(orderId);
+            if (orden == null || orden.estado() == null || orden.estado().isBlank()) {
+                throw new EstadoInvalidoException("PayPal no devolvió el estado de la orden");
+            }
+            if ("COMPLETED".equalsIgnoreCase(orden.estado())) {
+                String estadoCaptura = orden.estadoCaptura() == null ? "COMPLETED" : orden.estadoCaptura();
+                PasarelaPaypalPort.ResultadoCaptura captura = new PasarelaPaypalPort.ResultadoCaptura(
+                        estadoCaptura, orden.referencia(), orden.monto(), orden.moneda(), orden.customId());
+                exigirCapturaValida(captura, publicacionId);
+                return aprobarPaypal(publicacion, captura);
+            }
+            if ("APPROVED".equalsIgnoreCase(orden.estado())) {
+                PasarelaPaypalPort.ResultadoCaptura captura = paypal.capturar(orderId);
+                exigirCapturaValida(captura, publicacionId);
+                return aprobarPaypal(publicacion, captura);
+            }
+            throw new EstadoInvalidoException(
+                    "PayPal todavía no ha completado este pago; intenta de nuevo en unos minutos");
+        });
+    }
+
+    private Pago aprobarPaypal(Publicacion publicacion, PasarelaPaypalPort.ResultadoCaptura captura) {
+        Pago pago = Pago.pendiente(publicacion.getId(), tarifa, reloj.instant());
+        pago.aprobarPaypal(captura.referencia(), montoUsd, reloj.instant());
+        Pago guardado = pagos.guardar(pago);
+        publicacion.activarPago();
+        publicaciones.guardar(publicacion);
+        return guardado;
     }
 
     @Override

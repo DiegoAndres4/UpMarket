@@ -17,6 +17,16 @@ public interface PasarelaPaypalPort {
     /** Captura la orden de forma idempotente: PayPal recibe el mismo {@code orderId} como request id. */
     ResultadoCaptura capturar(String orderId);
 
+    /**
+     * Consulta una orden ya creada. Devuelve su estado de orden y, si ya está capturada, los datos de
+     * la captura (referencia, monto, moneda y custom_id).
+     */
+    ResultadoOrden consultarOrden(String orderId);
+
     record ResultadoCaptura(String estado, String referencia, BigDecimal monto, String moneda, String customId) {
+    }
+
+    record ResultadoOrden(String estado, String estadoCaptura, String referencia, BigDecimal monto, String moneda,
+                          String customId) {
     }
 }

@@ -44,7 +44,20 @@ public class PasarelaPaypal implements PasarelaPaypalPort {
 
     @Override
     public ResultadoCaptura capturar(String orderId) {
-        ClientePaypal.Captura captura = cliente.capturar(cliente.obtenerToken(), orderId, orderId);
+        return traducirCaptura(cliente.capturar(cliente.obtenerToken(), orderId, orderId));
+    }
+
+    @Override
+    public ResultadoOrden consultarOrden(String orderId) {
+        ClientePaypal.Captura captura = cliente.obtenerOrden(cliente.obtenerToken(), orderId);
+        if (captura == null) {
+            return null;
+        }
+        return new ResultadoOrden(captura.orderStatus(), captura.captureStatus(), captura.captureId(),
+                captura.monto(), captura.moneda(), captura.customId());
+    }
+
+    private static ResultadoCaptura traducirCaptura(ClientePaypal.Captura captura) {
         if (captura == null) {
             return new ResultadoCaptura(null, null, null, null, null);
         }

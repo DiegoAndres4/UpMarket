@@ -100,6 +100,15 @@ public class PublicacionController {
     }
 
     /**
+     * Verifica la orden guardada cuando PayPal ya cobró pero la captura no se pudo confirmar. Solo el
+     * autor; si la publicación ya está pagada devuelve su pago sin aprobar un segundo cobro.
+     */
+    @PostMapping("/{id}/pago/paypal/verificar")
+    public PagoResponse verificarPaypal(@PathVariable long id) {
+        return PagoResponse.de(pagos.verificarPaypal(ActorActual.obtener(), id));
+    }
+
+    /**
      * Recibo del pago aprobado, para el autor o un ADMIN. Se muestra en línea (iframe) salvo con
      * {@code ?descargar=true}, que lo entrega como adjunto. Si el recibo no existe se genera aquí.
      */

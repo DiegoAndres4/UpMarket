@@ -29,11 +29,12 @@ public class Publicacion {
     private EstadoPago estadoPago;
     private long vistas;
     private Instant archivadaEn;
+    private String ordenPaypal;
 
     private Publicacion(Long id, String titulo, String descripcion, BigDecimal precio, EstadoArticulo estadoArticulo,
                         String categoria, List<Foto> fotos, Contacto contacto, String vendedor, Instant publicadaEn,
                         EstadoPublicacion estado, Instant vendidaEn, EstadoPago estadoPago, long vistas,
-                        Instant archivadaEn) {
+                        Instant archivadaEn, String ordenPaypal) {
         this.id = id;
         this.titulo = titulo;
         this.descripcion = descripcion;
@@ -49,6 +50,7 @@ public class Publicacion {
         this.estadoPago = estadoPago;
         this.vistas = vistas;
         this.archivadaEn = archivadaEn;
+        this.ordenPaypal = ordenPaypal;
     }
 
     /** La publicación nace DISPONIBLE y pendiente de pago. {@code precio} llega como texto y se valida aquí. */
@@ -68,7 +70,7 @@ public class Publicacion {
         }
         return new Publicacion(null, titulo.trim(), descripcion.trim(), Precio.de(precio), estadoArticulo,
                 categoria.getNombre(), lista, contacto, vendedor, ahora, EstadoPublicacion.DISPONIBLE, null,
-                EstadoPago.PENDIENTE, 0L, null);
+                EstadoPago.PENDIENTE, 0L, null, null);
     }
 
     public static Publicacion reconstruir(Long id, String titulo, String descripcion, BigDecimal precio,
@@ -77,7 +79,7 @@ public class Publicacion {
                                           EstadoPublicacion estado, Instant vendidaEn, EstadoPago estadoPago,
                                           long vistas) {
         return reconstruir(id, titulo, descripcion, precio, estadoArticulo, categoria, fotos, contacto, vendedor,
-                publicadaEn, estado, vendidaEn, estadoPago, vistas, null);
+                publicadaEn, estado, vendidaEn, estadoPago, vistas, null, null);
     }
 
     public static Publicacion reconstruir(Long id, String titulo, String descripcion, BigDecimal precio,
@@ -85,8 +87,17 @@ public class Publicacion {
                                           Contacto contacto, String vendedor, Instant publicadaEn,
                                           EstadoPublicacion estado, Instant vendidaEn, EstadoPago estadoPago,
                                           long vistas, Instant archivadaEn) {
+        return reconstruir(id, titulo, descripcion, precio, estadoArticulo, categoria, fotos, contacto, vendedor,
+                publicadaEn, estado, vendidaEn, estadoPago, vistas, archivadaEn, null);
+    }
+
+    public static Publicacion reconstruir(Long id, String titulo, String descripcion, BigDecimal precio,
+                                          EstadoArticulo estadoArticulo, String categoria, List<Foto> fotos,
+                                          Contacto contacto, String vendedor, Instant publicadaEn,
+                                          EstadoPublicacion estado, Instant vendidaEn, EstadoPago estadoPago,
+                                          long vistas, Instant archivadaEn, String ordenPaypal) {
         return new Publicacion(id, titulo, descripcion, precio, estadoArticulo, categoria, fotos, contacto, vendedor,
-                publicadaEn, estado, vendidaEn, estadoPago, vistas, archivadaEn);
+                publicadaEn, estado, vendidaEn, estadoPago, vistas, archivadaEn, ordenPaypal);
     }
 
     private static void validarTexto(String titulo, String descripcion) {
@@ -139,6 +150,20 @@ public class Publicacion {
         estadoPago = EstadoPago.APROBADO;
     }
 
+    /**
+     * Guarda el id de la última orden de PayPal del intento de pago. Sirve para recuperar un pago
+     * que PayPal ya cobró aunque la captura no se haya podido confirmar.
+     */
+    public void registrarOrdenPaypal(String orderId) {
+        if (orderId == null || orderId.isBlank()) {
+            throw new ValorInvalidoException("El identificador de la orden de PayPal es obligatorio");
+        }
+        if (estaPagada()) {
+            throw new EstadoInvalidoException("La publicación " + id + " ya está pagada");
+        }
+        this.ordenPaypal = orderId.trim();
+    }
+
     public boolean estaDisponible() { return estado == EstadoPublicacion.DISPONIBLE; }
 
     public boolean estaPagada() { return estadoPago == EstadoPago.APROBADO; }
@@ -174,4 +199,5 @@ public class Publicacion {
     public EstadoPago getEstadoPago() { return estadoPago; }
     public long getVistas() { return vistas; }
     public Instant getArchivadaEn() { return archivadaEn; }
+    public String getOrdenPaypal() { return ordenPaypal; }
 }

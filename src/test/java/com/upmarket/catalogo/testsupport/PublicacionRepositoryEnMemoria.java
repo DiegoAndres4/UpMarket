@@ -15,7 +15,7 @@ public class PublicacionRepositoryEnMemoria implements PublicacionRepositoryPort
     private static Publicacion copiar(long id, Publicacion p) {
         return Publicacion.reconstruir(id, p.getTitulo(), p.getDescripcion(), p.getPrecio(), p.getEstadoArticulo(),
                 p.getCategoria(), p.getFotos(), p.getContacto(), p.getVendedor(), p.getPublicadaEn(), p.getEstado(),
-                p.getVendidaEn(), p.getEstadoPago(), p.getVistas(), p.getArchivadaEn());
+                p.getVendidaEn(), p.getEstadoPago(), p.getVistas(), p.getArchivadaEn(), p.getOrdenPaypal());
     }
 
     @Override
@@ -69,7 +69,7 @@ public class PublicacionRepositoryEnMemoria implements PublicacionRepositoryPort
         filas.put(id, Publicacion.reconstruir(id, p.getTitulo(), p.getDescripcion(), p.getPrecio(),
                 p.getEstadoArticulo(), p.getCategoria(), p.getFotos(), p.getContacto(), p.getVendedor(),
                 p.getPublicadaEn(), p.getEstado(), p.getVendidaEn(), p.getEstadoPago(), p.getVistas() + 1,
-                p.getArchivadaEn()));
+                p.getArchivadaEn(), p.getOrdenPaypal()));
     }
 
     @Override

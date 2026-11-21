@@ -10,20 +10,23 @@ import java.util.List;
 public record PublicacionResponse(long id, String titulo, String descripcion, BigDecimal precio, String estadoArticulo,
                                   String categoria, List<FotoDto> fotos, String vendedor, Instant publicadaEn,
                                   String estadoPublicacion, Instant vendidaEn, String estadoPago,
-                                  @JsonInclude(JsonInclude.Include.NON_NULL) Long vistas) {
+                                  @JsonInclude(JsonInclude.Include.NON_NULL) Long vistas,
+                                  @JsonInclude(JsonInclude.Include.NON_NULL) Boolean tieneOrdenPaypal) {
 
     public static PublicacionResponse de(Publicacion p) {
         return de(p, null);
     }
 
     /**
-     * Las vistas solo se incluyen para el dueño o un administrador; el resto de usuarios recibe {@code null}
-     * y el campo se omite del JSON.
+     * Las vistas solo se incluyen para el dueño o un administrador; el resto de usuarios recibe
+     * {@code null} y el campo se omite del JSON. En esa misma vista de dueño se informa si hay una
+     * orden de PayPal pendiente de verificar.
      */
     public static PublicacionResponse de(Publicacion p, Long vistas) {
+        Boolean tieneOrden = vistas == null ? null : p.getOrdenPaypal() != null && !p.estaPagada();
         return new PublicacionResponse(p.getId(), p.getTitulo(), p.getDescripcion(), p.getPrecio(),
                 p.getEstadoArticulo().name(), p.getCategoria(), p.getFotos().stream().map(FotoDto::de).toList(),
                 p.getVendedor(), p.getPublicadaEn(), p.getEstado().name(), p.getVendidaEn(),
-                p.getEstadoPago().name(), vistas);
+                p.getEstadoPago().name(), vistas, tieneOrden);
     }
 }

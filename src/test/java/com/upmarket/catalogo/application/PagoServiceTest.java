@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.upmarket.catalogo.application.port.out.PasarelaPaypalPort.ResultadoCaptura;
+import com.upmarket.catalogo.application.port.out.PasarelaPaypalPort.ResultadoOrden;
 import com.upmarket.catalogo.domain.exception.AccesoDenegadoException;
 import com.upmarket.catalogo.domain.exception.EstadoInvalidoException;
 import com.upmarket.catalogo.domain.exception.ValorInvalidoException;
@@ -135,5 +136,89 @@ class PagoServiceTest {
         assertThrows(EstadoInvalidoException.class,
                 () -> e.pagoServicePaypal.capturarPaypal(Datos.estudiante("maria"), p.getId(), orden));
         assertEquals(1, e.pagos.todos().size());
+    }
+
+    @Test
+    @DisplayName("Crear la orden guarda el orderId en la publicación para poder verificarla después")
+    void crearOrdenGuardaElOrderId() {
+        Publicacion p = pendiente();
+        String orden = e.pagoServicePaypal.crearOrdenPaypal(Datos.estudiante("maria"), p.getId());
+
+        assertEquals(orden, e.publicaciones.buscarPorId(p.getId()).orElseThrow().getOrdenPaypal());
+    }
+
+    @Test
+    @DisplayName("Verificar una orden ya capturada en PayPal aprueba el pago y activa la publicación")
+    void verificarOrdenCapturadaAprueba() {
+        Publicacion p = pendiente();
+        String orden = e.pagoServicePaypal.crearOrdenPaypal(Datos.estudiante("maria"), p.getId());
+
+        Pago pago = e.pagoServicePaypal.verificarPaypal(Datos.estudiante("maria"), p.getId());
+
+        assertEquals(EstadoPago.APROBADO, pago.getEstado());
+        assertEquals("CAP-" + orden, pago.getReferencia());
+        assertEquals(new BigDecimal("0.75"), pago.getMontoUsd());
+        assertTrue(e.publicaciones.buscarPorId(p.getId()).orElseThrow().estaPagada());
+    }
+
+    @Test
+    @DisplayName("Verificar dos veces no aprueba un segundo pago")
+    void verificarDosVecesEsIdempotente() {
+        Publicacion p = pendiente();
+        e.pagoServicePaypal.crearOrdenPaypal(Datos.estudiante("maria"), p.getId());
+
+        Pago primero = e.pagoServicePaypal.verificarPaypal(Datos.estudiante("maria"), p.getId());
+        Pago segundo = e.pagoServicePaypal.verificarPaypal(Datos.estudiante("maria"), p.getId());
+
+        assertEquals(primero.getId(), segundo.getId());
+        assertEquals(1, e.pagos.todos().stream()
+                .filter(pago -> pago.getPublicacionId() == p.getId()
+                        && pago.getEstado() == EstadoPago.APROBADO)
+                .count());
+    }
+
+    @Test
+    @DisplayName("Verificar una orden aprobada sin capturar la captura ahora y aprueba")
+    void verificarOrdenAprobadaCaptura() {
+        Publicacion p = pendiente();
+        String orden = e.pagoServicePaypal.crearOrdenPaypal(Datos.estudiante("maria"), p.getId());
+        e.paypal.responderOrden(new ResultadoOrden("APPROVED", null, null, null, null, null));
+        e.paypal.responder(new ResultadoCaptura("COMPLETED", "CAP-" + orden, new BigDecimal("0.75"), "USD",
+                String.valueOf(p.getId())));
+
+        Pago pago = e.pagoServicePaypal.verificarPaypal(Datos.estudiante("maria"), p.getId());
+
+        assertEquals(EstadoPago.APROBADO, pago.getEstado());
+        assertEquals("CAP-" + orden, pago.getReferencia());
+    }
+
+    @Test
+    @DisplayName("Verificar con custom_id de otra publicación: 409 y nada aprobado")
+    void verificarCustomIdAjenoNoAprueba() {
+        Publicacion p = pendiente();
+        e.pagoServicePaypal.crearOrdenPaypal(Datos.estudiante("maria"), p.getId());
+        e.paypal.responderOrden(new ResultadoOrden("COMPLETED", "COMPLETED", "CAP", new BigDecimal("0.75"),
+                "USD", "999999"));
+
+        assertThrows(EstadoInvalidoException.class,
+                () -> e.pagoServicePaypal.verificarPaypal(Datos.estudiante("maria"), p.getId()));
+        assertTrue(e.pagos.buscarPorPublicacion(p.getId()).isEmpty());
+        assertFalse(e.publicaciones.buscarPorId(p.getId()).orElseThrow().estaPagada());
+    }
+
+    @Test
+    @DisplayName("Verificar sin orden guardada, con orden incompleta o con otra persona: 409 y 403")
+    void verificarValidaciones() {
+        Publicacion p = pendiente();
+        assertThrows(EstadoInvalidoException.class,
+                () -> e.pagoServicePaypal.verificarPaypal(Datos.estudiante("maria"), p.getId()));
+
+        e.pagoServicePaypal.crearOrdenPaypal(Datos.estudiante("maria"), p.getId());
+        assertThrows(AccesoDenegadoException.class,
+                () -> e.pagoServicePaypal.verificarPaypal(Datos.estudiante("jose"), p.getId()));
+
+        e.paypal.responderOrden(new ResultadoOrden("PENDING", null, null, null, null, null));
+        assertThrows(EstadoInvalidoException.class,
+                () -> e.pagoServicePaypal.verificarPaypal(Datos.estudiante("maria"), p.getId()));
     }
 }

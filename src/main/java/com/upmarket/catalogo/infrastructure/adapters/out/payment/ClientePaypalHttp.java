@@ -14,16 +14,22 @@ import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 /**
  * Cliente HTTP de PayPal (Orders v2). El token OAuth2 se pide una vez y se reutiliza hasta poco antes
  * de vencer. No hace ninguna llamada al construirse: si el proveedor es simulado, este bean existe
  * pero nunca se usa.
+ *
+ * <p>La captura real de PayPal trae {@code custom_id} dentro de
+ * {@code purchase_units[].payments.captures[].custom_id}, no en la unidad de compra. Aquí se toma del
+ * objeto de captura y solo se usa el valor de la unidad como respaldo.</p>
  */
 public class ClientePaypalHttp implements ClientePaypal {
 
     private static final Logger log = LoggerFactory.getLogger(ClientePaypalHttp.class);
     private static final long MARGEN_TOKEN_SEGUNDOS = 60;
+    private static final String REPRESENTACION = "return=representation";
 
     private final RestClient rest;
     private final String credencialesBasicas;
@@ -32,14 +38,23 @@ public class ClientePaypalHttp implements ClientePaypal {
     private volatile Instant tokenVenceEn = Instant.EPOCH;
 
     public ClientePaypalHttp(RestClient.Builder builder, String baseUrl, String clientId, String clientSecret) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(5));
-        factory.setReadTimeout(Duration.ofSeconds(15));
-        this.rest = builder.baseUrl(baseUrl.trim()).requestFactory(factory).build();
+        this(construir(builder, baseUrl), clientId, clientSecret);
+    }
+
+    /** Constructor para pruebas: recibe un {@link RestClient} ya armado con su transporte simulado. */
+    ClientePaypalHttp(RestClient rest, String clientId, String clientSecret) {
+        this.rest = rest;
         String credenciales = (clientId == null ? "" : clientId.trim()) + ":"
                 + (clientSecret == null ? "" : clientSecret.trim());
         this.credencialesBasicas = "Basic "
                 + Base64.getEncoder().encodeToString(credenciales.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static RestClient construir(RestClient.Builder builder, String baseUrl) {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(5));
+        factory.setReadTimeout(Duration.ofSeconds(15));
+        return builder.baseUrl(baseUrl.trim()).requestFactory(factory).build();
     }
 
     @Override
@@ -80,6 +95,7 @@ public class ClientePaypalHttp implements ClientePaypal {
             OrdenRespuesta respuesta = rest.post()
                     .uri("/v2/checkout/orders")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .header("Prefer", REPRESENTACION)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(cuerpoJson)
                     .retrieve()
@@ -101,25 +117,61 @@ public class ClientePaypalHttp implements ClientePaypal {
                     .uri("/v2/checkout/orders/{orderId}/capture", orderId)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                     .header("PayPal-Request-Id", requestId)
+                    .header("Prefer", REPRESENTACION)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body("{}")
                     .retrieve()
                     .body(CapturaRespuesta.class);
-            if (respuesta == null) {
-                throw new IllegalStateException("PayPal no devolvió la captura");
+            return traducir(respuesta);
+        } catch (RestClientResponseException e) {
+            if (yaCapturada(e)) {
+                // PayPal ya cobró esta orden (por ejemplo, se perdió la respuesta anterior): se
+                // recupera el estado real en lugar de fallar y dejar la publicación pendiente.
+                return obtenerOrden(token, orderId);
             }
-            UnidadRespuesta unidad = primera(respuesta.purchaseUnits());
-            CapturaUnidad captura = unidad == null || unidad.payments() == null
-                    ? null : primera(unidad.payments().captures());
-            return new Captura(respuesta.status(), captura == null ? null : captura.status(),
-                    captura == null ? null : captura.id(),
-                    captura == null || captura.amount() == null ? null : decimal(captura.amount().value()),
-                    captura == null || captura.amount() == null ? null : captura.amount().currencyCode(),
-                    unidad == null ? null : unidad.customId());
+            log.error("PayPal no pudo capturar la orden {}", orderId, e);
+            throw new IllegalStateException("No se pudo capturar el pago de PayPal; intenta de nuevo", e);
         } catch (RestClientException e) {
             log.error("PayPal no pudo capturar la orden {}", orderId, e);
             throw new IllegalStateException("No se pudo capturar el pago de PayPal; intenta de nuevo", e);
         }
+    }
+
+    @Override
+    public Captura obtenerOrden(String token, String orderId) {
+        try {
+            CapturaRespuesta respuesta = rest.get()
+                    .uri("/v2/checkout/orders/{orderId}", orderId)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .retrieve()
+                    .body(CapturaRespuesta.class);
+            return traducir(respuesta);
+        } catch (RestClientException e) {
+            log.error("PayPal no pudo consultar la orden {}", orderId, e);
+            throw new IllegalStateException("No se pudo verificar la orden de PayPal; intenta de nuevo", e);
+        }
+    }
+
+    private static Captura traducir(CapturaRespuesta respuesta) {
+        if (respuesta == null) {
+            throw new IllegalStateException("PayPal no devolvió la orden");
+        }
+        UnidadRespuesta unidad = primera(respuesta.purchaseUnits());
+        CapturaUnidad captura = unidad == null || unidad.payments() == null
+                ? null : primera(unidad.payments().captures());
+        String customId = captura == null || captura.customId() == null || captura.customId().isBlank()
+                ? (unidad == null ? null : unidad.customId())
+                : captura.customId();
+        return new Captura(respuesta.status(), captura == null ? null : captura.status(),
+                captura == null ? null : captura.id(),
+                captura == null || captura.amount() == null ? null : decimal(captura.amount().value()),
+                captura == null || captura.amount() == null ? null : captura.amount().currencyCode(),
+                customId);
+    }
+
+    private static boolean yaCapturada(RestClientResponseException e) {
+        return e.getStatusCode().value() == 422
+                && e.getResponseBodyAsString().contains("ORDER_ALREADY_CAPTURED");
     }
 
     private static <T> T primera(List<T> lista) {
@@ -146,7 +198,9 @@ public class ClientePaypalHttp implements ClientePaypal {
 
     record PagosRespuesta(List<CapturaUnidad> captures) { }
 
-    record CapturaUnidad(String id, String status, MontoRespuesta amount) { }
+    record CapturaUnidad(String id, String status, MontoRespuesta amount,
+                         @JsonProperty("custom_id") String customId,
+                         @JsonProperty("invoice_id") String invoiceId) { }
 
     record MontoRespuesta(@JsonProperty("currency_code") String currencyCode, String value) { }
 }

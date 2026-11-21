@@ -1370,9 +1370,13 @@ async function vistaPago(id) {
   const zonaPago = h('div', { class: 'pago-pasarela' });
 
   if (config.proveedor === 'paypal') {
+    /* Un pago que PayPal ya cobró puede quedar pendiente si la captura no se confirma. La orden
+       se guarda en la publicación, así que se puede verificar sin volver a pagar. */
+    const zonaVerificacion = h('div', { class: 'pago-verificacion' });
     panel.append(
       h('p', { class: 'meta' }, 'PayPal cobra el equivalente en dólares: USD ' + montoUsd + '.'),
-      zonaPago);
+      zonaPago,
+      zonaVerificacion);
     montar(
       h('a', { class: 'volver', href: '#/mias' }, '← Volver a mis publicaciones'),
       h('h1', {}, 'Pagar publicación'),
@@ -1382,6 +1386,39 @@ async function vistaPago(id) {
       aviso('PayPal no está configurado. Intenta más tarde.', true);
       return;
     }
+
+    if (p.tieneOrdenPaypal) {
+      zonaVerificacion.append(
+        h('p', { class: 'meta' }, 'Si ya pagaste y la publicación sigue pendiente, verifica el pago.'),
+        h('button', { class: 'btn sec', type: 'button', onclick: async (ev) => {
+          const restaurar = cargandoEn(ev.currentTarget, 'Verificando…');
+          try {
+            await api('POST', `/api/publicaciones/${id}/pago/paypal/verificar`);
+            aviso('Pago aprobado');
+            pintarPagoAprobado(panel, p, id);
+          } catch (e) {
+            aviso(e.message, true);
+            restaurar();
+          }
+        } }, 'Ya pagué en PayPal, verificar'));
+    }
+
+    const mostrarReintento = (orderId) => {
+      zonaVerificacion.replaceChildren(
+        h('p', { class: 'meta', role: 'status' }, 'No pudimos confirmar tu pago. No pagues otra vez.'),
+        h('button', { class: 'btn sec', type: 'button', onclick: async (ev) => {
+          const restaurar = cargandoEn(ev.currentTarget, 'Verificando…');
+          try {
+            await api('POST', `/api/publicaciones/${id}/pago/paypal/captura`, { orderId });
+            aviso('Pago aprobado');
+            pintarPagoAprobado(panel, p, id);
+          } catch (e) {
+            aviso(e.message, true);
+            restaurar();
+          }
+        } }, 'Reintentar verificación'));
+    };
+
     try {
       const paypal = await cargarPaypalSdk(config.clientId);
       paypal.Buttons({
@@ -1396,7 +1433,9 @@ async function vistaPago(id) {
             aviso('Pago aprobado');
             pintarPagoAprobado(panel, p, id);
           } catch (e) {
-            aviso(e.message, true);
+            // Se conserva el orderId: el botón reintenta la captura sin obligar a pagar de nuevo.
+            aviso('No pudimos confirmar tu pago. No pagues otra vez.', true);
+            mostrarReintento(datos.orderID);
           }
         },
         onCancel: () => aviso('Cancelaste el pago. Tu publicación sigue pendiente.'),
@@ -2138,6 +2177,12 @@ function filaMia(p) {
         onclick: (ev) => accionEn(ev.currentTarget, 'Pagando…',
           () => api('POST', `/api/publicaciones/${p.id}/pago`), 'Pago aprobado', () => vistaMias(true)) }, 'Pagar')
     : h('a', { class: 'btn-mini btn-mini--primario', href: '#/p/' + p.id, 'aria-label': 'Ver ' + p.titulo }, 'Ver');
+  const verificarPaypal = p.estadoPago === 'PENDIENTE' && p.tieneOrdenPaypal
+    ? h('button', { class: 'btn-mini', type: 'button', 'aria-label': 'Verificar pago de ' + p.titulo,
+        onclick: (ev) => accionEn(ev.currentTarget, 'Verificando…',
+          () => api('POST', `/api/publicaciones/${p.id}/pago/paypal/verificar`), 'Pago aprobado',
+          () => vistaMias(true)) }, 'Ya pagué en PayPal, verificar')
+    : null;
   return h('li', { class: 'mias-fila' + (vendida ? ' mias-fila--vendida' : '') },
     h('a', { class: 'mias-fila__principal', href: '#/p/' + p.id },
       foto,
@@ -2149,6 +2194,7 @@ function filaMia(p) {
       h('span', { class: 'mias-fila__precio' }, precio(p.precio))),
     h('div', { class: 'mias-fila__acciones' },
       principal,
+      verificarPaypal,
       !vendida ? h('button', { class: 'btn-mini', type: 'button', 'aria-label': 'Editar ' + p.titulo,
         onclick: () => { location.hash = '#/editar/' + p.id; } }, 'Editar') : null,
       !vendida ? h('button', { class: 'btn-mini', type: 'button', 'aria-label': 'Marcar como vendido ' + p.titulo,
