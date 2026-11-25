@@ -1818,7 +1818,7 @@ async function vistaDetalle(id) {
     h('h2', { class: 'detalle-sub', id: 'titulo-interesados' }, 'Personas interesadas'),
     h('p', { class: 'meta' }, 'Aparecen aquí quienes pidieron tu contacto.'),
     listaInteresados) : null;
-  const btnContacto = disponible && !esMia ? h('button', { class: 'btn', type: 'button', onclick: () => {
+  const btnContacto = disponible ? h('button', { class: 'btn', type: 'button', onclick: () => {
     conBotonCargando(btnContacto, 'Cargando…', async () => {
       try {
         const c = await api('GET', `/api/publicaciones/${id}/contacto`);
