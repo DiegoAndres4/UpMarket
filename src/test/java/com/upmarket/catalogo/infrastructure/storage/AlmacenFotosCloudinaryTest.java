@@ -79,6 +79,17 @@ class AlmacenFotosCloudinaryTest {
     }
 
     @Test
+    void informaLaConfirmacionYElFalloDelProveedor() throws Exception {
+        String url = "https://res.cloudinary.com/demo/image/upload/v1/upmarket/publicaciones/foto.png";
+        when(uploader.destroy(eq("upmarket/publicaciones/foto"), anyMap()))
+                .thenReturn(Map.of("result", "ok"), Map.of("result", "error"))
+                .thenThrow(new java.io.IOException("sin conexión"));
+        assertThat(almacen.borrarConResultado(url)).isTrue();
+        assertThat(almacen.borrarConResultado(url)).isFalse();
+        assertThat(almacen.borrarConResultado(url)).isFalse();
+    }
+
+    @Test
     void noIntentaBorrarEnElCdnUnaUrlQueNoEsDeCloudinary() throws Exception {
         almacen.borrar("/api/fotos/00000000-0000-0000-0000-000000000000.jpg");
 

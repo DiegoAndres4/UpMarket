@@ -172,6 +172,34 @@ class PublicacionServiceTest {
     }
 
     @Test
+    @DisplayName("El autor reemplaza, conserva o quita las fotos al editar")
+    void editarFotos() {
+        Publicacion p = e.publicar("maria", "Calculadora", "Casio fx-991 casi nueva", "50000", "Tecnología");
+        assertEquals(1, p.getFotos().size());
+
+        var dos = List.of(
+                new FotoComando("https://archivos.example/n1.jpg", "image/jpeg", 1000),
+                new FotoComando("https://archivos.example/n2.png", "image/png", 2000));
+        Publicacion r = e.publicacionService.editar(Datos.estudiante("maria"),
+                new EditarPublicacionCommand(p.getId(), "Calculadora", "Con funda y manual", "45000", "usado", "Tecnología", dos));
+        assertEquals(2, r.getFotos().size());
+        assertEquals("https://archivos.example/n1.jpg", r.getFotos().get(0).url());
+        assertEquals(2, e.publicacionService.detalle(Datos.estudiante("maria"), p.getId()).getFotos().size());
+
+        Publicacion igual = e.publicacionService.editar(Datos.estudiante("maria"),
+                new EditarPublicacionCommand(p.getId(), "Calculadora", "Con funda y manual", "45000", "usado", "Tecnología"));
+        assertEquals(2, igual.getFotos().size());
+
+        Publicacion sin = e.publicacionService.editar(Datos.estudiante("maria"),
+                new EditarPublicacionCommand(p.getId(), "Calculadora", "Con funda y manual", "45000", "usado", "Tecnología", List.of()));
+        assertEquals(0, sin.getFotos().size());
+
+        assertThrows(ValorInvalidoException.class, () -> e.publicacionService.editar(Datos.estudiante("maria"),
+                new EditarPublicacionCommand(p.getId(), "Calculadora", "Con funda y manual", "45000", "usado", "Tecnología",
+                        java.util.Collections.nCopies(6, new FotoComando("https://archivos.example/x.jpg", "image/jpeg", 1000)))));
+    }
+
+    @Test
     @DisplayName("Editar: otra persona 403 (aunque sea ADMIN), inexistente 404, datos inválidos 400, vendida 409")
     void erroresDeEdicion() {
         Publicacion p = e.publicar("maria", "Calculadora", "Casio fx-991 casi nueva", "50000", "Tecnología");

@@ -23,14 +23,24 @@ public class PublicacionService implements PublicacionUseCase {
     private final TransaccionPort transaccion;
     private final Clock reloj;
     private final PoliticaAcceso acceso;
+    private final GestionFotosPort gestionFotos;
 
     public PublicacionService(PublicacionRepositoryPort publicaciones, CategoriaRepositoryPort categorias,
                               TransaccionPort transaccion, Clock reloj, PoliticaAcceso acceso) {
+        this(publicaciones, categorias, transaccion, reloj, acceso, new GestionFotosPort() {
+            public void verificar(Actor actor, List<Foto> fotos, List<Foto> anteriores) { }
+            public void retirar(Actor actor, List<Foto> anteriores, List<Foto> actuales) { }
+        });
+    }
+
+    public PublicacionService(PublicacionRepositoryPort publicaciones, CategoriaRepositoryPort categorias,
+                              TransaccionPort transaccion, Clock reloj, PoliticaAcceso acceso, GestionFotosPort gestionFotos) {
         this.publicaciones = publicaciones;
         this.categorias = categorias;
         this.transaccion = transaccion;
         this.reloj = reloj;
         this.acceso = acceso;
+        this.gestionFotos = gestionFotos;
     }
 
     @Override
@@ -44,6 +54,7 @@ public class PublicacionService implements PublicacionUseCase {
                 : c.fotos().stream().map(f -> new Foto(f.url(), f.tipo(), f.tamanoBytes())).toList();
         return transaccion.ejecutar(() -> {
             Categoria categoria = cargarCategoria(c.categoria());
+            gestionFotos.verificar(actor, fotos, List.of());
             return publicaciones.guardar(Publicacion.publicar(c.titulo(), c.descripcion(), c.precio(), estado, categoria,
                     fotos, contacto, actor.username(), reloj.instant()));
         });
@@ -92,12 +103,18 @@ public class PublicacionService implements PublicacionUseCase {
         Validacion.exigir("título", c.titulo(), "descripción", c.descripcion(), "precio", c.precio(),
                 "estado", c.estado(), "categoría", c.categoria());
         EstadoArticulo estado = EstadoArticulo.de(c.estado());
+        List<Foto> fotos = c.fotos() == null ? null
+                : c.fotos().stream().map(f -> f == null ? null : new Foto(f.url(), f.tipo(), f.tamanoBytes())).toList();
         return transaccion.ejecutar(() -> {
             Publicacion p = cargarNoArchivada(c.id());
             acceso.asegurarEsAutor(p, actor);
             Categoria categoria = cargarCategoria(c.categoria());
-            p.editar(c.titulo(), c.descripcion(), c.precio(), estado, categoria);
-            return publicaciones.guardar(p);
+            List<Foto> anteriores = List.copyOf(p.getFotos());
+            if (fotos != null) gestionFotos.verificar(actor, fotos, anteriores);
+            p.editar(c.titulo(), c.descripcion(), c.precio(), estado, categoria, fotos);
+            Publicacion guardada = publicaciones.guardar(p);
+            if (fotos != null) gestionFotos.retirar(actor, anteriores, guardada.getFotos());
+            return guardada;
         });
     }
 

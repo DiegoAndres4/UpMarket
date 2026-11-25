@@ -68,14 +68,20 @@ public class AlmacenFotosLocal implements AlmacenFotosPort {
      */
     @Override
     public void borrar(String url) {
+        borrarConResultado(url);
+    }
+
+    @Override
+    public boolean borrarConResultado(String url) {
         String nombre = nombreLocal(url);
         if (nombre == null || !NOMBRE_VALIDO.matcher(nombre).matches()) {
-            return;
+            return false;
         }
         try {
             Files.deleteIfExists(directorio.resolve(nombre).normalize());
+            return true;
         } catch (IOException e) {
-            // un archivo que no se pudo borrar no debe impedir eliminar la cuenta o cambiar la foto
+            return false;
         }
     }
 

@@ -128,8 +128,10 @@ public class PublicacionController {
 
     @PutMapping("/{id}")
     public PublicacionResponse editar(@PathVariable long id, @RequestBody EdicionRequest r) {
+        List<FotoComando> fotos = r.fotos() == null ? null
+                : r.fotos().stream().map(f -> f == null ? null : new FotoComando(f.url(), f.tipo(), f.tamanoBytes())).toList();
         return PublicacionResponse.de(publicaciones.editar(ActorActual.obtener(),
-                new EditarPublicacionCommand(id, r.titulo(), r.descripcion(), r.precio(), r.estado(), r.categoria())));
+                new EditarPublicacionCommand(id, r.titulo(), r.descripcion(), r.precio(), r.estado(), r.categoria(), fotos)));
     }
 
     @PostMapping("/{id}/sold")

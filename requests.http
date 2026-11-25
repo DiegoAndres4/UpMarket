@@ -69,11 +69,12 @@ GET {{host}}/api/publicaciones/mias
 Authorization: Bearer {{tokenVendedor}}
 
 ### HU-12: editar (solo el autor; 403 para cualquier otra persona, ADMIN incluido; 409 si ya está vendida)
+### "fotos" es opcional: sin el campo se conservan las actuales; una lista vacía las quita.
 PUT {{host}}/api/publicaciones/1
 Authorization: Bearer {{tokenVendedor}}
 Content-Type: application/json
 
-{ "titulo": "Calculadora científica Casio", "descripcion": "Con funda y manual", "precio": "45000", "estado": "USADO", "categoria": "Tecnología" }
+{ "titulo": "Calculadora científica Casio", "descripcion": "Con funda y manual", "precio": "45000", "estado": "USADO", "categoria": "Tecnología", "fotos": [ { "url": "https://archivos.example/nueva.jpg", "tipo": "image/jpeg", "tamanoBytes": 200000 } ] }
 
 ### Modelo de negocio: pagar la publicación (solo el autor; 409 si ya está pagada)
 POST {{host}}/api/publicaciones/1/pago

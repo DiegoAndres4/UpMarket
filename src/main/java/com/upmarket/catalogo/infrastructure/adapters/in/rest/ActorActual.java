@@ -13,8 +13,16 @@ final class ActorActual {
     static Actor obtener() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getPrincipal() instanceof UsuarioAutenticado u) {
-            return Actor.de(u.username(), u.roles());
+            return Actor.de(u.username(), u.roles(), u.uid());
         }
         throw new IllegalStateException("No hay un usuario autenticado en la petición");
+    }
+
+    static Long idUsuario() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof UsuarioAutenticado u && u.uid() != null) {
+            return u.uid();
+        }
+        throw new IllegalStateException("El token no identifica la cuenta de usuario");
     }
 }

@@ -165,7 +165,7 @@ El entorno de desarrollo siembra datos de demostración al arrancar el dominio: 
 | `POST /api/publicaciones/{id}/pago/paypal/captura` (body `{orderId}`) | solo el autor (proveedor=paypal) | 200 pago APROBADO · 400 · 403 · 404 · 409 (monto, moneda, `custom_id` o estado no coinciden, o ya pagada) |
 | `GET /api/publicaciones/{id}` | autenticado | 200 (sin contacto; `vistas` solo para el autor o ADMIN) · 404 (también si está pendiente de pago y no es el autor) |
 | `GET /api/publicaciones/{id}/contacto` | autenticado | 200 · 404 · 409 (ya vendida) |
-| `PUT /api/publicaciones/{id}` | solo el autor | 200 · 400 · 403 · 404 · 409 (vendida) |
+| `PUT /api/publicaciones/{id}` | solo el autor | 200 (título, descripción, precio, estado, categoría y fotos; `fotos` opcional: sin el campo se conservan y `[]` las quita) · 400 · 403 · 404 · 409 (vendida) |
 | `POST /api/publicaciones/{id}/sold` | solo el autor | 200 · 403 · 404 · 409 (ya vendida) |
 | `DELETE /api/publicaciones/{id}` | autor o ADMIN (moderación) | 204 · 403 · 404 |
 | `POST /api/fotos` (multipart, campo `archivo`) | autenticado | 201 con `{url,tipo,tamanoBytes}` · 400 (no es JPG/PNG por contenido, o pesa más de 5 MB) |

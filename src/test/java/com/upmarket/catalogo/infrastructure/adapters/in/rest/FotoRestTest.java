@@ -3,6 +3,8 @@ package com.upmarket.catalogo.infrastructure.adapters.in.rest;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -63,6 +65,33 @@ class FotoRestTest {
                 .andReturn();
         String url = JsonPath.read(r.getResponse().getContentAsString(), "$.url");
         mvc.perform(get(url)).andExpect(status().isOk()).andExpect(content().contentType("image/png"));
+    }
+
+    @Test
+    void alQuitarUnaFotoPropiaSeEliminaTrasGuardar() throws Exception {
+        var subida = mvc.perform(multipart("/api/fotos")
+                        .file(new MockMultipartFile("archivo", "a.png", "image/png", PNG))
+                        .header("Authorization", "Bearer " + token()))
+                .andExpect(status().isCreated()).andReturn();
+        String url = JsonPath.read(subida.getResponse().getContentAsString(), "$.url");
+        String foto = "{\"url\":\"" + url + "\",\"tipo\":\"image/png\",\"tamanoBytes\":12}";
+        String base = "\"titulo\":\"Libro usado\",\"descripcion\":\"En buen estado\",\"precio\":\"10000\","
+                + "\"estado\":\"USADO\",\"categoria\":\"Otros\"";
+        var creada = mvc.perform(post("/api/publicaciones").header("Authorization", "Bearer " + token())
+                        .contentType("application/json")
+                        .content("{" + base + ",\"fotos\":[" + foto + "],\"correo\":\"ana@example.com\"}"))
+                .andExpect(status().isCreated()).andReturn();
+        Number id = JsonPath.read(creada.getResponse().getContentAsString(), "$.id");
+        mvc.perform(put("/api/publicaciones/" + id).header("Authorization", "Bearer " + token())
+                        .contentType("application/json")
+                        .content("{\"titulo\":\"x\",\"descripcion\":\"En buen estado\",\"precio\":\"10000\","
+                                + "\"estado\":\"USADO\",\"categoria\":\"Otros\",\"fotos\":[]}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get(url)).andExpect(status().isOk());
+        mvc.perform(put("/api/publicaciones/" + id).header("Authorization", "Bearer " + token())
+                        .contentType("application/json").content("{" + base + ",\"fotos\":[]}"))
+                .andExpect(status().isOk());
+        mvc.perform(get(url)).andExpect(status().isNotFound());
     }
 
     @Test

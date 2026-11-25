@@ -68,7 +68,8 @@ public abstract class PublicacionRepositoryContractTest {
     @Test
     void actualizaYConservaFotosYContacto() {
         Publicacion g = repo().guardar(Datos.publicacion());
-        g.editar("Calculadora Casio", "Con funda", "45000", EstadoArticulo.NUEVO, Datos.categoria("Libros"));
+        g.editar("Calculadora Casio", "Con funda", "45000", EstadoArticulo.NUEVO, Datos.categoria("Libros"),
+                List.of(Datos.foto("n1"), Datos.foto("n2")));
         g.marcarVendida(Datos.AHORA.plus(Duration.ofDays(1)));
         repo().guardar(g);
         Publicacion r = repo().buscarPorId(g.getId()).orElseThrow();
@@ -77,7 +78,8 @@ public abstract class PublicacionRepositoryContractTest {
         assertEquals("Libros", r.getCategoria());
         assertEquals(EstadoPublicacion.VENDIDA, r.getEstado());
         assertEquals(Datos.AHORA.plus(Duration.ofDays(1)), r.getVendidaEn());
-        assertEquals(1, r.getFotos().size());
+        assertEquals(2, r.getFotos().size());
+        assertEquals("https://archivos.example/n1.jpg", r.getFotos().get(0).url());
         assertEquals("maria@correo.com", r.getContacto().correo());
     }
 

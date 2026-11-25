@@ -195,6 +195,39 @@ class UpmarketRestTest {
     }
 
     @Test
+    @DisplayName("Editar fotos: el autor las reemplaza, las conserva si no las envía y las quita con lista vacía")
+    void editarFotos() throws Exception {
+        long id = publicar("maria", unico("Silla "), "50000", "Otros");
+        String dos = "{\"titulo\":\"Silla de oficina\",\"descripcion\":\"Con ruedas\",\"precio\":\"45000\",\"estado\":\"USADO\",\"categoria\":\"Otros\","
+                + "\"fotos\":[{\"url\":\"https://archivos.example/n1.jpg\",\"tipo\":\"image/jpeg\",\"tamanoBytes\":1000},"
+                + "{\"url\":\"https://archivos.example/n2.png\",\"tipo\":\"image/png\",\"tamanoBytes\":2000}]}";
+        mvc.perform(con(put("/api/publicaciones/" + id), estudiante("maria"), dos))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fotos", hasSize(2)))
+                .andExpect(jsonPath("$.fotos[0].url").value("https://archivos.example/n1.jpg"));
+
+        String sinFotos = "{\"titulo\":\"Silla de oficina\",\"descripcion\":\"Con ruedas\",\"precio\":\"45000\",\"estado\":\"USADO\",\"categoria\":\"Otros\"}";
+        mvc.perform(con(put("/api/publicaciones/" + id), estudiante("maria"), sinFotos))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fotos", hasSize(2)));
+
+        String cero = "{\"titulo\":\"Silla de oficina\",\"descripcion\":\"Con ruedas\",\"precio\":\"45000\",\"estado\":\"USADO\",\"categoria\":\"Otros\",\"fotos\":[]}";
+        mvc.perform(con(put("/api/publicaciones/" + id), estudiante("maria"), cero))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fotos", hasSize(0)));
+
+        String seis = "{\"titulo\":\"Silla de oficina\",\"descripcion\":\"Con ruedas\",\"precio\":\"45000\",\"estado\":\"USADO\",\"categoria\":\"Otros\","
+                + "\"fotos\":[{\"url\":\"https://archivos.example/a.jpg\",\"tipo\":\"image/jpeg\",\"tamanoBytes\":1000},"
+                + "{\"url\":\"https://archivos.example/b.jpg\",\"tipo\":\"image/jpeg\",\"tamanoBytes\":1000},"
+                + "{\"url\":\"https://archivos.example/c.jpg\",\"tipo\":\"image/jpeg\",\"tamanoBytes\":1000},"
+                + "{\"url\":\"https://archivos.example/d.jpg\",\"tipo\":\"image/jpeg\",\"tamanoBytes\":1000},"
+                + "{\"url\":\"https://archivos.example/e.jpg\",\"tipo\":\"image/jpeg\",\"tamanoBytes\":1000},"
+                + "{\"url\":\"https://archivos.example/f.jpg\",\"tipo\":\"image/jpeg\",\"tamanoBytes\":1000}]}";
+        mvc.perform(con(put("/api/publicaciones/" + id), estudiante("maria"), seis))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     @DisplayName("La configuración de pagos por defecto es la pasarela simulada")
     void configuracionDePagosPorDefecto() throws Exception {
         mvc.perform(con(get("/api/pagos/config"), estudiante("ana"), null))

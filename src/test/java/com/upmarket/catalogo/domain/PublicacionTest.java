@@ -108,6 +108,25 @@ class PublicacionTest {
     }
 
     @Test
+    @DisplayName("Editar puede reemplazar o quitar las fotos y respeta el máximo")
+    void editarFotos() {
+        Publicacion p = Datos.publicacion();
+        p.editar("Calculadora Casio", "Con funda", "45000", EstadoArticulo.NUEVO, Datos.categoria("Útiles académicos"),
+                List.of(Datos.foto("nueva1"), Datos.foto("nueva2")));
+        assertEquals(2, p.getFotos().size());
+        assertEquals("https://archivos.example/nueva1.jpg", p.getFotos().get(0).url());
+
+        p.editar("Calculadora Casio", "Con funda", "45000", EstadoArticulo.NUEVO, Datos.categoria("Útiles académicos"),
+                List.of());
+        assertEquals(0, p.getFotos().size());
+
+        assertThrows(ValorInvalidoException.class, () -> p.editar("Calculadora Casio", "Con funda", "45000",
+                EstadoArticulo.NUEVO, Datos.categoria("Útiles académicos"),
+                java.util.Collections.nCopies(6, Datos.foto("x"))));
+    }
+
+
+    @Test
     @DisplayName("Vender: una sola vez; vendida no se edita ni se contacta")
     void vender() {
         Publicacion p = Datos.publicacion();
