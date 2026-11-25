@@ -335,6 +335,17 @@ input[readonly]{background:var(--surface-2);color:var(--text-muted);cursor:defau
 .zona-contacto:empty{display:none}
 .zona-resena{margin-top:12px}
 .zona-resena:empty{display:none}
+.interesados{margin-top:24px;padding-top:20px;border-top:1px solid var(--border)}
+.interesados > .meta{margin:0 0 12px}
+.interesados-lista__items{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.interesado{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius-control);background:var(--surface)}
+.interesado__datos{display:flex;flex-direction:column;gap:2px;min-width:0}
+.interesado__nombre{overflow-wrap:anywhere}
+.interesado__tel{font-variant-numeric:tabular-nums}
+.interesado__tel.sin-telefono{color:var(--text-muted);font-style:italic}
+.interesado__meta{font-size:13px;color:var(--text-muted)}
+.interesado .btn{white-space:nowrap}
+@media(max-width:520px){.interesado{align-items:stretch}.interesado .btn{width:100%}}
 .previas{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 .previas figure{margin:0;position:relative}
 .previas img{width:96px;height:96px;object-fit:contain;border-radius:var(--radius-control);border:1px solid var(--border)}

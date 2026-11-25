@@ -111,8 +111,10 @@ public class BeanConfig {
     @Bean
     PublicacionService publicacionService(PublicacionRepositoryPort publicaciones, CategoriaRepositoryPort categorias,
                                           TransaccionPort transaccion, Clock reloj, PoliticaAcceso acceso,
-                                          GestionFotosPort gestionFotos) {
-        return new PublicacionService(publicaciones, categorias, transaccion, reloj, acceso, gestionFotos);
+                                          GestionFotosPort gestionFotos, InteresRepositoryPort interesados,
+                                          PerfilContactoPort perfilesContacto) {
+        return new PublicacionService(publicaciones, categorias, transaccion, reloj, acceso, gestionFotos,
+                interesados, perfilesContacto);
     }
 
     @Bean

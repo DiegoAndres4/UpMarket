@@ -1812,7 +1812,13 @@ async function vistaDetalle(id) {
         h('p', { class: 'sin-fotos__nota' }, 'El vendedor no subió imágenes de este artículo.'));
 
   const zonaContacto = h('div', { class: 'zona-contacto' });
-  const btnContacto = disponible ? h('button', { class: 'btn', type: 'button', onclick: () => {
+  const listaInteresados = esMia ? h('div', { class: 'interesados-lista', role: 'status' },
+    h('p', { class: 'meta' }, 'Cargando personas interesadas…')) : null;
+  const zonaInteresados = esMia ? h('section', { class: 'interesados', 'aria-labelledby': 'titulo-interesados' },
+    h('h2', { class: 'detalle-sub', id: 'titulo-interesados' }, 'Personas interesadas'),
+    h('p', { class: 'meta' }, 'Aparecen aquí quienes pidieron tu contacto.'),
+    listaInteresados) : null;
+  const btnContacto = disponible && !esMia ? h('button', { class: 'btn', type: 'button', onclick: () => {
     conBotonCargando(btnContacto, 'Cargando…', async () => {
       try {
         const c = await api('GET', `/api/publicaciones/${id}/contacto`);
@@ -1864,6 +1870,41 @@ async function vistaDetalle(id) {
     esMia && p.estadoPago === 'APROBADO' ? accionesRecibo(id) : null,
     eliminar) : null;
 
+  async function cargarInteresados() {
+    try {
+      const personas = await api('GET', `/api/publicaciones/${id}/interesados`);
+      if (!personas.length) {
+        listaInteresados.replaceChildren(h('p', { class: 'meta' },
+          'Todavía no hay personas que hayan pedido tu contacto.'));
+        return;
+      }
+      listaInteresados.replaceChildren(h('ul', { class: 'interesados-lista__items' },
+        personas.map((persona) => {
+          const nombre = persona.nombre || 'Estudiante';
+          const telefono = persona.telefono ? '+57 ' + formatoCel(persona.telefono) : 'Sin celular registrado';
+          const mensaje = encodeURIComponent('Hola ' + nombre + ', vi que te interesó mi publicación «' +
+            p.titulo + '» en UPMarket.');
+          return h('li', { class: 'interesado' },
+            h('div', { class: 'interesado__datos' },
+              h('strong', { class: 'interesado__nombre' }, nombre),
+              h('span', { class: 'interesado__tel' + (persona.telefono ? '' : ' sin-telefono') }, telefono),
+              h('span', { class: 'interesado__meta' },
+                'Última solicitud: ' + fecha(persona.ultimaVez) +
+                (persona.veces > 1 ? ' · ' + persona.veces + ' solicitudes' : ' · 1 solicitud'))),
+            persona.telefono
+              ? h('a', {
+                  class: 'btn sec',
+                  href: enlaceWhatsApp(persona.telefono) + '?text=' + mensaje,
+                  target: '_blank', rel: 'noopener',
+                }, 'Contactar')
+              : null);
+        })));
+    } catch (e) {
+      listaInteresados.replaceChildren(h('p', { class: 'meta' },
+        'No se pudieron cargar las personas interesadas.'));
+    }
+  }
+
   montar(
     h('a', { class: 'volver', href: '#/' }, '← Volver al catálogo'),
     h('header', { class: 'detalle-cab' },
@@ -1881,7 +1922,9 @@ async function vistaDetalle(id) {
         h('div', { class: 'vendedor' }, avatarVendedor,
           h('div', {}, h('strong', {}, nombreVendedor), resumenVendedor,
             h('div', { class: 'meta' }, 'Publicado el ' + fecha(p.publicadaEn)))),
-        btnContacto, zonaContacto, zonaResena, estadoVendido, notaPago, acciones)));
+        btnContacto, zonaContacto, zonaInteresados, zonaResena, estadoVendido, notaPago, acciones)));
+
+  if (esMia) cargarInteresados();
 }
 
 /* ---------- reseñas del vendedor ---------- */
@@ -2634,7 +2677,7 @@ async function vistaPerfil() {
       h('section', { class: 'ajustes-seccion' },
         h('div', { class: 'ajustes-info' },
           h('h2', {}, 'Perfil público'),
-          h('p', {}, 'Tu nombre y tu foto aparecen en cada publicación. El celular solo lo ven quienes piden tu contacto.'),
+          h('p', {}, 'Tu nombre y tu foto aparecen en cada publicación. Si pides el contacto de un vendedor, él también verá tu celular para responderte.'),
           h('div', { class: 'perfil-previa' },
             h('p', { class: 'perfil-previa-titulo' }, 'Así te ven los demás'),
             h('div', { class: 'vendedor' }, previaFoto, h('div', {}, previaNombre, previaTel)))),
@@ -2663,7 +2706,7 @@ async function vistaPerfil() {
           h('input', { id: 'pc', value: s.usuario, readonly: true, 'aria-readonly': 'true', 'aria-describedby': 'ayuda-correo' }),
           h('p', { class: 'ayuda', id: 'ayuda-correo' }, 'Es tu usuario en UPMarket; no se puede cambiar aquí.'),
           h('label', { for: 'pt' }, 'Celular ', h('small', {}, '(opcional)')), telC.caja,
-          h('p', { class: 'ayuda', id: 'ayuda-cel' }, 'Solo se muestra a quien pida tu contacto en una publicación.'),
+          h('p', { class: 'ayuda', id: 'ayuda-cel' }, 'Se muestra al vendedor cuando pides su contacto en una publicación.'),
           error,
           h('div', { class: 'acciones', style: 'justify-content:flex-end' }, guardar))),
       h('section', { class: 'ajustes-seccion' },

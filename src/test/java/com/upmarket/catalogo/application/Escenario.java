@@ -1,8 +1,10 @@
 package com.upmarket.catalogo.application;
 
 import com.upmarket.catalogo.application.port.in.command.*;
+import com.upmarket.catalogo.application.port.out.GestionFotosPort;
 import com.upmarket.catalogo.application.service.*;
 import com.upmarket.catalogo.domain.model.Actor;
+import com.upmarket.catalogo.domain.model.Foto;
 import com.upmarket.catalogo.domain.model.Pago;
 import com.upmarket.catalogo.domain.model.Publicacion;
 import com.upmarket.catalogo.domain.service.PoliticaAcceso;
@@ -25,8 +27,18 @@ final class Escenario {
     final PasarelaPagoSimulada pasarela = new PasarelaPagoSimulada();
     final PasarelaPaypalFalsa paypal = new PasarelaPaypalFalsa();
 
+    final InteresRepositoryEnMemoria interesados = new InteresRepositoryEnMemoria();
+    final PerfilContactoEnMemoria perfilesContacto = new PerfilContactoEnMemoria();
+    final GestionFotosPort gestionFotosNula = new GestionFotosPort() {
+        @Override
+        public void verificar(Actor actor, List<Foto> fotos, List<Foto> anteriores) { }
+        @Override
+        public void retirar(Actor actor, List<Foto> anteriores, List<Foto> actuales) { }
+    };
+
     final CategoriaService categoriaService = new CategoriaService(categorias, publicaciones, tx, acceso);
-    final PublicacionService publicacionService = new PublicacionService(publicaciones, categorias, tx, reloj, acceso);
+    final PublicacionService publicacionService = new PublicacionService(publicaciones, categorias, tx, reloj, acceso,
+            gestionFotosNula, interesados, perfilesContacto);
     final PagoService pagoService = new PagoService(pagos, publicaciones, pasarela, paypal, tx, reloj, acceso,
             3000, "simulado", "", new BigDecimal("0.75"), true);
     final PagoService pagoServicePaypal = new PagoService(pagos, publicaciones, pasarela, paypal, tx, reloj, acceso,

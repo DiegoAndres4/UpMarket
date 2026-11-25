@@ -1,5 +1,7 @@
 package com.upmarket.catalogo.infrastructure.adapters.in.rest;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.upmarket.catalogo.application.port.in.InteresadoVista;
 import com.upmarket.catalogo.application.port.in.PagoUseCase;
 import com.upmarket.catalogo.application.port.in.PublicacionUseCase;
 import com.upmarket.catalogo.application.port.in.admin.ContenidoDocumento;
@@ -8,6 +10,7 @@ import com.upmarket.catalogo.application.port.in.command.*;
 import com.upmarket.catalogo.infrastructure.adapters.in.rest.dto.*;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.List;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -77,10 +80,26 @@ public class PublicacionController {
         return ContactoResponse.de(publicaciones.contacto(ActorActual.obtener(), id));
     }
 
+    /** Personas que pidieron el contacto. Solo el autor de la publicación. */
+    @GetMapping("/{id}/interesados")
+    public List<InteresadoResponse> interesados(@PathVariable long id) {
+        return publicaciones.interesados(ActorActual.obtener(), id).stream()
+                .map(InteresadoResponse::de)
+                .toList();
+    }
+
     /** Cobro simulado de la tarifa de publicación. Solo el autor puede pagar su propia publicación. */
     @PostMapping("/{id}/pago")
     public PagoResponse pagar(@PathVariable long id) {
         return PagoResponse.de(pagos.pagar(ActorActual.obtener(), id));
+    }
+
+    public record InteresadoResponse(String nombre,
+                                      @JsonInclude(JsonInclude.Include.NON_NULL) String telefono,
+                                      int veces, Instant ultimaVez) {
+        static InteresadoResponse de(InteresadoVista vista) {
+            return new InteresadoResponse(vista.nombre(), vista.telefono(), vista.veces(), vista.ultimaVez());
+        }
     }
 
     public record OrdenPaypalResponse(String orderId) { }

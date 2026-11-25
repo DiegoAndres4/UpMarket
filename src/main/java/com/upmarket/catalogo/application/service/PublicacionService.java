@@ -1,5 +1,6 @@
 package com.upmarket.catalogo.application.service;
 
+import com.upmarket.catalogo.application.port.in.InteresadoVista;
 import com.upmarket.catalogo.application.port.in.PublicacionUseCase;
 import com.upmarket.catalogo.application.port.in.command.*;
 import com.upmarket.catalogo.application.port.out.*;
@@ -11,6 +12,7 @@ import com.upmarket.catalogo.domain.service.PoliticaAcceso;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Casos de uso de publicaciones. Orden en cada operación: datos obligatorios (400) -> existencia (404)
@@ -24,23 +26,21 @@ public class PublicacionService implements PublicacionUseCase {
     private final Clock reloj;
     private final PoliticaAcceso acceso;
     private final GestionFotosPort gestionFotos;
+    private final InteresRepositoryPort interesadosRepo;
+    private final PerfilContactoPort perfilesContacto;
 
     public PublicacionService(PublicacionRepositoryPort publicaciones, CategoriaRepositoryPort categorias,
-                              TransaccionPort transaccion, Clock reloj, PoliticaAcceso acceso) {
-        this(publicaciones, categorias, transaccion, reloj, acceso, new GestionFotosPort() {
-            public void verificar(Actor actor, List<Foto> fotos, List<Foto> anteriores) { }
-            public void retirar(Actor actor, List<Foto> anteriores, List<Foto> actuales) { }
-        });
-    }
-
-    public PublicacionService(PublicacionRepositoryPort publicaciones, CategoriaRepositoryPort categorias,
-                              TransaccionPort transaccion, Clock reloj, PoliticaAcceso acceso, GestionFotosPort gestionFotos) {
+                              TransaccionPort transaccion, Clock reloj, PoliticaAcceso acceso,
+                              GestionFotosPort gestionFotos, InteresRepositoryPort interesados,
+                              PerfilContactoPort perfilesContacto) {
         this.publicaciones = publicaciones;
         this.categorias = categorias;
         this.transaccion = transaccion;
         this.reloj = reloj;
         this.acceso = acceso;
         this.gestionFotos = gestionFotos;
+        this.interesadosRepo = interesados;
+        this.perfilesContacto = perfilesContacto;
     }
 
     @Override
@@ -90,7 +90,27 @@ public class PublicacionService implements PublicacionUseCase {
 
     @Override
     public Contacto contacto(Actor actor, long id) {
-        return cargarVisible(actor, id).contactoDisponible();
+        Publicacion p = cargarVisible(actor, id);
+        Contacto contacto = p.contactoDisponible();
+        if (!acceso.esAutor(p, actor) && !actor.esAdmin()) {
+            interesadosRepo.registrar(id, actor.username(), reloj.instant());
+        }
+        return contacto;
+    }
+
+    @Override
+    public List<InteresadoVista> interesados(Actor actor, long id) {
+        return transaccion.ejecutar(() -> {
+            Publicacion p = cargarNoArchivada(id);
+            acceso.asegurarEsAutor(p, actor);
+            List<Interesado> lista = interesadosRepo.listar(id);
+            Map<String, ContactoPerfil> contactos = perfilesContacto.contactos(
+                    lista.stream().map(Interesado::usuario).distinct().toList());
+            return lista.stream().map(i -> {
+                ContactoPerfil c = contactos.getOrDefault(i.usuario(), new ContactoPerfil(i.usuario(), null));
+                return new InteresadoVista(c.nombre(), c.telefono(), i.veces(), i.ultimaVez());
+            }).toList();
+        });
     }
 
     @Override
@@ -133,6 +153,7 @@ public class PublicacionService implements PublicacionUseCase {
         transaccion.ejecutar(() -> {
             Publicacion p = cargarNoArchivada(id);
             acceso.asegurarPuedeEliminar(p, actor);
+            interesadosRepo.eliminarPorPublicacion(id);
             publicaciones.eliminar(id);
             return null;
         });

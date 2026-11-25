@@ -18,6 +18,9 @@ public interface PublicacionUseCase {
     /** «Contactar al vendedor»: entrega el contacto de una publicación disponible. */
     Contacto contacto(Actor actor, long id);
 
+    /** Personas que pidieron el contacto de una publicación. Solo el autor puede verlas. */
+    List<InteresadoVista> interesados(Actor actor, long id);
+
     /** Todas las del usuario, vendidas incluidas, de la más reciente a la más antigua. */
     List<Publicacion> mias(Actor actor);
 
