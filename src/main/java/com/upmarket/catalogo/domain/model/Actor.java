@@ -7,7 +7,9 @@ import java.util.Locale;
 import java.util.Set;
 
 /** Quien llama: su nombre de usuario y sus roles, tal como vienen del JWT de AuthCore. */
-public record Actor(String username, Set<Rol> roles) {
+public record Actor(String username, Set<Rol> roles, Long uid) {
+
+    public Actor(String username, Set<Rol> roles) { this(username, roles, null); }
 
     public Actor {
         if (username == null || username.isBlank()) {
@@ -18,6 +20,10 @@ public record Actor(String username, Set<Rol> roles) {
 
     /** Acepta «ADMIN» o «ROLE_ADMIN»; ignora roles que este servicio no conoce. */
     public static Actor de(String username, Collection<String> nombresRol) {
+        return de(username, nombresRol, null);
+    }
+
+    public static Actor de(String username, Collection<String> nombresRol, Long uid) {
         Set<Rol> roles = EnumSet.noneOf(Rol.class);
         for (String n : nombresRol) {
             String limpio = n.trim().toUpperCase(Locale.ROOT);
@@ -26,7 +32,7 @@ public record Actor(String username, Set<Rol> roles) {
                 if (r.name().equals(limpio)) roles.add(r);
             }
         }
-        return new Actor(username.trim(), roles);
+        return new Actor(username.trim(), roles, uid);
     }
 
     public boolean esAdmin() { return roles.contains(Rol.ADMIN); }

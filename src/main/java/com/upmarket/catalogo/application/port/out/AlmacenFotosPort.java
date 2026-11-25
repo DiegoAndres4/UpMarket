@@ -30,4 +30,7 @@ public interface AlmacenFotosPort {
      * cambiar la foto de perfil ni eliminar una cuenta.
      */
     void borrar(String url);
+
+    /** Informa si el proveedor confirmó la eliminación o que el archivo no existía. */
+    default boolean borrarConResultado(String url) { borrar(url); return true; }
 }

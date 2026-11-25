@@ -171,6 +171,51 @@ class UpmarketRestTest {
     }
 
     @Test
+    @DisplayName("Interesados: solo el autor ve nombre y celular de quien pidió contacto; se deduplica; autor y ADMIN no cuentan")
+    void interesados() throws Exception {
+        String vendedor = unico("vendedora");
+        long id = publicar(vendedor, unico("Bicicleta "), "300000", "Otros");
+        String comprador = unico("comprador");
+        mvc.perform(con(put("/api/perfil"), estudiante(comprador),
+                        "{\"nombre\":\"Comprador Uno\",\"telefono\":\"300 123 4567\",\"fotoUrl\":null}"))
+                .andExpect(status().isOk());
+        mvc.perform(con(get("/api/publicaciones/" + id + "/interesados"), estudiante("otro"), null))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(con(get("/api/publicaciones/" + id + "/contacto"), estudiante(comprador), null))
+                .andExpect(status().isOk());
+        mvc.perform(con(get("/api/publicaciones/" + id + "/interesados"), estudiante(vendedor), null))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].nombre").value("Comprador Uno"))
+                .andExpect(jsonPath("$[0].telefono").value("3001234567"))
+                .andExpect(jsonPath("$[0].veces").value(1))
+                .andExpect(jsonPath("$[0].usuario").doesNotExist());
+
+        mvc.perform(con(get("/api/publicaciones/" + id + "/contacto"), estudiante(comprador), null))
+                .andExpect(status().isOk());
+        mvc.perform(con(get("/api/publicaciones/" + id + "/interesados"), estudiante(vendedor), null))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].veces").value(2));
+
+        mvc.perform(con(get("/api/publicaciones/" + id + "/contacto"), estudiante(vendedor), null))
+                .andExpect(status().isOk());
+        mvc.perform(con(get("/api/publicaciones/" + id + "/contacto"), admin(), null))
+                .andExpect(status().isOk());
+        mvc.perform(con(get("/api/publicaciones/" + id + "/interesados"), estudiante(vendedor), null))
+                .andExpect(jsonPath("$", hasSize(1)));
+
+        String sinTelefono = unico("sintelefono");
+        long otra = publicar(vendedor, unico("Libro "), "1000", "Otros");
+        mvc.perform(con(get("/api/publicaciones/" + otra + "/contacto"), estudiante(sinTelefono), null))
+                .andExpect(status().isOk());
+        mvc.perform(con(get("/api/publicaciones/" + otra + "/interesados"), estudiante(vendedor), null))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].nombre").value(sinTelefono))
+                .andExpect(jsonPath("$[0].telefono").doesNotExist());
+    }
+
+    @Test
     @DisplayName("Editar y vender: solo el autor (403 al ADMIN); eliminar: el autor o el ADMIN; 404 antes que 403; vendida no se edita (409)")
     void gestionDelAutor() throws Exception {
         long id = publicar("maria", unico("Mesa "), "120000", "Otros");
@@ -192,6 +237,39 @@ class UpmarketRestTest {
         mvc.perform(con(delete("/api/publicaciones/" + id), estudiante("maria"), null)).andExpect(status().isNoContent());
         mvc.perform(con(get("/api/publicaciones/" + id), estudiante("maria"), null)).andExpect(status().isNotFound());
         mvc.perform(con(delete("/api/publicaciones/" + id), estudiante("maria"), null)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("Editar fotos: el autor las reemplaza, las conserva si no las envía y las quita con lista vacía")
+    void editarFotos() throws Exception {
+        long id = publicar("maria", unico("Silla "), "50000", "Otros");
+        String dos = "{\"titulo\":\"Silla de oficina\",\"descripcion\":\"Con ruedas\",\"precio\":\"45000\",\"estado\":\"USADO\",\"categoria\":\"Otros\","
+                + "\"fotos\":[{\"url\":\"https://archivos.example/n1.jpg\",\"tipo\":\"image/jpeg\",\"tamanoBytes\":1000},"
+                + "{\"url\":\"https://archivos.example/n2.png\",\"tipo\":\"image/png\",\"tamanoBytes\":2000}]}";
+        mvc.perform(con(put("/api/publicaciones/" + id), estudiante("maria"), dos))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fotos", hasSize(2)))
+                .andExpect(jsonPath("$.fotos[0].url").value("https://archivos.example/n1.jpg"));
+
+        String sinFotos = "{\"titulo\":\"Silla de oficina\",\"descripcion\":\"Con ruedas\",\"precio\":\"45000\",\"estado\":\"USADO\",\"categoria\":\"Otros\"}";
+        mvc.perform(con(put("/api/publicaciones/" + id), estudiante("maria"), sinFotos))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fotos", hasSize(2)));
+
+        String cero = "{\"titulo\":\"Silla de oficina\",\"descripcion\":\"Con ruedas\",\"precio\":\"45000\",\"estado\":\"USADO\",\"categoria\":\"Otros\",\"fotos\":[]}";
+        mvc.perform(con(put("/api/publicaciones/" + id), estudiante("maria"), cero))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fotos", hasSize(0)));
+
+        String seis = "{\"titulo\":\"Silla de oficina\",\"descripcion\":\"Con ruedas\",\"precio\":\"45000\",\"estado\":\"USADO\",\"categoria\":\"Otros\","
+                + "\"fotos\":[{\"url\":\"https://archivos.example/a.jpg\",\"tipo\":\"image/jpeg\",\"tamanoBytes\":1000},"
+                + "{\"url\":\"https://archivos.example/b.jpg\",\"tipo\":\"image/jpeg\",\"tamanoBytes\":1000},"
+                + "{\"url\":\"https://archivos.example/c.jpg\",\"tipo\":\"image/jpeg\",\"tamanoBytes\":1000},"
+                + "{\"url\":\"https://archivos.example/d.jpg\",\"tipo\":\"image/jpeg\",\"tamanoBytes\":1000},"
+                + "{\"url\":\"https://archivos.example/e.jpg\",\"tipo\":\"image/jpeg\",\"tamanoBytes\":1000},"
+                + "{\"url\":\"https://archivos.example/f.jpg\",\"tipo\":\"image/jpeg\",\"tamanoBytes\":1000}]}";
+        mvc.perform(con(put("/api/publicaciones/" + id), estudiante("maria"), seis))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

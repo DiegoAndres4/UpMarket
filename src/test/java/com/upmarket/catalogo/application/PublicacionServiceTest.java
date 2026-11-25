@@ -2,6 +2,7 @@ package com.upmarket.catalogo.application;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.upmarket.catalogo.application.port.in.InteresadoVista;
 import com.upmarket.catalogo.application.port.in.command.*;
 import com.upmarket.catalogo.domain.exception.*;
 import com.upmarket.catalogo.domain.model.*;
@@ -157,6 +158,67 @@ class PublicacionServiceTest {
         assertThrows(EstadoInvalidoException.class, () -> e.publicacionService.contacto(Datos.estudiante("maria"), p.getId()));
     }
 
+    @Test
+    @DisplayName("Pedir contacto registra a la persona; el autor ve nombre y celular; no se duplica; autor y ADMIN no cuentan")
+    void interesadosSeRegistranAlPedirContacto() {
+        Publicacion p = e.publicar("maria", "Calculadora", "Casio fx-991 casi nueva", "50000", "Tecnología");
+        e.perfilesContacto.registrar("jose", "José Pérez", "3001234567");
+
+        e.publicacionService.contacto(Datos.estudiante("jose"), p.getId());
+        List<InteresadoVista> lista = e.publicacionService.interesados(Datos.estudiante("maria"), p.getId());
+
+        assertEquals(1, lista.size());
+        assertEquals("José Pérez", lista.get(0).nombre());
+        assertEquals("3001234567", lista.get(0).telefono());
+        assertEquals(1, lista.get(0).veces());
+        assertEquals(Datos.AHORA, lista.get(0).ultimaVez());
+
+        e.pasar(Duration.ofMinutes(3));
+        e.publicacionService.contacto(Datos.estudiante("jose"), p.getId());
+        lista = e.publicacionService.interesados(Datos.estudiante("maria"), p.getId());
+
+        assertEquals(1, lista.size());
+        assertEquals(2, lista.get(0).veces());
+        assertEquals(Datos.AHORA.plus(Duration.ofMinutes(3)), lista.get(0).ultimaVez());
+
+        e.publicacionService.contacto(Datos.estudiante("maria"), p.getId());
+        e.publicacionService.contacto(e.admin(), p.getId());
+        assertEquals(1, e.publicacionService.interesados(Datos.estudiante("maria"), p.getId()).size());
+    }
+
+    @Test
+    @DisplayName("La lista es solo del autor; sin perfil usa el nombre por defecto y teléfono nulo; al eliminar se limpia")
+    void interesadosSoloDelAutorYSinPerfil() {
+        Publicacion p = e.publicar("maria", "Calculadora", "Casio fx-991 casi nueva", "50000", "Tecnología");
+        e.publicacionService.contacto(Datos.estudiante("jose"), p.getId());
+
+        List<InteresadoVista> lista = e.publicacionService.interesados(Datos.estudiante("maria"), p.getId());
+        assertEquals(1, lista.size());
+        assertEquals("jose", lista.get(0).nombre());
+        assertNull(lista.get(0).telefono());
+
+        assertThrows(AccesoDenegadoException.class,
+                () -> e.publicacionService.interesados(Datos.estudiante("jose"), p.getId()));
+        assertThrows(AccesoDenegadoException.class,
+                () -> e.publicacionService.interesados(e.admin(), p.getId()));
+        assertThrows(PublicacionNoEncontradaException.class,
+                () -> e.publicacionService.interesados(Datos.estudiante("maria"), 999));
+
+        e.publicacionService.eliminar(Datos.estudiante("maria"), p.getId());
+        assertEquals(0, e.interesados.total(p.getId()));
+    }
+
+    @Test
+    @DisplayName("Una publicación vendida no registra interés")
+    void vendidaNoRegistraInteres() {
+        Publicacion p = e.publicar("maria", "Calculadora", "Casio fx-991 casi nueva", "50000", "Tecnología");
+        e.publicacionService.marcarVendida(Datos.estudiante("maria"), p.getId());
+
+        assertThrows(EstadoInvalidoException.class,
+                () -> e.publicacionService.contacto(Datos.estudiante("jose"), p.getId()));
+        assertEquals(0, e.interesados.total(p.getId()));
+    }
+
     // ---- HU-12 ----
 
     @Test
@@ -169,6 +231,34 @@ class PublicacionServiceTest {
         assertEquals(new BigDecimal("45000.00"), r.getPrecio());
         assertEquals("Útiles académicos", r.getCategoria());
         assertEquals(1, e.publicacionService.buscar(new BuscarQuery("funda", null, null, null, null)).size());
+    }
+
+    @Test
+    @DisplayName("El autor reemplaza, conserva o quita las fotos al editar")
+    void editarFotos() {
+        Publicacion p = e.publicar("maria", "Calculadora", "Casio fx-991 casi nueva", "50000", "Tecnología");
+        assertEquals(1, p.getFotos().size());
+
+        var dos = List.of(
+                new FotoComando("https://archivos.example/n1.jpg", "image/jpeg", 1000),
+                new FotoComando("https://archivos.example/n2.png", "image/png", 2000));
+        Publicacion r = e.publicacionService.editar(Datos.estudiante("maria"),
+                new EditarPublicacionCommand(p.getId(), "Calculadora", "Con funda y manual", "45000", "usado", "Tecnología", dos));
+        assertEquals(2, r.getFotos().size());
+        assertEquals("https://archivos.example/n1.jpg", r.getFotos().get(0).url());
+        assertEquals(2, e.publicacionService.detalle(Datos.estudiante("maria"), p.getId()).getFotos().size());
+
+        Publicacion igual = e.publicacionService.editar(Datos.estudiante("maria"),
+                new EditarPublicacionCommand(p.getId(), "Calculadora", "Con funda y manual", "45000", "usado", "Tecnología"));
+        assertEquals(2, igual.getFotos().size());
+
+        Publicacion sin = e.publicacionService.editar(Datos.estudiante("maria"),
+                new EditarPublicacionCommand(p.getId(), "Calculadora", "Con funda y manual", "45000", "usado", "Tecnología", List.of()));
+        assertEquals(0, sin.getFotos().size());
+
+        assertThrows(ValorInvalidoException.class, () -> e.publicacionService.editar(Datos.estudiante("maria"),
+                new EditarPublicacionCommand(p.getId(), "Calculadora", "Con funda y manual", "45000", "usado", "Tecnología",
+                        java.util.Collections.nCopies(6, new FotoComando("https://archivos.example/x.jpg", "image/jpeg", 1000)))));
     }
 
     @Test

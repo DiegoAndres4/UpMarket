@@ -1812,6 +1812,12 @@ async function vistaDetalle(id) {
         h('p', { class: 'sin-fotos__nota' }, 'El vendedor no subió imágenes de este artículo.'));
 
   const zonaContacto = h('div', { class: 'zona-contacto' });
+  const listaInteresados = esMia ? h('div', { class: 'interesados-lista', role: 'status' },
+    h('p', { class: 'meta' }, 'Cargando personas interesadas…')) : null;
+  const zonaInteresados = esMia ? h('section', { class: 'interesados', 'aria-labelledby': 'titulo-interesados' },
+    h('h2', { class: 'detalle-sub', id: 'titulo-interesados' }, 'Personas interesadas'),
+    h('p', { class: 'meta' }, 'Aparecen aquí quienes pidieron tu contacto.'),
+    listaInteresados) : null;
   const btnContacto = disponible ? h('button', { class: 'btn', type: 'button', onclick: () => {
     conBotonCargando(btnContacto, 'Cargando…', async () => {
       try {
@@ -1864,6 +1870,41 @@ async function vistaDetalle(id) {
     esMia && p.estadoPago === 'APROBADO' ? accionesRecibo(id) : null,
     eliminar) : null;
 
+  async function cargarInteresados() {
+    try {
+      const personas = await api('GET', `/api/publicaciones/${id}/interesados`);
+      if (!personas.length) {
+        listaInteresados.replaceChildren(h('p', { class: 'meta' },
+          'Todavía no hay personas que hayan pedido tu contacto.'));
+        return;
+      }
+      listaInteresados.replaceChildren(h('ul', { class: 'interesados-lista__items' },
+        personas.map((persona) => {
+          const nombre = persona.nombre || 'Estudiante';
+          const telefono = persona.telefono ? '+57 ' + formatoCel(persona.telefono) : 'Sin celular registrado';
+          const mensaje = encodeURIComponent('Hola ' + nombre + ', vi que te interesó mi publicación «' +
+            p.titulo + '» en UPMarket.');
+          return h('li', { class: 'interesado' },
+            h('div', { class: 'interesado__datos' },
+              h('strong', { class: 'interesado__nombre' }, nombre),
+              h('span', { class: 'interesado__tel' + (persona.telefono ? '' : ' sin-telefono') }, telefono),
+              h('span', { class: 'interesado__meta' },
+                'Última solicitud: ' + fecha(persona.ultimaVez) +
+                (persona.veces > 1 ? ' · ' + persona.veces + ' solicitudes' : ' · 1 solicitud'))),
+            persona.telefono
+              ? h('a', {
+                  class: 'btn sec',
+                  href: enlaceWhatsApp(persona.telefono) + '?text=' + mensaje,
+                  target: '_blank', rel: 'noopener',
+                }, 'Contactar')
+              : null);
+        })));
+    } catch (e) {
+      listaInteresados.replaceChildren(h('p', { class: 'meta' },
+        'No se pudieron cargar las personas interesadas.'));
+    }
+  }
+
   montar(
     h('a', { class: 'volver', href: '#/' }, '← Volver al catálogo'),
     h('header', { class: 'detalle-cab' },
@@ -1881,7 +1922,9 @@ async function vistaDetalle(id) {
         h('div', { class: 'vendedor' }, avatarVendedor,
           h('div', {}, h('strong', {}, nombreVendedor), resumenVendedor,
             h('div', { class: 'meta' }, 'Publicado el ' + fecha(p.publicadaEn)))),
-        btnContacto, zonaContacto, zonaResena, estadoVendido, notaPago, acciones)));
+        btnContacto, zonaContacto, zonaInteresados, zonaResena, estadoVendido, notaPago, acciones)));
+
+  if (esMia) cargarInteresados();
 }
 
 /* ---------- reseñas del vendedor ---------- */
@@ -2161,7 +2204,8 @@ async function vistaFormulario(id) {
   const [cats, actual] = await Promise.all([api('GET', '/api/categorias'), id ? api('GET', '/api/publicaciones/' + id) : null]);
   if (actual && actual.vendedor !== leerSesion().usuario) throw new Error('Solo el autor puede editar esta publicación');
   const sesion = leerSesion();
-  const fotos = [];
+  const fotos = (actual && actual.fotos ? actual.fotos : [])
+    .map(({ url, tipo, tamanoBytes }) => ({ url, tipo, tamanoBytes }));
   const titulo = h('input', { id: 't', required: true, minlength: 3, maxlength: 100, value: actual ? actual.titulo : '' });
   const desc = h('textarea', { id: 'd', required: true, minlength: 5, maxlength: 2000 }, actual ? actual.descripcion : '');
   const pr = h('input', { id: 'pr', type: 'number', inputmode: 'decimal', required: true, min: 1, max: '999999999.99', step: 'any', value: actual ? actual.precio : '' });
@@ -2203,6 +2247,7 @@ async function vistaFormulario(id) {
     }
   }
   function pintarPrevias() {
+    boton.disabled = subidas.length > 0;
     previas.replaceChildren(
       ...fotos.map((f, i) => h('figure', {}, h('img', { src: urlFoto(f.url), alt: 'Foto ' + (i + 1) }),
         h('button', { type: 'button', 'aria-label': 'Quitar foto ' + (i + 1), onclick: () => { fotos.splice(i, 1); pintarPrevias(); } }, iconoQuitar()))),
@@ -2282,7 +2327,7 @@ async function vistaFormulario(id) {
     const d = desc.value.trim();
     pvDesc.textContent = d || 'Aquí aparecerá la descripción que escribas.';
     pvDesc.classList.toggle('texto-vacio', !d);
-    const foto = fotos[0] || (actual && actual.fotos && actual.fotos[0]);
+    const foto = fotos[0];
     pvFoto.replaceChildren(foto
       ? h('img', { src: urlFoto(foto.url), alt: t ? 'Portada de ' + t : 'Foto de portada', loading: 'lazy' })
       : 'Sin fotos todavía');
@@ -2313,17 +2358,15 @@ async function vistaFormulario(id) {
     return svg;
   }
 
-  if (!actual) {
-    archivo = h('input', { id: 'f', type: 'file', accept: 'image/jpeg,image/png', multiple: true, class: 'subida__input',
-      onchange: async (ev) => { await subirArchivos(ev.target.files); ev.target.value = ''; } });
-    zona = h('label', { class: 'subida', for: 'f' }, archivo, iconoFoto(),
-      zonaTitulo = h('span', { class: 'subida__titulo' }, 'Arrastra tus fotos aquí o elige archivos'),
-      zonaAyuda = h('span', { class: 'subida__ayuda' }, 'JPG o PNG · máximo 5 MB cada una · hasta 5 fotos'));
-    zona.addEventListener('dragover', (ev) => { ev.preventDefault(); zona.classList.add('sobre'); });
-    zona.addEventListener('dragleave', () => zona.classList.remove('sobre'));
-    zona.addEventListener('drop', (ev) => { ev.preventDefault(); zona.classList.remove('sobre'); if (fotos.length < 5) subirArchivos(ev.dataTransfer.files); });
-    cuenta = h('p', { class: 'previas__cuenta', role: 'status' });
-  }
+  archivo = h('input', { id: 'f', type: 'file', accept: 'image/jpeg,image/png', multiple: true, class: 'subida__input',
+    onchange: async (ev) => { await subirArchivos(ev.target.files); ev.target.value = ''; } });
+  zona = h('label', { class: 'subida', for: 'f' }, archivo, iconoFoto(),
+    zonaTitulo = h('span', { class: 'subida__titulo' }, 'Arrastra tus fotos aquí o elige archivos'),
+    zonaAyuda = h('span', { class: 'subida__ayuda' }, 'JPG o PNG · máximo 5 MB cada una · hasta 5 fotos'));
+  zona.addEventListener('dragover', (ev) => { ev.preventDefault(); zona.classList.add('sobre'); });
+  zona.addEventListener('dragleave', () => zona.classList.remove('sobre'));
+  zona.addEventListener('drop', (ev) => { ev.preventDefault(); zona.classList.remove('sobre'); if (fotos.length < 5) subirArchivos(ev.dataTransfer.files); });
+  cuenta = h('p', { class: 'previas__cuenta', role: 'status' });
 
   const etiquetaBoton = actual ? 'Guardar cambios' : 'Publicar';
   const boton = h('button', { class: 'btn', type: 'submit' }, etiquetaBoton);
@@ -2344,6 +2387,7 @@ async function vistaFormulario(id) {
       if (campo) { campo.setAttribute('aria-invalid', 'true'); campo.setAttribute('aria-describedby', 'error-publicar'); }
       error.focus();
     };
+    if (subidas.length) return mostrar('Espera a que terminen de subir las fotos antes de guardar.');
     const base = { titulo: titulo.value.trim(), descripcion: desc.value.trim(), precio: pr.value, estado: est.value, categoria: cat.value };
     if (base.titulo.length < 3) return mostrar('El título debe tener al menos 3 caracteres', titulo);
     if (base.descripcion.length < 5) return mostrar('La descripción debe tener al menos 5 caracteres', desc);
@@ -2357,7 +2401,7 @@ async function vistaFormulario(id) {
     }
     const restaurar = cargandoEn(boton, actual ? 'Guardando…' : 'Publicando…');
     try {
-      if (actual) { await api('PUT', '/api/publicaciones/' + id, base); aviso('Cambios guardados'); location.hash = '#/p/' + id; }
+      if (actual) { await api('PUT', '/api/publicaciones/' + id, { ...base, fotos }); aviso('Cambios guardados'); location.hash = '#/p/' + id; }
       else {
         const nueva = await api('POST', '/api/publicaciones', { ...base, fotos,
           whatsapp: usarTel.checked ? telParaApi(tel.value) : null, correo: usarMail.checked ? mail.value.trim() : null });
@@ -2378,13 +2422,17 @@ async function vistaFormulario(id) {
       h('div', {}, h('label', { for: 'pr' }, 'Precio (COP) ', req()), pr, h('p', { class: 'ayuda' }, 'Hasta $999.999.999,99')),
       h('div', {}, h('label', { for: 'e' }, 'Estado del artículo'), est),
       h('div', {}, h('label', { for: 'c' }, 'Categoría ', req()), cat)),
-    actual ? h('p', { class: 'publicar__nota' }, 'Las fotos y el contacto no se editan: para cambiarlos, elimina y vuelve a publicar.') : [
-      h('h2', {}, 'Fotos'),
-      h('p', { class: 'publicar__nota' }, 'Opcional. La primera foto se usa como portada en el catálogo.'),
-      zona, previas, cuenta,
-      h('h2', {}, 'Contacto'),
-      h('p', { class: 'ayuda' }, 'Elige una o las dos formas. Solo se muestran a quien pida tu contacto mientras el artículo esté disponible.'),
-      h('fieldset', { class: 'contacto-opciones' }, h('legend', { class: 'sr-only' }, 'Medios de contacto'), opTel, opMail)],
+    h('h2', {}, 'Fotos'),
+    h('p', { class: 'publicar__nota' }, actual
+      ? 'Puedes agregar o quitar fotos. La primera se usa como portada en el catálogo.'
+      : 'Opcional. La primera foto se usa como portada en el catálogo.'),
+    zona, previas, cuenta,
+    actual
+      ? h('p', { class: 'publicar__nota' }, 'El contacto no se edita desde aquí.')
+      : [
+        h('h2', {}, 'Contacto'),
+        h('p', { class: 'ayuda' }, 'Elige una o las dos formas. Solo se muestran a quien pida tu contacto mientras el artículo esté disponible.'),
+        h('fieldset', { class: 'contacto-opciones' }, h('legend', { class: 'sr-only' }, 'Medios de contacto'), opTel, opMail)],
     error,
     acciones);
 
@@ -2629,7 +2677,7 @@ async function vistaPerfil() {
       h('section', { class: 'ajustes-seccion' },
         h('div', { class: 'ajustes-info' },
           h('h2', {}, 'Perfil público'),
-          h('p', {}, 'Tu nombre y tu foto aparecen en cada publicación. El celular solo lo ven quienes piden tu contacto.'),
+          h('p', {}, 'Tu nombre y tu foto aparecen en cada publicación. Si pides el contacto de un vendedor, él también verá tu celular para responderte.'),
           h('div', { class: 'perfil-previa' },
             h('p', { class: 'perfil-previa-titulo' }, 'Así te ven los demás'),
             h('div', { class: 'vendedor' }, previaFoto, h('div', {}, previaNombre, previaTel)))),
@@ -2658,7 +2706,7 @@ async function vistaPerfil() {
           h('input', { id: 'pc', value: s.usuario, readonly: true, 'aria-readonly': 'true', 'aria-describedby': 'ayuda-correo' }),
           h('p', { class: 'ayuda', id: 'ayuda-correo' }, 'Es tu usuario en UPMarket; no se puede cambiar aquí.'),
           h('label', { for: 'pt' }, 'Celular ', h('small', {}, '(opcional)')), telC.caja,
-          h('p', { class: 'ayuda', id: 'ayuda-cel' }, 'Solo se muestra a quien pida tu contacto en una publicación.'),
+          h('p', { class: 'ayuda', id: 'ayuda-cel' }, 'Se muestra al vendedor cuando pides su contacto en una publicación.'),
           error,
           h('div', { class: 'acciones', style: 'justify-content:flex-end' }, guardar))),
       h('section', { class: 'ajustes-seccion' },

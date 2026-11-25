@@ -109,8 +109,17 @@ public class Publicacion {
         }
     }
 
-    /** Cambia los datos editables. Una publicación vendida ya no se edita. */
+    /** Cambia los datos editables sin tocar las fotos. Una publicación vendida ya no se edita. */
     public void editar(String titulo, String descripcion, String precio, EstadoArticulo estadoArticulo, Categoria categoria) {
+        editar(titulo, descripcion, precio, estadoArticulo, categoria, null);
+    }
+
+    /**
+     * Cambia los datos editables. {@code fotos} null conserva las actuales; una lista vacía las quita todas.
+     * Una publicación vendida ya no se edita.
+     */
+    public void editar(String titulo, String descripcion, String precio, EstadoArticulo estadoArticulo,
+                       Categoria categoria, List<Foto> fotos) {
         if (estado == EstadoPublicacion.VENDIDA) {
             throw new EstadoInvalidoException("La publicación " + id + " ya fue vendida y no se puede editar");
         }
@@ -119,6 +128,13 @@ public class Publicacion {
             throw new ValorInvalidoException("Estado y categoría son obligatorios");
         }
         BigDecimal nuevoPrecio = Precio.de(precio);
+        if (fotos != null) {
+            if (fotos.size() > Foto.MAXIMO_POR_PUBLICACION || fotos.stream().anyMatch(f -> f == null)) {
+                throw new ValorInvalidoException(Foto.mensajeDeLimites());
+            }
+            this.fotos.clear();
+            this.fotos.addAll(fotos);
+        }
         this.titulo = titulo.trim();
         this.descripcion = descripcion.trim();
         this.precio = nuevoPrecio;

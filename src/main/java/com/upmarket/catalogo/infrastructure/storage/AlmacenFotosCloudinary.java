@@ -44,14 +44,20 @@ public class AlmacenFotosCloudinary implements AlmacenFotosPort {
 
     @Override
     public void borrar(String url) {
+        borrarConResultado(url);
+    }
+
+    @Override
+    public boolean borrarConResultado(String url) {
         String idPublico = idPublico(url);
         if (idPublico == null) {
-            return;
+            return false;
         }
         try {
-            cloudinary.uploader().destroy(idPublico, Map.of());
+            Object resultado = cloudinary.uploader().destroy(idPublico, Map.of("invalidate", true)).get("result");
+            return "ok".equals(resultado) || "not found".equals(resultado);
         } catch (IOException | RuntimeException e) {
-            // borrar una foto es best-effort: no debe impedir cambiar la foto ni eliminar la cuenta
+            return false;
         }
     }
 

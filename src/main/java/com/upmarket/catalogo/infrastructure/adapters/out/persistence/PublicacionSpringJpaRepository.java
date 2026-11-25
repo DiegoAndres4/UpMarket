@@ -15,6 +15,10 @@ import org.springframework.data.repository.query.Param;
 
 public interface PublicacionSpringJpaRepository extends JpaRepository<PublicacionJpaEntity, Long> {
 
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query("select p.id from PublicacionJpaEntity p join p.fotos f where f.url = :url")
+    List<Long> referenciasFotoParaActualizar(@Param("url") String url);
+
     @Query("""
             SELECT p FROM PublicacionJpaEntity p
             WHERE (:patronTexto IS NULL OR p.textoBusqueda LIKE :patronTexto ESCAPE '\\')

@@ -1,0 +1,8 @@
+services:
+  domain:
+    environment:
+      SPRING_PROFILES_ACTIVE: prod,demo
+      UPMARKET_SEED_ENABLED: "true"
+  authcore:
+    environment:
+      MANAGEMENT_HEALTH_MAIL_ENABLED: "false"

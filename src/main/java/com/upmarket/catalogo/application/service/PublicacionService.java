@@ -1,5 +1,6 @@
 package com.upmarket.catalogo.application.service;
 
+import com.upmarket.catalogo.application.port.in.InteresadoVista;
 import com.upmarket.catalogo.application.port.in.PublicacionUseCase;
 import com.upmarket.catalogo.application.port.in.command.*;
 import com.upmarket.catalogo.application.port.out.*;
@@ -11,6 +12,7 @@ import com.upmarket.catalogo.domain.service.PoliticaAcceso;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Casos de uso de publicaciones. Orden en cada operación: datos obligatorios (400) -> existencia (404)
@@ -23,14 +25,22 @@ public class PublicacionService implements PublicacionUseCase {
     private final TransaccionPort transaccion;
     private final Clock reloj;
     private final PoliticaAcceso acceso;
+    private final GestionFotosPort gestionFotos;
+    private final InteresRepositoryPort interesadosRepo;
+    private final PerfilContactoPort perfilesContacto;
 
     public PublicacionService(PublicacionRepositoryPort publicaciones, CategoriaRepositoryPort categorias,
-                              TransaccionPort transaccion, Clock reloj, PoliticaAcceso acceso) {
+                              TransaccionPort transaccion, Clock reloj, PoliticaAcceso acceso,
+                              GestionFotosPort gestionFotos, InteresRepositoryPort interesados,
+                              PerfilContactoPort perfilesContacto) {
         this.publicaciones = publicaciones;
         this.categorias = categorias;
         this.transaccion = transaccion;
         this.reloj = reloj;
         this.acceso = acceso;
+        this.gestionFotos = gestionFotos;
+        this.interesadosRepo = interesados;
+        this.perfilesContacto = perfilesContacto;
     }
 
     @Override
@@ -44,6 +54,7 @@ public class PublicacionService implements PublicacionUseCase {
                 : c.fotos().stream().map(f -> new Foto(f.url(), f.tipo(), f.tamanoBytes())).toList();
         return transaccion.ejecutar(() -> {
             Categoria categoria = cargarCategoria(c.categoria());
+            gestionFotos.verificar(actor, fotos, List.of());
             return publicaciones.guardar(Publicacion.publicar(c.titulo(), c.descripcion(), c.precio(), estado, categoria,
                     fotos, contacto, actor.username(), reloj.instant()));
         });
@@ -79,7 +90,27 @@ public class PublicacionService implements PublicacionUseCase {
 
     @Override
     public Contacto contacto(Actor actor, long id) {
-        return cargarVisible(actor, id).contactoDisponible();
+        Publicacion p = cargarVisible(actor, id);
+        Contacto contacto = p.contactoDisponible();
+        if (!acceso.esAutor(p, actor) && !actor.esAdmin()) {
+            interesadosRepo.registrar(id, actor.username(), reloj.instant());
+        }
+        return contacto;
+    }
+
+    @Override
+    public List<InteresadoVista> interesados(Actor actor, long id) {
+        return transaccion.ejecutar(() -> {
+            Publicacion p = cargarNoArchivada(id);
+            acceso.asegurarEsAutor(p, actor);
+            List<Interesado> lista = interesadosRepo.listar(id);
+            Map<String, ContactoPerfil> contactos = perfilesContacto.contactos(
+                    lista.stream().map(Interesado::usuario).distinct().toList());
+            return lista.stream().map(i -> {
+                ContactoPerfil c = contactos.getOrDefault(i.usuario(), new ContactoPerfil(i.usuario(), null));
+                return new InteresadoVista(c.nombre(), c.telefono(), i.veces(), i.ultimaVez());
+            }).toList();
+        });
     }
 
     @Override
@@ -92,12 +123,18 @@ public class PublicacionService implements PublicacionUseCase {
         Validacion.exigir("título", c.titulo(), "descripción", c.descripcion(), "precio", c.precio(),
                 "estado", c.estado(), "categoría", c.categoria());
         EstadoArticulo estado = EstadoArticulo.de(c.estado());
+        List<Foto> fotos = c.fotos() == null ? null
+                : c.fotos().stream().map(f -> f == null ? null : new Foto(f.url(), f.tipo(), f.tamanoBytes())).toList();
         return transaccion.ejecutar(() -> {
             Publicacion p = cargarNoArchivada(c.id());
             acceso.asegurarEsAutor(p, actor);
             Categoria categoria = cargarCategoria(c.categoria());
-            p.editar(c.titulo(), c.descripcion(), c.precio(), estado, categoria);
-            return publicaciones.guardar(p);
+            List<Foto> anteriores = List.copyOf(p.getFotos());
+            if (fotos != null) gestionFotos.verificar(actor, fotos, anteriores);
+            p.editar(c.titulo(), c.descripcion(), c.precio(), estado, categoria, fotos);
+            Publicacion guardada = publicaciones.guardar(p);
+            if (fotos != null) gestionFotos.retirar(actor, anteriores, guardada.getFotos());
+            return guardada;
         });
     }
 
@@ -116,6 +153,7 @@ public class PublicacionService implements PublicacionUseCase {
         transaccion.ejecutar(() -> {
             Publicacion p = cargarNoArchivada(id);
             acceso.asegurarPuedeEliminar(p, actor);
+            interesadosRepo.eliminarPorPublicacion(id);
             publicaciones.eliminar(id);
             return null;
         });

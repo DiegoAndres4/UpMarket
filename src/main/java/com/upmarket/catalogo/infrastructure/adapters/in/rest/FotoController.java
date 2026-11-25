@@ -3,6 +3,8 @@ package com.upmarket.catalogo.infrastructure.adapters.in.rest;
 import com.upmarket.catalogo.application.port.out.AlmacenFotosPort;
 import com.upmarket.catalogo.infrastructure.adapters.in.rest.dto.FotoDto;
 import com.upmarket.catalogo.infrastructure.storage.AlmacenFotosLocal;
+import com.upmarket.catalogo.infrastructure.storage.FotoSubida;
+import com.upmarket.catalogo.infrastructure.storage.FotoSubidaRepository;
 import java.io.IOException;
 import java.net.URI;
 import java.util.concurrent.TimeUnit;
@@ -24,16 +26,19 @@ public class FotoController {
 
     private final AlmacenFotosPort almacen;
     private final AlmacenFotosLocal local;
+    private final FotoSubidaRepository fotosSubidas;
 
-    public FotoController(AlmacenFotosPort almacen, AlmacenFotosLocal local) {
+    public FotoController(AlmacenFotosPort almacen, AlmacenFotosLocal local, FotoSubidaRepository fotosSubidas) {
         this.almacen = almacen;
         this.local = local;
+        this.fotosSubidas = fotosSubidas;
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<FotoDto> subir(@RequestParam("archivo") MultipartFile archivo) throws IOException {
-        ActorActual.obtener(); // exige un usuario autenticado
+        Long usuarioId = ActorActual.idUsuario();
         var foto = almacen.guardar(archivo.getBytes(), AlmacenFotosPort.CARPETA_PUBLICACIONES);
+        fotosSubidas.saveAndFlush(new FotoSubida(foto.url(), usuarioId));
         var dto = FotoDto.de(foto);
         return ResponseEntity.created(URI.create(dto.url())).body(dto);
     }
